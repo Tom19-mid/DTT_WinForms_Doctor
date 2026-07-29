@@ -49,4 +49,31 @@ namespace DTT.Doctor.Services.Models
         public int StockQuantity { get; set; }
         public string DefaultUsage { get; set; } = string.Empty;
     }
+
+    public class PrescribedDrugItem
+    {
+        public int MedicineId { get; set; }
+        public string MedicineName { get; set; } = string.Empty;
+        public string Unit { get; set; } = "Viên";
+        public int Quantity { get; set; } = 10;
+        public string Dosage { get; set; } = "500mg";
+        public string Frequency { get; set; } = "2 lần/ngày";
+        public string UsageInstruction { get; set; } = "Uống sau ăn 30 phút";
+    }
+
+    public class SaveClinicalRecordRequest
+    {
+        public int AppointmentId { get; set; }
+        public int PatientId { get; set; }
+        public int DoctorId { get; set; }
+        public string Pulse { get; set; } = string.Empty;
+        public string BloodPressure { get; set; } = string.Empty;
+        public string Temperature { get; set; } = string.Empty;
+        public string Weight { get; set; } = string.Empty;
+        public string Height { get; set; } = string.Empty;
+        public string Symptoms { get; set; } = string.Empty;
+        public string Diagnosis { get; set; } = string.Empty;
+        public string TreatmentPlan { get; set; } = string.Empty;
+        public System.Collections.Generic.List<PrescribedDrugItem> Prescriptions { get; set; } = new System.Collections.Generic.List<PrescribedDrugItem>();
+    }
 }

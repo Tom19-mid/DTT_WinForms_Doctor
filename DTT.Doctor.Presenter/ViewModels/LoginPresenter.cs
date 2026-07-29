@@ -27,7 +27,7 @@ namespace DTT.Doctor.Presenter.ViewModels
         {
             if (string.IsNullOrWhiteSpace(phone))
             {
-                _view.OnLoginFailure("Vui lòng nhập Số điện thoại hoặc Tên đăng nhập Bác sĩ.");
+                _view.OnLoginFailure("Vui lòng nhập Số điện thoại.");
                 return;
             }
 

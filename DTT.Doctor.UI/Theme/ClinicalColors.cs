@@ -43,10 +43,13 @@ namespace DTT.Doctor.UI.Theme
         }
 
         // ReaLTaiizor Theme Configuration Helper
-        public static void ConfigureMaterialSkin(MaterialForm form)
+        public static void ConfigureMaterialSkin(System.Windows.Forms.Form form = null)
         {
             var manager = MaterialSkinManager.Instance;
-            manager.AddFormToManage(form);
+            if (form is MaterialForm mf)
+            {
+                manager.AddFormToManage(mf);
+            }
             manager.Theme = MaterialSkinManager.Themes.LIGHT;
             manager.ColorScheme = new MaterialColorScheme(
                 DeepNavy,                     // Primary (#4338CA - Modern Healthcare Indigo)

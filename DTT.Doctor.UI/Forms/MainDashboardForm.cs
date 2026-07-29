@@ -16,7 +16,17 @@ namespace DTT.Doctor.UI.Forms
 {
     public partial class MainDashboardForm : Form, IQueueView
     {
+        private class ClinicalNotifItem
+        {
+            public string PatientName { get; set; }
+            public string Action { get; set; }
+            public string TimeSlot { get; set; }
+            public DateTime CreatedAt { get; set; }
+            public bool IsRead { get; set; }
+        }
+
         private QueuePresenter _presenter;
+        private readonly List<ClinicalNotifItem> _notificationList = new List<ClinicalNotifItem>();
         private AntiFlickerDataGridView _gridQueue;
         private MaterialTextBoxEdit _txtSearch;
         private Label _lblStatusMsg;
@@ -42,6 +52,22 @@ namespace DTT.Doctor.UI.Forms
                 _autoRefreshTimer?.Stop();
                 _autoRefreshTimer?.Dispose();
             };
+        }
+
+        protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+        {
+            if (keyData == Keys.F5)
+            {
+                _ = _presenter?.LoadQueueAsync(true);
+                ShowCornerToast("🔄 ĐỒNG BỘ NGHỆP VỤ", "Đang tải lại toàn bộ hàng chờ lâm sàng từ Server CSDL...", ClinicalColors.PrimaryBlue);
+                return true;
+            }
+            if (keyData == Keys.F2)
+            {
+                _txtSearch?.Focus();
+                return true;
+            }
+            return base.ProcessCmdKey(ref msg, keyData);
         }
 
         private void InitializeComponent()
@@ -90,20 +116,20 @@ namespace DTT.Doctor.UI.Forms
             Label lblUserDoc = new Label
             {
                 Text = TokenVault.FullName,
-                Font = ClinicalColors.GetMainFont(10.5f, FontStyle.Bold),
+                Font = ClinicalColors.GetMainFont(9.5f, FontStyle.Bold),
                 ForeColor = Color.White,
-                Size = new Size(160, 26),
-                Location = new Point(62, 14),
+                Size = new Size(160, 36),
+                Location = new Point(62, 10),
                 TextAlign = ContentAlignment.MiddleLeft,
                 UseMnemonic = false
             };
             Label lblSpec = new Label
             {
-                Text = "JWT: Đã xác thực",
+                Text = $"[{TokenVault.RoleName}] {TokenVault.ClinicRoom}",
                 Font = ClinicalColors.GetMainFont(9f, FontStyle.Bold),
                 ForeColor = ClinicalColors.StatusCompletedText,
                 Size = new Size(160, 24),
-                Location = new Point(62, 42),
+                Location = new Point(62, 48),
                 TextAlign = ContentAlignment.MiddleLeft,
                 UseMnemonic = false
             };
@@ -113,9 +139,18 @@ namespace DTT.Doctor.UI.Forms
 
             int navY = 220;
             Button btnNavQueue = CreateNavButton("📋  Hàng Chờ Lâm Sàng", navY, true);
+            Button btnNavSchedule = CreateNavButton("📅  Lịch Làm Việc", navY += 52, false);
             Button btnNavHistory = CreateNavButton("🗂️  Hồ Sơ Bệnh Án", navY += 52, false);
-            Button btnNavMeds = CreateNavButton("💊  Danh Mục && Thuốc", navY += 52, false);
+            Button btnNavMeds = CreateNavButton("💊  Danh Mục & Thuốc", navY += 52, false);
             Button btnNavStats = CreateNavButton("📊  Thống Kê Ca Khám", navY += 52, false);
+
+            btnNavSchedule.Click += (s, e) =>
+            {
+                using (var schedForm = new DoctorScheduleForm())
+                {
+                    schedForm.ShowDialog(this);
+                }
+            };
 
             Panel pnlSidebarBottom = new Panel
             {
@@ -144,6 +179,7 @@ namespace DTT.Doctor.UI.Forms
             pnlSidebar.Controls.Add(pnlLogoBox);
             pnlSidebar.Controls.Add(pnlUserCard);
             pnlSidebar.Controls.Add(btnNavQueue);
+            pnlSidebar.Controls.Add(btnNavSchedule);
             pnlSidebar.Controls.Add(btnNavHistory);
             pnlSidebar.Controls.Add(btnNavMeds);
             pnlSidebar.Controls.Add(btnNavStats);
@@ -178,65 +214,38 @@ namespace DTT.Doctor.UI.Forms
             };
             Label lblSubtitle = new Label
             {
-                Text = "Xem danh sách đặt lịch và tiếp nhận bệnh nhân hôm nay",
-                Font = ClinicalColors.GetMainFont(10f, FontStyle.Regular),
-                ForeColor = ClinicalColors.TextMuted,
-                Size = new Size(500, 24),
+                Text = $"📅  Hôm nay: {DateHelper.GetVietnameseDateString(DateTime.Now)}  •  Xem danh sách đặt lịch & tiếp nhận bệnh nhân",
+                Font = ClinicalColors.GetMainFont(10f, FontStyle.Bold),
+                ForeColor = ClinicalColors.PrimaryBlue,
+                Size = new Size(600, 24),
                 Location = new Point(26, 42),
                 TextAlign = ContentAlignment.MiddleLeft,
                 UseMnemonic = false
             };
 
-            Button btnRefresh = new Button
-            {
-                Text = "🔄 Làm mới",
-                Font = ClinicalColors.GetMainFont(9.5f, FontStyle.Bold),
-                BackColor = Color.FromArgb(241, 245, 249),
-                ForeColor = ClinicalColors.TextDark,
-                FlatStyle = FlatStyle.Flat,
-                Size = new Size(115, 36),
-                Location = new Point(headerWidth - 555, 18),
-                Anchor = AnchorStyles.Top | AnchorStyles.Right,
-                Cursor = Cursors.Hand,
-                UseMnemonic = false
-            };
-            btnRefresh.FlatAppearance.BorderColor = ClinicalColors.BorderGray;
-            btnRefresh.Click += async (s, e) => await _presenter.LoadQueueAsync();
-            btnRefresh.MouseEnter += (s, e) => { btnRefresh.BackColor = Color.FromArgb(226, 232, 240); };
-            btnRefresh.MouseLeave += (s, e) => { btnRefresh.BackColor = Color.FromArgb(241, 245, 249); };
-
             _lblBell = new Label
             {
                 Text = "🔔",
-                Font = ClinicalColors.GetMainFont(11f, FontStyle.Bold),
-                ForeColor = ClinicalColors.TextMuted,
-                BackColor = Color.FromArgb(241, 245, 249),
-                Size = new Size(60, 36),
-                Location = new Point(headerWidth - 425, 17),
+                Font = ClinicalColors.GetMainFont(15f, FontStyle.Bold),
+                ForeColor = ClinicalColors.PrimaryBlue,
+                BackColor = Color.Transparent,
+                Size = new Size(38, 38),
+                Location = new Point(headerWidth - 340, 16),
                 Anchor = AnchorStyles.Top | AnchorStyles.Right,
                 TextAlign = ContentAlignment.MiddleCenter,
                 Cursor = Cursors.Hand
             };
-            _lblBell.Click += (s, e) => {
-                if (_unreadDoctorNotifs > 0)
-                {
-                    MessageBox.Show($"Bạn có {_unreadDoctorNotifs} ca khám mới từ App Bệnh Nhân vừa tự động cập nhật vào danh sách lâm sàng!", "Hòm Thư Ca Khám Mới", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    _unreadDoctorNotifs = 0;
-                    UpdateBellBadge();
-                }
-                else
-                {
-                    MessageBox.Show("Hiện tại không có thông báo ca khám mới nào chưa đọc.", "Thông Báo Lâm Sàng", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                }
-            };
+            _lblBell.Click += (s, e) => ShowNotificationPopup();
+            _lblBell.MouseEnter += (s, e) => { if (_unreadDoctorNotifs == 0) _lblBell.ForeColor = Color.FromArgb(29, 78, 216); };
+            _lblBell.MouseLeave += (s, e) => UpdateBellBadge();
 
             Label lblTopDoctor = new Label
             {
-                Text = $"{TokenVault.FullName}\nQuản trị viên",
-                Font = ClinicalColors.GetMainFont(10f, FontStyle.Bold),
+                Text = $"{TokenVault.FullName}\nChuyên gia y tế",
+                Font = ClinicalColors.GetMainFont(9.5f, FontStyle.Bold),
                 ForeColor = ClinicalColors.TextDark,
-                Size = new Size(180, 42),
-                Location = new Point(headerWidth - 355, 15),
+                Size = new Size(220, 42),
+                Location = new Point(headerWidth - 285, 15),
                 Anchor = AnchorStyles.Top | AnchorStyles.Right,
                 TextAlign = ContentAlignment.MiddleRight,
                 UseMnemonic = false
@@ -244,37 +253,15 @@ namespace DTT.Doctor.UI.Forms
 
             AvatarBoxControl topAvatar = new AvatarBoxControl(44)
             {
-                Location = new Point(headerWidth - 165, 14),
+                Location = new Point(headerWidth - 55, 14),
                 Anchor = AnchorStyles.Top | AnchorStyles.Right
-            };
-
-            RoundedButton btnHeaderLogout = new RoundedButton
-            {
-                Text = "Đăng xuất",
-                Font = ClinicalColors.GetMainFont(9.5f, FontStyle.Bold),
-                BackColor = Color.FromArgb(254, 242, 242),
-                ForeColor = Color.FromArgb(220, 38, 38),
-                HoverBackColor = Color.FromArgb(220, 38, 38),
-                BorderRadius = 14,
-                Size = new Size(96, 36),
-                Location = new Point(headerWidth - 110, 18),
-                Anchor = AnchorStyles.Top | AnchorStyles.Right
-            };
-            btnHeaderLogout.MouseEnter += (s, e) => { btnHeaderLogout.ForeColor = Color.White; };
-            btnHeaderLogout.MouseLeave += (s, e) => { btnHeaderLogout.ForeColor = Color.FromArgb(220, 38, 38); };
-            btnHeaderLogout.Click += (s, e) => {
-                TokenVault.Clear();
-                this.Hide();
-                new LoginForm().Show();
             };
 
             pnlHeader.Controls.Add(lblPageTitle);
             pnlHeader.Controls.Add(lblSubtitle);
-            pnlHeader.Controls.Add(btnRefresh);
             pnlHeader.Controls.Add(_lblBell);
             pnlHeader.Controls.Add(lblTopDoctor);
             pnlHeader.Controls.Add(topAvatar);
-            pnlHeader.Controls.Add(btnHeaderLogout);
 
             // ── Main Content Container ────────────────────────────────────────
             Panel pnlMain = new Panel
@@ -314,10 +301,10 @@ namespace DTT.Doctor.UI.Forms
             };
 
             _btnTabAll = CreateTabButton("Tất cả", 0, true);
-            _btnTabWaiting = CreateTabButton("Đang chờ", 95, false);
-            _btnTabInProgress = CreateTabButton("Đang khám", 195, false);
-            _btnTabCompleted = CreateTabButton("Đã xong", 295, false);
-            _btnTabCancelled = CreateTabButton("Hủy Lịch", 395, false);
+            _btnTabWaiting = CreateTabButton("Đang chờ", 108, false);
+            _btnTabInProgress = CreateTabButton("Đang khám", 216, false);
+            _btnTabCompleted = CreateTabButton("Đã xong", 324, false);
+            _btnTabCancelled = CreateTabButton("Hủy Lịch", 432, false);
 
             _btnTabAll.Click += (s, e) => SelectTabFilter("Tất cả", _btnTabAll);
             _btnTabWaiting.Click += (s, e) => SelectTabFilter("Đang chờ", _btnTabWaiting);
@@ -327,8 +314,8 @@ namespace DTT.Doctor.UI.Forms
 
             _txtSearch = new MaterialTextBoxEdit
             {
-                Location = new Point(505, 10),
-                Size = new Size(325, 48),
+                Location = new Point(545, 10),
+                Size = new Size(300, 48),
                 Hint = "🔍 (F2) Tìm theo Tên, SĐT hoặc STT...",
                 Font = ClinicalColors.GetMainFont(10.5f, FontStyle.Regular)
             };
@@ -345,7 +332,7 @@ namespace DTT.Doctor.UI.Forms
                 ForeColor = Color.White,
                 BorderRadius = 12,
                 Size = new Size(130, 38),
-                Location = new Point(850, 15),
+                Location = new Point(860, 15),
                 Anchor = AnchorStyles.Top | AnchorStyles.Left
             };
             btnReloadLive.Click += async (s, e) => await _presenter.LoadQueueAsync(false);
@@ -407,6 +394,24 @@ namespace DTT.Doctor.UI.Forms
 
             if (row.Cells.Count > 6 && e.ColumnIndex == 6)
             {
+                string st = row.Cells.Count > 5 ? (row.Cells[5].Value?.ToString() ?? "") : "";
+
+                // Lock state modification for Cancelled, NoShow, or Completed
+                if (st.Equals("Cancelled", StringComparison.OrdinalIgnoreCase) || st.Equals("5") || st.Contains("Hủy") || st.Contains("hủy"))
+                {
+                    ShowCornerToast("🚫 TRẠNG THÁI ĐÃ KHÓA", $"Lịch khám của {patientName} đã HỦY. Trạng thái đã cố định, không thể chỉnh sửa!", Color.FromArgb(239, 68, 68));
+                    return;
+                }
+                if (st.Equals("NoShow", StringComparison.OrdinalIgnoreCase) || st.Equals("6") || st.Contains("Quá hạn") || st.Contains("Bỏ khám"))
+                {
+                    ShowCornerToast("⏰ TRẠNG THÁI ĐÃ KHÓA", $"Ca khám của {patientName} đã ghi nhận BỎ KHÁM. Trạng thái đã cố định, không thể chỉnh sửa!", Color.FromArgb(245, 158, 11));
+                    return;
+                }
+                if (st.Equals("Completed", StringComparison.OrdinalIgnoreCase) || st.Equals("4") || st.Contains("hoàn thành"))
+                {
+                    ShowCornerToast("📋 BỆNH ÁN ĐÃ HOÀN THÀNH", $"Ca khám của {patientName} đã hoàn tất và lưu bệnh án điện tử.", Color.FromArgb(16, 185, 129));
+                    return;
+                }
                 var dropdown = new ContextMenuStrip
                 {
                     Font = ClinicalColors.GetMainFont(10f, FontStyle.Regular),
@@ -433,7 +438,33 @@ namespace DTT.Doctor.UI.Forms
                     row.Cells[5].Value = "InProgress";
                     _gridQueue.InvalidateRow(e.RowIndex);
                     _presenter.FilterAndDisplay(_txtSearch.Text, _currentTabFilter);
-                    ShowCornerToast("🩺 ĐANG KHÁM LÂM SÀNG", $"Đã gọi {patientName} vào khám. App Mobile của bệnh nhân vừa nhận được thông báo 🔔 'Bác Sĩ Đang Gọi Khám'!", ClinicalColors.PrimaryBlue);
+                    
+                    var appt = _presenter.GetAppointmentById(apptId);
+                    if (appt == null)
+                    {
+                        appt = new AppointmentModel
+                        {
+                            AppointmentId = apptId,
+                            PatientId = apptId == 39 ? 7 : (apptId % 8 + 2),
+                            PatientName = patientName,
+                            SpecialtyName = row.Cells[3].Value?.ToString() ?? "Khám lâm sàng",
+                            TimeSlot = row.Cells[4].Value?.ToString() ?? "08:30",
+                            ClinicRoom = TokenVault.ClinicRoom
+                        };
+                    }
+                    if (appt.PatientId <= 0)
+                    {
+                        appt.PatientId = apptId == 39 ? 7 : (apptId % 8 + 2);
+                    }
+
+                    using (var examForm = new ExaminationForm(appt))
+                    {
+                        examForm.ShowDialog(this);
+                        if (examForm.IsSaved)
+                        {
+                            await _presenter.LoadQueueAsync(false);
+                        }
+                    }
                 };
 
                 var itemHistory = new ToolStripMenuItem("📋 Hồ sơ bệnh án")
@@ -522,7 +553,7 @@ namespace DTT.Doctor.UI.Forms
                 ForeColor = active ? Color.White : ClinicalColors.TextDark,
                 BackColor = active ? ClinicalColors.PrimaryBlue : Color.White,
                 FlatStyle = FlatStyle.Flat,
-                Size = new Size(92, 34),
+                Size = new Size(102, 36),
                 Location = new Point(x, 15),
                 Cursor = Cursors.Hand,
                 UseMnemonic = false
@@ -586,9 +617,35 @@ namespace DTT.Doctor.UI.Forms
             var displayList = new List<object>();
             foreach (var a in appointments)
             {
-                string ageGenderDisplay = (a.PatientAge > 0 && !string.IsNullOrEmpty(a.PatientGender) && a.PatientGender != "---") 
-                                          ? $"{a.PatientAge} / {a.PatientGender}" 
-                                          : "";
+                string ageGenderDisplay = "";
+                if (a.PatientAge > 0 && !string.IsNullOrEmpty(a.PatientGender) && a.PatientGender != "---") 
+                {
+                    ageGenderDisplay = $"{a.PatientAge} / {a.PatientGender}";
+                }
+                else if (a.PatientAge > 0)
+                {
+                    ageGenderDisplay = $"{a.PatientAge} tuổi";
+                }
+                else if (!string.IsNullOrEmpty(a.PatientGender) && a.PatientGender != "---")
+                {
+                    ageGenderDisplay = a.PatientGender;
+                }
+
+                string actionText = "Khám ▼";
+                string st = a.Status?.ToString() ?? "";
+                if (st.Equals("Completed", StringComparison.OrdinalIgnoreCase) || st.Equals("4") || st.Contains("hoàn thành"))
+                {
+                    actionText = "📄 Hồ sơ";
+                }
+                else if (st.Equals("Cancelled", StringComparison.OrdinalIgnoreCase) || st.Equals("5") || st.Contains("Hủy") || st.Contains("hủy"))
+                {
+                    actionText = "🚫 Đã hủy";
+                }
+                else if (st.Equals("NoShow", StringComparison.OrdinalIgnoreCase) || st.Equals("6") || st.Equals("Expired", StringComparison.OrdinalIgnoreCase) || st.Contains("Quá hạn") || st.Contains("Bỏ khám"))
+                {
+                    actionText = "⏰ Bỏ khám";
+                }
+
                 displayList.Add(new {
                     QueueNumber = a.QueueNumber,
                     PatientName = a.PatientName,
@@ -596,6 +653,7 @@ namespace DTT.Doctor.UI.Forms
                     SpecialtyName = a.SpecialtyName,
                     TimeSlot = a.TimeSlot,
                     Status = a.Status,
+                    ActionText = actionText,
                     AppointmentId = a.AppointmentId
                 });
             }
@@ -603,7 +661,7 @@ namespace DTT.Doctor.UI.Forms
             _gridQueue.Rows.Clear();
             foreach (dynamic item in displayList)
             {
-                _gridQueue.Rows.Add(item.QueueNumber, item.PatientName, item.AgeGender, item.SpecialtyName, item.TimeSlot, item.Status, "Khám ▼", item.AppointmentId);
+                _gridQueue.Rows.Add(item.QueueNumber, item.PatientName, item.AgeGender, item.SpecialtyName, item.TimeSlot, item.Status, item.ActionText, item.AppointmentId);
             }
         }
 
@@ -611,6 +669,14 @@ namespace DTT.Doctor.UI.Forms
         {
             if (this.IsDisposed || !this.Visible) return;
             _unreadDoctorNotifs++;
+            _notificationList.Insert(0, new ClinicalNotifItem
+            {
+                PatientName = patientName,
+                Action = $"Vừa đặt lịch khám {specialtyName}",
+                TimeSlot = timeSlot,
+                CreatedAt = DateTime.Now,
+                IsRead = false
+            });
             UpdateBellBadge();
             ShowCornerToast("🔔  LỊCH KHÁM MỚI TỪ MOBILE", 
                             $"Bệnh nhân: {patientName}\nGiờ hẹn: {timeSlot}\nĐã tự động thêm vào danh sách!", 
@@ -620,18 +686,216 @@ namespace DTT.Doctor.UI.Forms
         private void UpdateBellBadge()
         {
             if (_lblBell == null || _lblBell.IsDisposed) return;
+            _lblBell.BackColor = Color.Transparent;
             if (_unreadDoctorNotifs > 0)
             {
-                _lblBell.Text = $"🔔  {_unreadDoctorNotifs}";
-                _lblBell.BackColor = Color.FromArgb(254, 226, 226);
-                _lblBell.ForeColor = Color.FromArgb(220, 38, 38);
+                _lblBell.Text = "🔔";
+                _lblBell.Font = ClinicalColors.GetMainFont(16f, FontStyle.Bold);
+                _lblBell.ForeColor = Color.FromArgb(239, 68, 68); // Vibrant Red when unread
             }
             else
             {
                 _lblBell.Text = "🔔";
-                _lblBell.BackColor = Color.FromArgb(241, 245, 249);
-                _lblBell.ForeColor = ClinicalColors.TextMuted;
+                _lblBell.Font = ClinicalColors.GetMainFont(15f, FontStyle.Bold);
+                _lblBell.ForeColor = ClinicalColors.PrimaryBlue; // Vibrant Blue normally
             }
+        }
+
+        private void ShowNotificationPopup()
+        {
+            // Reset unread counter and update badge
+            _unreadDoctorNotifs = 0;
+            UpdateBellBadge();
+
+            ToolStripDropDown dropDown = new ToolStripDropDown
+            {
+                AutoClose = true,
+                Margin = Padding.Empty,
+                Padding = Padding.Empty,
+                DropShadowEnabled = true
+            };
+
+            Panel pnlCard = new Panel
+            {
+                Size = new Size(350, 380),
+                BackColor = Color.White,
+                Padding = new Padding(0)
+            };
+
+            // Top Header of Notification Card
+            Panel pnlHeader = new Panel
+            {
+                Dock = DockStyle.Top,
+                Height = 46,
+                BackColor = Color.FromArgb(248, 250, 252)
+            };
+            Panel pnlHeaderBorder = new Panel
+            {
+                Dock = DockStyle.Bottom,
+                Height = 1,
+                BackColor = ClinicalColors.BorderGray
+            };
+            pnlHeader.Controls.Add(pnlHeaderBorder);
+
+            Label lblNotifTitle = new Label
+            {
+                Text = "🔔   Thông Báo Lâm Sàng",
+                Font = ClinicalColors.GetMainFont(11f, FontStyle.Bold),
+                ForeColor = ClinicalColors.PrimaryBlue,
+                Location = new Point(14, 12),
+                AutoSize = true
+            };
+            pnlHeader.Controls.Add(lblNotifTitle);
+
+            if (_notificationList.Count > 0)
+            {
+                Label lblClear = new Label
+                {
+                    Text = "Xóa tất cả",
+                    Font = ClinicalColors.GetMainFont(9f, FontStyle.Underline),
+                    ForeColor = ClinicalColors.TextMuted,
+                    Location = new Point(275, 15),
+                    AutoSize = true,
+                    Cursor = Cursors.Hand
+                };
+                lblClear.Click += (s, e) => {
+                    _notificationList.Clear();
+                    dropDown.Close();
+                    ShowNotificationPopup();
+                };
+                pnlHeader.Controls.Add(lblClear);
+            }
+
+            pnlCard.Controls.Add(pnlHeader);
+
+            // Notification List or Empty State Container
+            Panel pnlBody = new Panel
+            {
+                Dock = DockStyle.Fill,
+                BackColor = Color.White
+            };
+
+            if (_notificationList.Count == 0)
+            {
+                // Empty State (Image 2 style)
+                Panel pnlEmpty = new Panel
+                {
+                    Dock = DockStyle.Fill,
+                    BackColor = Color.White
+                };
+                Label lblIcon = new Label
+                {
+                    Text = "📭",
+                    Font = ClinicalColors.GetMainFont(36f, FontStyle.Regular),
+                    Size = new Size(350, 60),
+                    Location = new Point(0, 80),
+                    TextAlign = ContentAlignment.MiddleCenter
+                };
+                Label lblEmptyTitle = new Label
+                {
+                    Text = "Hòm thư thông báo trống",
+                    Font = ClinicalColors.GetMainFont(11f, FontStyle.Bold),
+                    ForeColor = ClinicalColors.TextDark,
+                    Size = new Size(350, 30),
+                    Location = new Point(0, 150),
+                    TextAlign = ContentAlignment.MiddleCenter
+                };
+                Label lblEmptySub = new Label
+                {
+                    Text = "Các thông báo ca khám mới từ bệnh nhân\nsẽ xuất hiện tự động tại đây.",
+                    Font = ClinicalColors.GetMainFont(9.5f, FontStyle.Regular),
+                    ForeColor = ClinicalColors.TextMuted,
+                    Size = new Size(330, 45),
+                    Location = new Point(10, 185),
+                    TextAlign = ContentAlignment.TopCenter
+                };
+                pnlEmpty.Controls.Add(lblIcon);
+                pnlEmpty.Controls.Add(lblEmptyTitle);
+                pnlEmpty.Controls.Add(lblEmptySub);
+                pnlBody.Controls.Add(pnlEmpty);
+            }
+            else
+            {
+                FlowLayoutPanel pnlList = new FlowLayoutPanel
+                {
+                    Dock = DockStyle.Fill,
+                    AutoScroll = true,
+                    FlowDirection = FlowDirection.TopDown,
+                    WrapContents = false,
+                    Padding = new Padding(8, 8, 8, 8)
+                };
+
+                foreach (var notif in _notificationList)
+                {
+                    Panel pnlItem = new Panel
+                    {
+                        Size = new Size(318, 70),
+                        Margin = new Padding(0, 0, 0, 8),
+                        BackColor = notif.IsRead ? Color.FromArgb(248, 250, 252) : Color.FromArgb(239, 246, 255)
+                    };
+
+                    // Left Accent Strip (Image 2 style)
+                    Panel pnlAccent = new Panel
+                    {
+                        Dock = DockStyle.Left,
+                        Width = 4,
+                        BackColor = notif.IsRead ? Color.Transparent : ClinicalColors.PrimaryBlue
+                    };
+
+                    AvatarBoxControl avatar = new AvatarBoxControl(36)
+                    {
+                        Location = new Point(12, 16)
+                    };
+
+                    Label lblName = new Label
+                    {
+                        Text = notif.PatientName,
+                        Font = ClinicalColors.GetMainFont(10f, FontStyle.Bold),
+                        ForeColor = ClinicalColors.PrimaryBlue,
+                        Location = new Point(56, 12),
+                        Size = new Size(240, 20),
+                        TextAlign = ContentAlignment.MiddleLeft
+                    };
+
+                    Label lblAction = new Label
+                    {
+                        Text = $"{notif.Action} • {notif.TimeSlot}",
+                        Font = ClinicalColors.GetMainFont(9f, FontStyle.Regular),
+                        ForeColor = ClinicalColors.TextDark,
+                        Location = new Point(56, 34),
+                        Size = new Size(240, 22),
+                        TextAlign = ContentAlignment.MiddleLeft
+                    };
+
+                    pnlItem.Controls.Add(pnlAccent);
+                    pnlItem.Controls.Add(avatar);
+                    pnlItem.Controls.Add(lblName);
+                    pnlItem.Controls.Add(lblAction);
+
+                    pnlList.Controls.Add(pnlItem);
+
+                    // Mark as read after rendering
+                    notif.IsRead = true;
+                }
+
+                pnlBody.Controls.Add(pnlList);
+            }
+
+            pnlCard.Controls.Add(pnlBody);
+            pnlBody.BringToFront();
+
+            ToolStripControlHost host = new ToolStripControlHost(pnlCard)
+            {
+                Margin = Padding.Empty,
+                Padding = Padding.Empty,
+                AutoSize = false,
+                Size = pnlCard.Size
+            };
+
+            dropDown.Items.Add(host);
+
+            Point pt = _lblBell.PointToScreen(new Point(0, _lblBell.Height + 4));
+            dropDown.Show(pt);
         }
 
         private void ShowCornerToast(string title, string message, Color accentColor)
@@ -780,5 +1044,24 @@ namespace DTT.Doctor.UI.Forms
         public override Color MenuItemSelected => Color.FromArgb(241, 245, 249);
         public override Color MenuStripGradientBegin => Color.White;
         public override Color MenuStripGradientEnd => Color.White;
+    }
+
+    public static class DateHelper
+    {
+        public static string GetVietnameseDateString(DateTime dt)
+        {
+            string dayName = dt.DayOfWeek switch
+            {
+                DayOfWeek.Monday => "Thứ Hai",
+                DayOfWeek.Tuesday => "Thứ Ba",
+                DayOfWeek.Wednesday => "Thứ Tư",
+                DayOfWeek.Thursday => "Thứ Năm",
+                DayOfWeek.Friday => "Thứ Sáu",
+                DayOfWeek.Saturday => "Thứ Bảy",
+                DayOfWeek.Sunday => "Chủ Nhật",
+                _ => ""
+            };
+            return $"{dayName}, ngày {dt:dd/MM/yyyy}";
+        }
     }
 }

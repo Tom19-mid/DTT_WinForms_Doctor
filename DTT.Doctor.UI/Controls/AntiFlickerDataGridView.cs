@@ -101,8 +101,13 @@ namespace DTT.Doctor.UI.Controls
                     using (var font = ClinicalColors.GetMainFont(9.5f, FontStyle.Bold))
                     using (var textBrush = new SolidBrush(Color.FromArgb(71, 85, 105)))
                     {
-                        var format = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center };
-                        Rectangle textBounds = new Rectangle(e.CellBounds.X + 12, e.CellBounds.Y, e.CellBounds.Width - 24, e.CellBounds.Height);
+                        var format = new StringFormat { 
+                            Alignment = StringAlignment.Near, 
+                            LineAlignment = StringAlignment.Center,
+                            FormatFlags = StringFormatFlags.NoWrap,
+                            Trimming = StringTrimming.EllipsisCharacter
+                        };
+                        Rectangle textBounds = new Rectangle(e.CellBounds.X + 6, e.CellBounds.Y, e.CellBounds.Width - 10, e.CellBounds.Height);
                         e.Graphics.DrawString(e.Value.ToString().ToUpper(), font, textBrush, textBounds, format);
                     }
                 }
@@ -163,6 +168,12 @@ namespace DTT.Doctor.UI.Controls
                         fg = Color.FromArgb(133, 77, 14);   // Deep gold brown
                         label = "Hủy Lịch";
                     }
+                    else if (val.Equals("NoShow", StringComparison.OrdinalIgnoreCase) || val.Equals("Expired", StringComparison.OrdinalIgnoreCase) || val.Contains("Quá hạn") || val.Contains("Bỏ khám"))
+                    {
+                        bg = Color.FromArgb(254, 215, 170); // Soft Amber/Orange
+                        fg = Color.FromArgb(194, 65, 12);   // Deep Amber Text
+                        label = "Bỏ Khám";
+                    }
 
                     e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
                     int padY = (e.CellBounds.Height - 26) / 2;
@@ -185,35 +196,57 @@ namespace DTT.Doctor.UI.Controls
                 }
                 else if (colName == "ColAction")
                 {
-                    // Sleek rounded button for "Khám ▼" exactly as requested!
+                    string actionText = e.Value != null ? e.Value.ToString() : "Khám ▼";
+
                     e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-                    int btnWidth = 84;
+                    int btnWidth = 92;
                     int btnHeight = 30;
                     int btnX = e.CellBounds.X + (e.CellBounds.Width - btnWidth) / 2;
                     int btnY = e.CellBounds.Y + (e.CellBounds.Height - btnHeight) / 2;
                     Rectangle btnRect = new Rectangle(btnX, btnY, btnWidth, btnHeight);
 
                     bool isBtnHovered = (e.RowIndex == _hoveredRow && e.ColumnIndex == _hoveredCol);
-                    Color btnBg = isBtnHovered ? ClinicalColors.PrimaryBlue : Color.FromArgb(239, 246, 255);
-                    Color btnFg = isBtnHovered ? Color.White : ClinicalColors.PrimaryBlue;
+                    
+                    Color btnBg = Color.FromArgb(239, 246, 255);
+                    Color btnBorder = ClinicalColors.PrimaryBlue;
+                    Color btnFg = ClinicalColors.PrimaryBlue;
 
-                    using (var path = CreateRoundedRectPath(btnRect, 15))
+                    if (actionText.Contains("Hồ sơ"))
+                    {
+                        btnBg = isBtnHovered ? Color.FromArgb(16, 185, 129) : Color.FromArgb(236, 253, 245);
+                        btnBorder = Color.FromArgb(16, 185, 129);
+                        btnFg = isBtnHovered ? Color.White : Color.FromArgb(16, 185, 129);
+                    }
+                    else if (actionText.Contains("hủy"))
+                    {
+                        btnBg = Color.FromArgb(241, 245, 249);
+                        btnBorder = ClinicalColors.BorderGray;
+                        btnFg = ClinicalColors.TextMuted;
+                    }
+                    else
+                    {
+                        btnBg = isBtnHovered ? ClinicalColors.PrimaryBlue : Color.FromArgb(239, 246, 255);
+                        btnBorder = ClinicalColors.PrimaryBlue;
+                        btnFg = isBtnHovered ? Color.White : ClinicalColors.PrimaryBlue;
+                    }
+
+                    using (var path = CreateRoundedRectPath(btnRect, 14))
                     {
                         using (var brush = new SolidBrush(btnBg))
                         {
                             e.Graphics.FillPath(brush, path);
                         }
-                        using (var pen = new Pen(ClinicalColors.PrimaryBlue, 1f))
+                        using (var pen = new Pen(btnBorder, 1f))
                         {
                             e.Graphics.DrawPath(pen, path);
                         }
                     }
 
-                    using (var font = ClinicalColors.GetMainFont(9.5f, FontStyle.Bold))
+                    using (var font = ClinicalColors.GetMainFont(9f, FontStyle.Bold))
                     using (var textBrush = new SolidBrush(btnFg))
                     {
                         var format = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-                        e.Graphics.DrawString("Khám ▼", font, textBrush, btnRect, format);
+                        e.Graphics.DrawString(actionText, font, textBrush, btnRect, format);
                     }
                 }
                 else if (e.Value != null)
@@ -230,8 +263,17 @@ namespace DTT.Doctor.UI.Controls
                     using (var font = ClinicalColors.GetMainFont(10f, isBold ? FontStyle.Bold : FontStyle.Regular))
                     using (var textBrush = new SolidBrush(textColor))
                     {
-                        var format = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center };
-                        Rectangle textBounds = new Rectangle(e.CellBounds.X + 12, e.CellBounds.Y, e.CellBounds.Width - 24, e.CellBounds.Height);
+                        var format = new StringFormat { 
+                            Alignment = StringAlignment.Near, 
+                            LineAlignment = StringAlignment.Center,
+                            FormatFlags = StringFormatFlags.NoWrap,
+                            Trimming = StringTrimming.EllipsisCharacter
+                        };
+                        if (colName == "ColDelete" || text.Contains("Xóa"))
+                        {
+                            format.Alignment = StringAlignment.Center;
+                        }
+                        Rectangle textBounds = new Rectangle(e.CellBounds.X + 4, e.CellBounds.Y, e.CellBounds.Width - 8, e.CellBounds.Height);
                         e.Graphics.DrawString(text, font, textBrush, textBounds, format);
                     }
                 }

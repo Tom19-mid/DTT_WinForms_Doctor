@@ -181,6 +181,21 @@ namespace DTT.Doctor.Services.Core
             }
         }
 
+        public async Task<bool> SaveClinicalRecordAsync(SaveClinicalRecordRequest req)
+        {
+            AttachBearerToken();
+            try
+            {
+                var content = new StringContent(JsonConvert.SerializeObject(req), Encoding.UTF8, "application/json");
+                var res = await _httpClient.PostAsync("/api/MedicalRecords", content);
+                return res.IsSuccessStatusCode;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         public static List<AppointmentModel> GetDemoQueueList()
         {
             string doctorSpecialty = !string.IsNullOrEmpty(TokenVault.SpecialtyName) ? TokenVault.SpecialtyName : "Khám tổng quát";
@@ -195,10 +210,48 @@ namespace DTT.Doctor.Services.Core
                 new AppointmentModel { AppointmentId = 105, QueueNumber = 5, PatientId = 6, PatientName = "Minh Dang", PatientAge = 0, PatientGender = "", SpecialtyName = doctorSpecialty, TimeSlot = "10:30", Status = "Confirmed", ClinicRoom = doctorRoom, Fee = "250.000đ" },
                 new AppointmentModel { AppointmentId = 106, QueueNumber = 6, PatientId = 7, PatientName = "DingDong", PatientAge = 0, PatientGender = "", SpecialtyName = doctorSpecialty, TimeSlot = "11:00", Status = "Completed", ClinicRoom = doctorRoom, Fee = "350.000đ" },
                 new AppointmentModel { AppointmentId = 107, QueueNumber = 7, PatientId = 8, PatientName = "Test", PatientAge = 0, PatientGender = "", SpecialtyName = doctorSpecialty, TimeSlot = "13:30", Status = "Confirmed", ClinicRoom = doctorRoom, Fee = "250.000đ" },
-                new AppointmentModel { AppointmentId = 108, QueueNumber = 8, PatientId = 9, PatientName = "tester", PatientAge = 0, PatientGender = "", SpecialtyName = doctorSpecialty, TimeSlot = "14:00", Status = "Confirmed", ClinicRoom = doctorRoom, Fee = "300.000đ" },
-                new AppointmentModel { AppointmentId = 109, QueueNumber = 9, PatientId = 10, PatientName = "Lê Quý Đôn", PatientAge = 0, PatientGender = "", SpecialtyName = doctorSpecialty, TimeSlot = "14:30", Status = "Cancelled", ClinicRoom = doctorRoom, Fee = "250.000đ" },
-                new AppointmentModel { AppointmentId = 110, QueueNumber = 10, PatientId = 11, PatientName = "Trần Gia Hân", PatientAge = 0, PatientGender = "", SpecialtyName = doctorSpecialty, TimeSlot = "15:00", Status = "Cancelled", ClinicRoom = doctorRoom, Fee = "250.000đ" }
+                new AppointmentModel { AppointmentId = 108, QueueNumber = 8, PatientId = 9, PatientName = "tester", PatientAge = 0, PatientGender = "", SpecialtyName = doctorSpecialty, TimeSlot = "14:00", Status = "Confirmed", ClinicRoom = doctorRoom, Fee = "300.000đ" }
             };
+        }
+
+        public async Task<List<MedicineModel>> GetMedicinesAsync()
+        {
+            AttachBearerToken();
+            try
+            {
+                var res = await _httpClient.GetAsync("/api/Medicines");
+                if (res.IsSuccessStatusCode)
+                {
+                    var json = await res.Content.ReadAsStringAsync();
+                    var list = JsonConvert.DeserializeObject<List<MedicineModel>>(json);
+                    if (list != null && list.Count > 0) return list;
+                }
+            }
+            catch { }
+
+            // Match exact CSDL PostgreSQL (medicines table: 3 items)
+            return new List<MedicineModel>
+            {
+                new MedicineModel { MedicineId = 1, MedicineName = "Amoxicillin 500mg", Unit = "Viên", DefaultUsage = "Uống 1 viên sau ăn 30 phút" },
+                new MedicineModel { MedicineId = 2, MedicineName = "Paracetamol 500mg", Unit = "Viên", DefaultUsage = "Uống 1 viên khi sốt > 38.5°C" },
+                new MedicineModel { MedicineId = 3, MedicineName = "Vitamin C 1000mg", Unit = "Hộp", DefaultUsage = "Pha 1 viên với 200ml nước ấm" }
+            };
+        }
+
+        public async Task<dynamic> GetDoctorSchedulesAsync(int doctorId, string dateStr)
+        {
+            AttachBearerToken();
+            try
+            {
+                var res = await _httpClient.GetAsync($"/api/Doctors/schedules?doctorId={doctorId}&dateStr={dateStr}");
+                if (res.IsSuccessStatusCode)
+                {
+                    var json = await res.Content.ReadAsStringAsync();
+                    return JsonConvert.DeserializeObject<dynamic>(json);
+                }
+            }
+            catch { }
+            return null;
         }
     }
 }

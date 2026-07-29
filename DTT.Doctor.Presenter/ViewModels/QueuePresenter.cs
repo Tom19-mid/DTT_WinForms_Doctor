@@ -32,6 +32,11 @@ namespace DTT.Doctor.Presenter.ViewModels
             _apiService = apiService ?? new ApiService();
         }
 
+        public AppointmentModel GetAppointmentById(int id)
+        {
+            return _allAppointments.FirstOrDefault(a => a.AppointmentId == id);
+        }
+
         public async Task LoadQueueAsync(bool isSilent = false)
         {
             if (!isSilent) _view.ShowLoading(true);
