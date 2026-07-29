@@ -1,4 +1,8 @@
 using System.Drawing;
+using ReaLTaiizor.Colors;
+using ReaLTaiizor.Forms;
+using ReaLTaiizor.Manager;
+using ReaLTaiizor.Util;
 
 namespace DTT.Doctor.UI.Theme
 {
@@ -36,6 +40,21 @@ namespace DTT.Doctor.UI.Theme
         public static Font GetMainFont(float size, FontStyle style = FontStyle.Regular)
         {
             return new Font("Segoe UI", size, style, GraphicsUnit.Point);
+        }
+
+        // ReaLTaiizor Theme Configuration Helper
+        public static void ConfigureMaterialSkin(MaterialForm form)
+        {
+            var manager = MaterialSkinManager.Instance;
+            manager.AddFormToManage(form);
+            manager.Theme = MaterialSkinManager.Themes.LIGHT;
+            manager.ColorScheme = new MaterialColorScheme(
+                DeepNavy,                     // Primary (#4338CA - Modern Healthcare Indigo)
+                SidebarDark,                  // Dark Primary (#312E81)
+                PrimaryBlue,                  // Light Primary (#4338CA)
+                Color.FromArgb(16, 185, 129), // Accent (Emerald #10B981)
+                MaterialTextShade.WHITE
+            );
         }
     }
 }

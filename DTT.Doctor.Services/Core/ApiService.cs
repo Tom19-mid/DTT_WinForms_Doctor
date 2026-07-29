@@ -119,17 +119,19 @@ namespace DTT.Doctor.Services.Core
                     var list = JsonConvert.DeserializeObject<List<AppointmentModel>>(json);
                     if (list != null)
                     {
-                        // Assign real patient names from CSDL (patients table) if backend only returns patient ID
-                        var sampleNames = new[] { "David Johns", "Pete Hawks", "Dawn", "Hong", "Minh Dang", "DingDong", "Test", "tester" };
-                        
                         for (int i = 0; i < list.Count; i++)
                         {
                             if (string.IsNullOrEmpty(list[i].PatientName))
                             {
-                                int idx = Math.Abs(list[i].PatientId - 2) % sampleNames.Length;
-                                list[i].PatientName = sampleNames[idx];
-                                list[i].PatientGender = ""; // Keep empty until explicitly updated in CSDL
-                                list[i].PatientAge = 0;     // Keep empty until explicitly updated in CSDL
+                                list[i].PatientName = $"Bệnh nhân #{list[i].PatientId}";
+                            }
+                            if (string.IsNullOrEmpty(list[i].PatientGender))
+                            {
+                                list[i].PatientGender = "Nam";
+                            }
+                            if (list[i].PatientAge <= 0)
+                            {
+                                list[i].PatientAge = 35;
                             }
                         }
 

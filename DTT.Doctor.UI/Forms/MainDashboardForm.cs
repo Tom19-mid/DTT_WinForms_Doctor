@@ -7,6 +7,10 @@ using DTT.Doctor.Services.Core;
 using DTT.Doctor.Services.Models;
 using DTT.Doctor.UI.Controls;
 using DTT.Doctor.UI.Theme;
+using ReaLTaiizor.Controls;
+using ReaLTaiizor.Forms;
+using Panel = System.Windows.Forms.Panel;
+using Button = System.Windows.Forms.Button;
 
 namespace DTT.Doctor.UI.Forms
 {
@@ -14,7 +18,7 @@ namespace DTT.Doctor.UI.Forms
     {
         private QueuePresenter _presenter;
         private AntiFlickerDataGridView _gridQueue;
-        private TextBox _txtSearch;
+        private MaterialTextBoxEdit _txtSearch;
         private Label _lblStatusMsg;
         private FlowLayoutPanel _pnlKpiContainer;
         private KpiCardControl _cardTotal, _cardWaiting, _cardInProgress, _cardCompleted;
@@ -321,25 +325,14 @@ namespace DTT.Doctor.UI.Forms
             _btnTabCompleted.Click += (s, e) => SelectTabFilter("Đã xong", _btnTabCompleted);
             _btnTabCancelled.Click += (s, e) => SelectTabFilter("Hủy Lịch", _btnTabCancelled);
 
-            Label lblSearchIcon = new Label
+            _txtSearch = new MaterialTextBoxEdit
             {
-                Text = "🔍 (F2):",
-                Font = ClinicalColors.GetMainFont(10.5f, FontStyle.Bold),
-                ForeColor = ClinicalColors.TextMuted,
-                Location = new Point(510, 22),
-                AutoSize = true
-            };
-
-            _txtSearch = new TextBox
-            {
-                Location = new Point(585, 17),
-                Size = new Size(240, 30),
-                Font = ClinicalColors.GetMainFont(10.5f, FontStyle.Regular),
-                PlaceholderText = "Tìm theo Tên hoặc STT..."
+                Location = new Point(505, 10),
+                Size = new Size(325, 48),
+                Hint = "🔍 (F2) Tìm theo Tên, SĐT hoặc STT...",
+                Font = ClinicalColors.GetMainFont(10.5f, FontStyle.Regular)
             };
             _txtSearch.TextChanged += (s, e) => _presenter.FilterAndDisplay(_txtSearch.Text, _currentTabFilter);
-            _txtSearch.MouseEnter += (s, e) => { _txtSearch.BackColor = Color.FromArgb(248, 250, 252); };
-            _txtSearch.MouseLeave += (s, e) => { _txtSearch.BackColor = Color.White; };
 
             _lblStatusMsg = new Label { Visible = false }; // Bỏ dòng load api, hoàn tất v.v trên homescreen
 
@@ -351,8 +344,8 @@ namespace DTT.Doctor.UI.Forms
                 HoverBackColor = Color.FromArgb(5, 150, 105),
                 ForeColor = Color.White,
                 BorderRadius = 12,
-                Size = new Size(130, 35),
-                Location = new Point(845, 14),
+                Size = new Size(130, 38),
+                Location = new Point(850, 15),
                 Anchor = AnchorStyles.Top | AnchorStyles.Left
             };
             btnReloadLive.Click += async (s, e) => await _presenter.LoadQueueAsync(false);
@@ -362,7 +355,6 @@ namespace DTT.Doctor.UI.Forms
             pnlFilterBar.Controls.Add(_btnTabInProgress);
             pnlFilterBar.Controls.Add(_btnTabCompleted);
             pnlFilterBar.Controls.Add(_btnTabCancelled);
-            pnlFilterBar.Controls.Add(lblSearchIcon);
             pnlFilterBar.Controls.Add(_txtSearch);
             pnlFilterBar.Controls.Add(btnReloadLive);
 
@@ -436,8 +428,12 @@ namespace DTT.Doctor.UI.Forms
                     Padding = itemPad,
                     Margin = itemMarg
                 };
-                itemExam.Click += (s, ev) => {
-                    ShowCornerToast("🩺 KHÁM LÂM SÀNG", $"Chuẩn bị chuyển sang màn hình khám bệnh chuyên sâu cho {patientName} (Phase 2).", ClinicalColors.PrimaryBlue);
+                itemExam.Click += async (s, ev) => {
+                    await _presenter.UpdateStatusAsync(apptId, "InProgress");
+                    row.Cells[5].Value = "InProgress";
+                    _gridQueue.InvalidateRow(e.RowIndex);
+                    _presenter.FilterAndDisplay(_txtSearch.Text, _currentTabFilter);
+                    ShowCornerToast("🩺 ĐANG KHÁM LÂM SÀNG", $"Đã gọi {patientName} vào khám. App Mobile của bệnh nhân vừa nhận được thông báo 🔔 'Bác Sĩ Đang Gọi Khám'!", ClinicalColors.PrimaryBlue);
                 };
 
                 var itemHistory = new ToolStripMenuItem("📋 Hồ sơ bệnh án")

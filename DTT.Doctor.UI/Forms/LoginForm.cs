@@ -5,16 +5,19 @@ using DTT.Doctor.Presenter.ViewModels;
 using DTT.Doctor.Services.Models;
 using DTT.Doctor.UI.Controls;
 using DTT.Doctor.UI.Theme;
+using ReaLTaiizor.Controls;
+using ReaLTaiizor.Forms;
+using Panel = System.Windows.Forms.Panel;
 
 namespace DTT.Doctor.UI.Forms
 {
-    public partial class LoginForm : Form, ILoginView
+    public partial class LoginForm : MaterialForm, ILoginView
     {
-        private TextBox _txtPhone;
-        private TextBox _txtPassword;
-        private Button _btnLogin;
+        private MaterialTextBoxEdit _txtPhone;
+        private MaterialTextBoxEdit _txtPassword;
+        private MaterialButton _btnLogin;
         private Label _lblError;
-        private ProgressBar _progLoading;
+        private MaterialProgressBar _progLoading;
         private LoginPresenter _presenter;
 
         public LoginForm()
@@ -28,10 +31,11 @@ namespace DTT.Doctor.UI.Forms
             Text = "DTT Healthcare - Cổng Đăng Nhập Không Gian Bác Sĩ";
             Size = new Size(860, 540);
             StartPosition = FormStartPosition.CenterScreen;
-            FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
+            Sizable = false;
             BackColor = Color.White;
             Font = ClinicalColors.GetMainFont(10f, FontStyle.Regular);
+            ClinicalColors.ConfigureMaterialSkin(this);
 
             // Left Branding Panel (Deep Navy)
             Panel pnlLeft = new Panel
@@ -103,8 +107,8 @@ namespace DTT.Doctor.UI.Forms
                 Font = ClinicalColors.GetMainFont(18f, FontStyle.Bold),
                 ForeColor = ClinicalColors.TextDark,
                 AutoSize = false,
-                Size = new Size(400, 40),
-                Location = new Point(50, 60),
+                Size = new Size(420, 40),
+                Location = new Point(40, 40),
                 TextAlign = ContentAlignment.MiddleLeft
             };
 
@@ -114,45 +118,27 @@ namespace DTT.Doctor.UI.Forms
                 Font = ClinicalColors.GetMainFont(10f, FontStyle.Regular),
                 ForeColor = ClinicalColors.TextMuted,
                 AutoSize = false,
-                Size = new Size(400, 25),
-                Location = new Point(50, 100),
+                Size = new Size(420, 25),
+                Location = new Point(40, 80),
                 TextAlign = ContentAlignment.MiddleLeft
             };
 
-            // Username field
-            Label lblPhone = new Label
+            _txtPhone = new MaterialTextBoxEdit
             {
-                Text = "Số điện thoại / Tên tài khoản",
-                Font = ClinicalColors.GetMainFont(9.5f, FontStyle.Bold),
-                ForeColor = ClinicalColors.TextDark,
-                Location = new Point(50, 155),
-                AutoSize = true
-            };
-
-            _txtPhone = new TextBox
-            {
-                Location = new Point(50, 180),
-                Size = new Size(380, 32),
+                Location = new Point(40, 125),
+                Size = new Size(400, 48),
+                Hint = "Số điện thoại / Tên tài khoản",
                 Font = ClinicalColors.GetMainFont(11f, FontStyle.Regular),
-                Text = "0901111111" // Default Demo Doctor A
+                Text = "0901111111"
             };
 
-            // Password field
-            Label lblPass = new Label
+            _txtPassword = new MaterialTextBoxEdit
             {
-                Text = "Mật khẩu bảo mật",
-                Font = ClinicalColors.GetMainFont(9.5f, FontStyle.Bold),
-                ForeColor = ClinicalColors.TextDark,
-                Location = new Point(50, 230),
-                AutoSize = true
-            };
-
-            _txtPassword = new TextBox
-            {
-                Location = new Point(50, 255),
-                Size = new Size(380, 32),
-                Font = ClinicalColors.GetMainFont(11f, FontStyle.Regular),
+                Location = new Point(40, 190),
+                Size = new Size(400, 48),
+                Hint = "Mật khẩu bảo mật",
                 PasswordChar = '●',
+                Font = ClinicalColors.GetMainFont(11f, FontStyle.Regular),
                 Text = "Doctor@123"
             };
 
@@ -161,32 +147,29 @@ namespace DTT.Doctor.UI.Forms
                 Text = "",
                 Font = ClinicalColors.GetMainFont(9.5f, FontStyle.Italic),
                 ForeColor = Color.FromArgb(220, 38, 38),
-                Location = new Point(50, 295),
-                Size = new Size(380, 24),
+                Location = new Point(40, 248),
+                Size = new Size(400, 24),
                 TextAlign = ContentAlignment.MiddleLeft
             };
 
-            _progLoading = new ProgressBar
+            _progLoading = new MaterialProgressBar
             {
-                Location = new Point(50, 325),
-                Size = new Size(380, 4),
+                Location = new Point(40, 275),
+                Size = new Size(400, 5),
                 Style = ProgressBarStyle.Marquee,
                 Visible = false
             };
 
-            _btnLogin = new Button
+            _btnLogin = new MaterialButton
             {
-                Text = "Đăng nhập",
-                Font = ClinicalColors.GetMainFont(11f, FontStyle.Bold),
-                BackColor = ClinicalColors.PrimaryBlue,
-                ForeColor = Color.White,
-                FlatStyle = FlatStyle.Flat,
-                Location = new Point(50, 340),
-                Size = new Size(380, 44),
+                Text = "ĐĂNG NHẬP HỆ THỐNG",
+                Type = MaterialButton.MaterialButtonType.Contained,
+                UseAccentColor = false,
+                Location = new Point(40, 295),
+                Size = new Size(400, 44),
                 Cursor = Cursors.Hand,
                 UseMnemonic = false
             };
-            _btnLogin.FlatAppearance.BorderSize = 0;
             _btnLogin.Click += async (s, e) => await _presenter.AttemptLoginAsync(_txtPhone.Text, _txtPassword.Text);
 
             // Demo Shortcut buttons & CSDL Guidance
@@ -195,60 +178,49 @@ namespace DTT.Doctor.UI.Forms
                 Text = "💡 Hỗ trợ toàn bộ 10 Bác sĩ trong CSDL (0901111111 ➔ 0910000000):",
                 Font = ClinicalColors.GetMainFont(8.5f, FontStyle.Regular),
                 ForeColor = ClinicalColors.TextMuted,
-                Location = new Point(50, 400),
+                Location = new Point(40, 365),
                 AutoSize = true
             };
 
-            Button btnDemoDoc1 = new Button
+            MaterialButton btnDemoDoc1 = new MaterialButton
             {
-                Text = "👨‍⚕️ BS. Nội (A)",
-                Font = ClinicalColors.GetMainFont(8f, FontStyle.Regular),
-                BackColor = Color.FromArgb(241, 245, 249),
-                ForeColor = ClinicalColors.TextDark,
-                FlatStyle = FlatStyle.Flat,
-                Location = new Point(50, 425),
-                Size = new Size(120, 32),
+                Text = "BS. NỘI (A)",
+                Type = MaterialButton.MaterialButtonType.Outlined,
+                Density = MaterialButton.MaterialButtonDensity.Dense,
+                Location = new Point(40, 395),
+                Size = new Size(125, 36),
                 Cursor = Cursors.Hand,
                 UseMnemonic = false
             };
-            btnDemoDoc1.FlatAppearance.BorderColor = ClinicalColors.BorderGray;
             btnDemoDoc1.Click += (s, e) => { _txtPhone.Text = "0901111111"; _txtPassword.Text = "Doctor@123"; };
 
-            Button btnDemoDoc2 = new Button
+            MaterialButton btnDemoDoc2 = new MaterialButton
             {
-                Text = "👨‍⚕️ BS. Tim (C)",
-                Font = ClinicalColors.GetMainFont(8f, FontStyle.Regular),
-                BackColor = Color.FromArgb(241, 245, 249),
-                ForeColor = ClinicalColors.TextDark,
-                FlatStyle = FlatStyle.Flat,
-                Location = new Point(180, 425),
-                Size = new Size(120, 32),
+                Text = "BS. TIM (C)",
+                Type = MaterialButton.MaterialButtonType.Outlined,
+                Density = MaterialButton.MaterialButtonDensity.Dense,
+                Location = new Point(178, 395),
+                Size = new Size(125, 36),
                 Cursor = Cursors.Hand,
                 UseMnemonic = false
             };
-            btnDemoDoc2.FlatAppearance.BorderColor = ClinicalColors.BorderGray;
-            btnDemoDoc2.Click += (s, e) => { _txtPhone.Text = "0902222222"; _txtPassword.Text = "Doctor@123"; };
+            btnDemoDoc2.Click += (s, e) => { _txtPhone.Text = "0903333333"; _txtPassword.Text = "Doctor@123"; };
 
-            Button btnDemoDoc3 = new Button
+            MaterialButton btnDemoDoc3 = new MaterialButton
             {
-                Text = "👩‍⚕️ BS. Sản (Hạnh)",
-                Font = ClinicalColors.GetMainFont(8f, FontStyle.Regular),
-                BackColor = Color.FromArgb(241, 245, 249),
-                ForeColor = ClinicalColors.TextDark,
-                FlatStyle = FlatStyle.Flat,
-                Location = new Point(310, 425),
-                Size = new Size(120, 32),
+                Text = "BS. NHI (E)",
+                Type = MaterialButton.MaterialButtonType.Outlined,
+                Density = MaterialButton.MaterialButtonDensity.Dense,
+                Location = new Point(315, 395),
+                Size = new Size(125, 36),
                 Cursor = Cursors.Hand,
                 UseMnemonic = false
             };
-            btnDemoDoc3.FlatAppearance.BorderColor = ClinicalColors.BorderGray;
             btnDemoDoc3.Click += (s, e) => { _txtPhone.Text = "0905555555"; _txtPassword.Text = "Doctor@123"; };
 
             pnlRight.Controls.Add(lblWelcome);
             pnlRight.Controls.Add(lblSubWelcome);
-            pnlRight.Controls.Add(lblPhone);
             pnlRight.Controls.Add(_txtPhone);
-            pnlRight.Controls.Add(lblPass);
             pnlRight.Controls.Add(_txtPassword);
             pnlRight.Controls.Add(_lblError);
             pnlRight.Controls.Add(_progLoading);

@@ -5,6 +5,10 @@
     <ProjectReference Include="..\DTT.Doctor.Services\DTT.Doctor.Services.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="ReaLTaiizor" Version="3.8.2.1" />
+  </ItemGroup>
+
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net9.0-windows</TargetFramework>
