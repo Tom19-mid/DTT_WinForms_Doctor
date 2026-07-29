@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\DTT.Doctor.Presenter\DTT.Doctor.Presenter.csproj" />
+    <ProjectReference Include="..\DTT.Doctor.Services\DTT.Doctor.Services.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <Nullable>disable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <NoWarn>$(NoWarn);WFO1000;WFO10001</NoWarn>
+  </PropertyGroup>
+
+</Project>
