@@ -52,14 +52,20 @@ namespace DTT.Doctor.UI.Controls
 
         public void LoadDoctorAvatar()
         {
-            string initials = "BS";
-            if (!string.IsNullOrEmpty(TokenVault.FullName))
+            string initials = "NV";
+            string cleanName = !string.IsNullOrEmpty(TokenVault.FullName) ? TokenVault.FullName : TokenVault.GetFormattedTitleName();
+            cleanName = cleanName.Replace("BS. CKII ", "").Replace("BS. CKI ", "").Replace("BS. ", "").Replace("ThS. BS ", "").Replace("TS. BS ", "").Replace("LT. ", "").Replace("ĐD. ", "").Replace("DS. ", "").Replace("KTV. ", "").Trim();
+
+            if (!string.IsNullOrEmpty(cleanName))
             {
-                var parts = TokenVault.FullName.Trim().Split(' ');
-                if (parts.Length > 0)
+                var parts = cleanName.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length >= 2)
                 {
-                    string last = parts[parts.Length - 1];
-                    if (last.Length > 0) initials = last.Substring(0, Math.Min(2, last.Length)).ToUpper();
+                    initials = (parts[parts.Length - 2][0].ToString() + parts[parts.Length - 1][0].ToString()).ToUpper();
+                }
+                else if (parts.Length == 1)
+                {
+                    initials = parts[0].Substring(0, Math.Min(2, parts[0].Length)).ToUpper();
                 }
             }
             _lblInitials.Text = initials;

@@ -101,7 +101,7 @@ namespace DTT.Doctor.Presenter.ViewModels
             // Filter by pill tab buttons
             if (statusFilter == "Đang chờ")
             {
-                filtered = filtered.Where(a => a.Status == "Confirmed" || a.Status == "Đang chờ");
+                filtered = filtered.Where(a => a.Status == "Confirmed" || a.Status == "Đang chờ" || a.Status == "CheckedIn" || a.Status == "Scheduled");
             }
             else if (statusFilter == "Đang khám")
             {
@@ -121,7 +121,7 @@ namespace DTT.Doctor.Presenter.ViewModels
 
             // Compute KPI counts from full list
             int total = _allAppointments.Count;
-            int waiting = _allAppointments.Count(a => a.Status == "Confirmed" || a.Status == "Đang chờ");
+            int waiting = _allAppointments.Count(a => a.Status == "Confirmed" || a.Status == "Đang chờ" || a.Status == "CheckedIn" || a.Status == "Scheduled");
             int inProgress = _allAppointments.Count(a => a.Status == "InProgress" || a.Status == "Đang khám");
             int completed = _allAppointments.Count(a => a.Status == "Completed" || a.Status == "Đã xong" || a.Status == "Đã hoàn thành");
 

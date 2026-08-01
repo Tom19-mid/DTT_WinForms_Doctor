@@ -31,13 +31,13 @@ namespace DTT.Doctor.UI.Forms
         private MaterialTextBoxEdit _txtDosageInstruction;
         private AntiFlickerDataGridView _gridPrescription;
 
+        private List<MedicineModel> _availableMedicines = new List<MedicineModel>();
         public bool IsSaved { get; private set; } = false;
 
         public ExaminationForm(AppointmentModel appointment)
         {
             _appointment = appointment ?? new AppointmentModel();
             InitializeComponent();
-            LoadDefaultSampleData();
         }
 
         private void InitializeComponent()
@@ -442,61 +442,91 @@ namespace DTT.Doctor.UI.Forms
             {
                 var api = new ApiService();
                 var list = await api.GetMedicinesAsync();
+                if (list != null && list.Count > 0)
+                {
+                    _availableMedicines = list;
+                }
+                else
+                {
+                    _availableMedicines = GetFallbackMedicines();
+                }
+
                 _cboDrugSelect.Items.Clear();
-                foreach (var m in list)
+                foreach (var m in _availableMedicines)
                 {
                     _cboDrugSelect.Items.Add($"{m.MedicineName} ({m.Unit})");
                 }
-                if (_cboDrugSelect.Items.Count > 0) _cboDrugSelect.SelectedIndex = 0;
+
+                _cboDrugSelect.SelectedIndexChanged -= OnDrugSelectedIndexChanged;
+                _cboDrugSelect.SelectedIndexChanged += OnDrugSelectedIndexChanged;
+
+                if (_cboDrugSelect.Items.Count > 0)
+                {
+                    _cboDrugSelect.SelectedIndex = 0;
+                }
             }
             catch
             {
+                _availableMedicines = GetFallbackMedicines();
                 _cboDrugSelect.Items.Clear();
-                _cboDrugSelect.Items.Add("Amoxicillin 500mg (Viên)");
-                _cboDrugSelect.Items.Add("Paracetamol 500mg (Viên)");
-                _cboDrugSelect.Items.Add("Vitamin C 1000mg (Hộp)");
-                _cboDrugSelect.SelectedIndex = 0;
+                foreach (var m in _availableMedicines)
+                {
+                    _cboDrugSelect.Items.Add($"{m.MedicineName} ({m.Unit})");
+                }
+
+                _cboDrugSelect.SelectedIndexChanged -= OnDrugSelectedIndexChanged;
+                _cboDrugSelect.SelectedIndexChanged += OnDrugSelectedIndexChanged;
+
+                if (_cboDrugSelect.Items.Count > 0)
+                {
+                    _cboDrugSelect.SelectedIndex = 0;
+                }
             }
         }
 
-        private void LoadDefaultSampleData()
+        private void OnDrugSelectedIndexChanged(object sender, EventArgs e)
         {
-            // Add sample drug items matching PostgreSQL database
-            _prescriptions.Add(new PrescribedDrugItem
+            int idx = _cboDrugSelect.SelectedIndex;
+            if (idx >= 0 && idx < _availableMedicines.Count)
             {
-                MedicineId = 1,
-                MedicineName = "Amoxicillin 500mg",
-                Unit = "Viên",
-                Quantity = 20,
-                Dosage = "500mg",
-                Frequency = "2 lần/ngày",
-                UsageInstruction = "Uống 1 viên sau ăn sáng, 1 viên sau ăn tối"
-            });
-            _prescriptions.Add(new PrescribedDrugItem
+                var med = _availableMedicines[idx];
+                if (!string.IsNullOrEmpty(med.DefaultUsage))
+                {
+                    _txtDosageInstruction.Text = med.DefaultUsage;
+                }
+            }
+        }
+
+        private List<MedicineModel> GetFallbackMedicines()
+        {
+            return new List<MedicineModel>
             {
-                MedicineId = 2,
-                MedicineName = "Paracetamol 500mg",
-                Unit = "Viên",
-                Quantity = 10,
-                Dosage = "500mg",
-                Frequency = "Khi sốt",
-                UsageInstruction = "Uống 1 viên khi sốt cao > 38.5°C"
-            });
-            RefreshPrescriptionGrid();
+                new MedicineModel { MedicineId = 1, MedicineName = "Amoxicillin 500mg", Unit = "Viên", DefaultUsage = "Uống 1 viên/lần, 2 lần/ngày sau ăn sáng, tối" },
+                new MedicineModel { MedicineId = 2, MedicineName = "Augmentin 1g", Unit = "Viên", DefaultUsage = "Uống 1 viên/lần, 2 lần/ngày sau ăn" },
+                new MedicineModel { MedicineId = 6, MedicineName = "Paracetamol 500mg (Panadol Extra)", Unit = "Viên", DefaultUsage = "Uống 1-2 viên/lần khi sốt >38.5°C (cách 4-6h)" },
+                new MedicineModel { MedicineId = 15, MedicineName = "Nexium mups 40mg", Unit = "Viên", DefaultUsage = "Uống 1 viên/lần/ngày trước ăn sáng 30 phút" },
+                new MedicineModel { MedicineId = 25, MedicineName = "Vitamin C 1000mg", Unit = "Hộp", DefaultUsage = "Hòa 1 viên sủi vào 200ml nước uống mỗi sáng" }
+            };
         }
 
         private void OnAddDrugClick(object sender, EventArgs e)
         {
-            string selectedDrug = _cboDrugSelect.SelectedItem?.ToString() ?? "Paracetamol 500mg";
+            int idx = _cboDrugSelect.SelectedIndex;
+            MedicineModel selectedMed = (idx >= 0 && idx < _availableMedicines.Count) ? _availableMedicines[idx] : null;
+
+            string drugName = selectedMed != null ? selectedMed.MedicineName : (_cboDrugSelect.SelectedItem?.ToString() ?? "Paracetamol 500mg");
+            string unit = selectedMed != null ? selectedMed.Unit : "Viên";
+            int medId = selectedMed != null ? selectedMed.MedicineId : (_prescriptions.Count + 1);
+
             int.TryParse(_txtQuantity.Text, out int qty);
             if (qty <= 0) qty = 10;
             string instruction = string.IsNullOrWhiteSpace(_txtDosageInstruction.Text) ? "Uống theo chỉ dẫn bác sĩ" : _txtDosageInstruction.Text;
 
             _prescriptions.Add(new PrescribedDrugItem
             {
-                MedicineId = _prescriptions.Count + 1,
-                MedicineName = selectedDrug,
-                Unit = "Viên",
+                MedicineId = medId,
+                MedicineName = drugName,
+                Unit = unit,
                 Quantity = qty,
                 Dosage = "Default",
                 UsageInstruction = instruction
@@ -524,7 +554,7 @@ namespace DTT.Doctor.UI.Forms
             await api.UpdateAppointmentStatusAsync(_appointment.AppointmentId, "Completed");
 
             IsSaved = true;
-            MessageBox.Show($"✅ ĐÃ LƯU BỆNH ÁN & HOÀN TẤT CA KHÁM!\n\nBệnh nhân: {_appointment.PatientName}\nChẩn đoán: {(!string.IsNullOrEmpty(_txtDiagnosis.Text) ? _txtDiagnosis.Text : "Khám sức khỏe")}\nSố loại thuốc đã kê: {_prescriptions.Count} thuốc\n\nApp Mobile của bệnh nhân đã tự động nhận được Bệnh án & Đơn Thuốc Điện Tử!", "Hoàn Tất Ca Khám Lâm Sàng", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show($"✅ HOÀN TẤT CA KHÁM VÀ LƯU HỒ SƠ Y TẾ!\n\n• Bệnh nhân: {_appointment.PatientName}\n• Chẩn đoán: {(!string.IsNullOrEmpty(_txtDiagnosis.Text) ? _txtDiagnosis.Text : "Khám sức khỏe")}\n• Số loại thuốc đã kê: {_prescriptions.Count} thuốc\n\nHồ sơ khám bệnh và đơn thuốc đã được ghi nhận thành công trên hệ thống.", "Hoàn Tất Ca Khám Lâm Sàng", MessageBoxButtons.OK, MessageBoxIcon.Information);
             this.Close();
         }
 

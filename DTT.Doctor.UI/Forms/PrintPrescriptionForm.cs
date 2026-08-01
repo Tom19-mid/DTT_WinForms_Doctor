@@ -11,117 +11,116 @@ using Newtonsoft.Json;
 
 namespace DTT.Doctor.UI.Forms
 {
-    public partial class PrintPrescriptionForm : Form
+    public class PrintPrescriptionForm : Form
     {
         private readonly AppointmentModel _appointment;
         private readonly SaveClinicalRecordRequest _recordRequest;
-        private readonly Panel _pnlPaper;
+        private Panel _pnlPaper;
 
         public PrintPrescriptionForm(AppointmentModel appointment, SaveClinicalRecordRequest recordRequest)
         {
             _appointment = appointment ?? new AppointmentModel();
             _recordRequest = recordRequest ?? new SaveClinicalRecordRequest();
 
-            Text = $"🖨️ Mẫu In Đơn Thuốc & Bệnh Án QR - {_appointment.PatientName}";
-            Size = new Size(860, 920);
+            InitializeComponent();
+        }
+
+        private void InitializeComponent()
+        {
+            Text = "DTT Healthcare - Xem Trái Mẫu In Đơn Thuốc";
+            Size = new Size(880, 920);
             StartPosition = FormStartPosition.CenterParent;
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
-            BackColor = Color.FromArgb(241, 245, 249); // Soft gray background for paper preview
+            BackColor = ClinicalColors.GhostWhite;
 
-            // ── Top Toolbar ─────────────────────────────────────────────────
-            Panel pnlToolBar = new Panel
+            Panel pnlTopBar = new Panel
             {
                 Dock = DockStyle.Top,
                 Height = 60,
                 BackColor = Color.White
             };
-            Panel pnlToolBorder = new Panel
+            Panel pnlBorder = new Panel
             {
                 Dock = DockStyle.Bottom,
                 Height = 1,
                 BackColor = ClinicalColors.BorderGray
             };
-            pnlToolBar.Controls.Add(pnlToolBorder);
+            pnlTopBar.Controls.Add(pnlBorder);
 
             Label lblTitle = new Label
             {
-                Text = "📄  XEM TRƯỚC MẪU IN ĐƠN THUỐC (CÓ MÃ QR CODE)",
+                Text = "XEM TRƯỚC MẪU IN ĐƠN THUỐC (CÓ MÃ QR CODE)",
                 Font = ClinicalColors.GetMainFont(11f, FontStyle.Bold),
                 ForeColor = ClinicalColors.PrimaryBlue,
-                Location = new Point(20, 15),
+                Location = new Point(24, 18),
                 AutoSize = true
             };
 
-            RoundedButton btnDoPrint = new RoundedButton
+            Button btnPrintNow = new Button
             {
-                Text = "🖨️   In Ngay",
+                Text = "In Ngay",
                 Font = ClinicalColors.GetMainFont(10f, FontStyle.Bold),
-                BackColor = Color.FromArgb(16, 185, 129),
-                HoverBackColor = Color.FromArgb(5, 150, 105),
                 ForeColor = Color.White,
-                BorderRadius = 10,
+                BackColor = Color.FromArgb(16, 185, 129),
+                FlatStyle = FlatStyle.Flat,
                 Size = new Size(130, 38),
-                Location = new Point(570, 10),
+                Location = new Point(590, 11),
                 Cursor = Cursors.Hand
             };
-            btnDoPrint.Click += OnExecutePrintClick;
+            btnPrintNow.FlatAppearance.BorderSize = 0;
+            btnPrintNow.Click += (s, e) => ExecutePrintDocument();
 
             Button btnClose = new Button
             {
                 Text = "Đóng",
-                Font = ClinicalColors.GetMainFont(9.5f, FontStyle.Regular),
+                Font = ClinicalColors.GetMainFont(10f, FontStyle.Regular),
                 ForeColor = ClinicalColors.TextMuted,
                 FlatStyle = FlatStyle.Flat,
-                Size = new Size(90, 38),
-                Location = new Point(720, 10),
+                Size = new Size(100, 38),
+                Location = new Point(735, 11),
                 Cursor = Cursors.Hand
             };
             btnClose.FlatAppearance.BorderColor = ClinicalColors.BorderGray;
             btnClose.Click += (s, e) => Close();
 
-            pnlToolBar.Controls.Add(lblTitle);
-            pnlToolBar.Controls.Add(btnDoPrint);
-            pnlToolBar.Controls.Add(btnClose);
+            pnlTopBar.Controls.Add(lblTitle);
+            pnlTopBar.Controls.Add(btnPrintNow);
+            pnlTopBar.Controls.Add(btnClose);
 
-            // ── Paper Container Scrollable Panel ─────────────────────────────
             Panel pnlScroll = new Panel
             {
                 Dock = DockStyle.Fill,
                 AutoScroll = true,
-                Padding = new Padding(25, 20, 25, 20)
+                Padding = new Padding(35, 20, 35, 20),
+                BackColor = ClinicalColors.GhostWhite
             };
 
-            // ── Paper Sheet (A4 Sheet Preview) ──────────────────────────────
             _pnlPaper = new Panel
             {
-                Size = new Size(770, 800),
-                Location = new Point(25, 10),
+                Size = new Size(770, 780),
                 BackColor = Color.White,
-                Padding = new Padding(30)
+                Location = new Point(40, 15)
             };
 
-            BuildPaperSheetContent(_pnlPaper);
-
+            BuildPaperContent(_pnlPaper);
             pnlScroll.Controls.Add(_pnlPaper);
 
             Controls.Add(pnlScroll);
-            Controls.Add(pnlToolBar);
+            Controls.Add(pnlTopBar);
         }
 
-        private void BuildPaperSheetContent(Panel paper)
+        private void BuildPaperContent(Panel paper)
         {
-            // 1. Hospital Header Line
-            Label lblHospital = new Label
+            Label lblHospitalName = new Label
             {
                 Text = "DTT HEALTHCARE HOSPITAL",
                 Font = ClinicalColors.GetMainFont(12f, FontStyle.Bold),
                 ForeColor = ClinicalColors.PrimaryBlue,
-                Location = new Point(30, 25),
+                Location = new Point(30, 24),
                 AutoSize = true
             };
-
-            Label lblAddress = new Label
+            Label lblHospitalSub = new Label
             {
                 Text = "Tầng 4, Tòa nhà DTT Medical Tower  •  Hotline: 1900 6868  •  Website: dtt-healthcare.vn",
                 Font = ClinicalColors.GetMainFont(8.5f, FontStyle.Regular),
@@ -130,22 +129,21 @@ namespace DTT.Doctor.UI.Forms
                 AutoSize = true
             };
 
-            Label lblGovHeader = new Label
+            Label lblHeaderRight = new Label
             {
-                Text = "CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM\nĐộc Lập - Tự Do - Hạnh Phúc",
-                Font = ClinicalColors.GetMainFont(8.5f, FontStyle.Bold),
-                ForeColor = ClinicalColors.TextDark,
-                Location = new Point(500, 25),
-                TextAlign = ContentAlignment.TopRight,
-                AutoSize = true
+                Text = "CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM" + Environment.NewLine + "Độc lập - Tự do - Hạnh phúc",
+                Font = ClinicalColors.GetMainFont(9f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(15, 23, 42),
+                Location = new Point(460, 24),
+                Size = new Size(280, 40),
+                TextAlign = ContentAlignment.TopCenter
             };
 
             Panel line1 = new Panel { Location = new Point(30, 75), Size = new Size(710, 2), BackColor = ClinicalColors.PrimaryBlue };
 
-            // 2. Document Title
             Label lblRxTitle = new Label
             {
-                Text = "ĐƠN THUỐC & BỆNH ÁN ĐIỆN TỬ",
+                Text = "ĐƠN THUỐC BỆNH ÁN ĐIỆN TỬ",
                 Font = ClinicalColors.GetMainFont(15f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(15, 23, 42),
                 Location = new Point(30, 88),
@@ -155,7 +153,7 @@ namespace DTT.Doctor.UI.Forms
 
             Label lblRxCode = new Label
             {
-                Text = $"Mã đơn: RX-2026-{_appointment.AppointmentId:D4}",
+                Text = string.Format("Mã đơn: RX-2026-{0:D4}", _appointment.AppointmentId),
                 Font = ClinicalColors.GetMainFont(9.5f, FontStyle.Bold),
                 ForeColor = ClinicalColors.TextMuted,
                 Location = new Point(30, 118),
@@ -163,23 +161,28 @@ namespace DTT.Doctor.UI.Forms
                 TextAlign = ContentAlignment.MiddleCenter
             };
 
-            // 3. Patient Information
+            string patientNameStr = _appointment.PatientName != null ? _appointment.PatientName.ToUpper() : "BỆNH NHÂN";
+            string ageStr = _appointment.PatientAge > 0 ? _appointment.PatientAge.ToString() : "35";
+            string bpStr = !string.IsNullOrEmpty(_recordRequest.BloodPressure) ? _recordRequest.BloodPressure : "120/80 mmHg";
+            string pulseStr = !string.IsNullOrEmpty(_recordRequest.Pulse) ? _recordRequest.Pulse : "82 bpm";
+            string tempStr = !string.IsNullOrEmpty(_recordRequest.Temperature) ? _recordRequest.Temperature : "36.8°C";
+
             Label lblPatientInfo = new Label
             {
-                Text = $"Họ tên bệnh nhân : {_appointment.PatientName.ToUpper()}      Giới tính: {_appointment.PatientGender}      Tuổi: {(_appointment.PatientAge > 0 ? _appointment.PatientAge.ToString() : "35")}\n" +
-                       $"Chuyên khoa khám : {_appointment.SpecialtyName}      Phòng khám: {_appointment.ClinicRoom}\n" +
-                       $"Chỉ số sinh hiệu : Huyết áp: {(_recordRequest.BloodPressure != "" ? _recordRequest.BloodPressure : "120/80 mmHg")}  |  Mạch: {(_recordRequest.Pulse != "" ? _recordRequest.Pulse : "82 bpm")}  |  Thân nhiệt: {(_recordRequest.Temperature != "" ? _recordRequest.Temperature : "36.8°C")}",
+                Text = string.Format("Họ tên bệnh nhân : {0}      Giới tính: {1}      Tuổi: {2}" + Environment.NewLine + "Chuyên khoa khám : {3}      Phòng khám: {4}" + Environment.NewLine + "Chỉ số sinh hiệu : Huyết áp: {5}  |  Mạch: {6}  |  Thân nhiệt: {7}",
+                                     patientNameStr, _appointment.PatientGender, ageStr, _appointment.SpecialtyName, _appointment.ClinicRoom, bpStr, pulseStr, tempStr),
                 Font = ClinicalColors.GetMainFont(9.5f, FontStyle.Regular),
                 ForeColor = ClinicalColors.TextDark,
                 Location = new Point(30, 145),
                 Size = new Size(710, 56)
             };
 
-            // 4. Diagnosis & Advice
+            string diagStr = !string.IsNullOrEmpty(_recordRequest.Diagnosis) ? _recordRequest.Diagnosis : "M17.9 - Thoái hóa khớp gối không xác định";
+            string planStr = !string.IsNullOrEmpty(_recordRequest.TreatmentPlan) ? _recordRequest.TreatmentPlan : "Nghỉ ngơi nhiều, hạn chế mang vác nặng, tái khám sau 7 ngày.";
+
             Label lblDiagnosis = new Label
             {
-                Text = $"Chẩn đoán chính (ICD-10):  {(!string.IsNullOrEmpty(_recordRequest.Diagnosis) ? _recordRequest.Diagnosis : "M17.9 - Thoái hóa khớp gối không xác định")}\n" +
-                       $"Lời dặn bác sĩ điều trị  :  {(!string.IsNullOrEmpty(_recordRequest.TreatmentPlan) ? _recordRequest.TreatmentPlan : "Nghỉ ngơi nhiều, hạn chế mang vác nặng, tái khám sau 7 ngày.")}",
+                Text = string.Format("Chẩn đoán chính (ICD-10):  {0}" + Environment.NewLine + "Lời dặn bác sĩ điều trị  :  {1}", diagStr, planStr),
                 Font = ClinicalColors.GetMainFont(9.5f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(30, 58, 138),
                 Location = new Point(30, 208),
@@ -188,7 +191,6 @@ namespace DTT.Doctor.UI.Forms
 
             Panel line2 = new Panel { Location = new Point(30, 256), Size = new Size(710, 1), BackColor = ClinicalColors.BorderGray };
 
-            // 5. Prescribed Medicines DataGrid Table
             AntiFlickerDataGridView gridPrint = new AntiFlickerDataGridView
             {
                 Location = new Point(30, 266),
@@ -197,27 +199,37 @@ namespace DTT.Doctor.UI.Forms
             gridPrint.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "STT", FillWeight = 15 });
             gridPrint.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Tên Thuốc / Hoạt Chất", FillWeight = 85 });
             gridPrint.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Số Lượng", FillWeight = 30 });
-            gridPrint.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Cách Dùng & Liều Dùng Chi Tiết", FillWeight = 110 });
+            gridPrint.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Cách Dùng Chi Tiết", FillWeight = 110 });
 
-            for (int i = 0; i < _recordRequest.Prescriptions.Count; i++)
+            var items = _recordRequest.Prescriptions;
+            if (items == null) items = new List<PrescribedDrugItem>();
+
+            if (items.Count == 0)
             {
-                var item = _recordRequest.Prescriptions[i];
-                gridPrint.Rows.Add(i + 1, item.MedicineName, $"{item.Quantity} {item.Unit}", item.UsageInstruction);
+                gridPrint.Rows.Add(1, "Theo dõi điều trị / Không kê đơn thuốc", "-", "Tái khám theo lịch hẹn của Bác sĩ");
+            }
+            else
+            {
+                for (int i = 0; i < items.Count; i++)
+                {
+                    var item = items[i];
+                    string unitStr = !string.IsNullOrEmpty(item.Unit) ? item.Unit : "Viên";
+                    gridPrint.Rows.Add(i + 1, item.MedicineName, $"{item.Quantity} {unitStr}", item.UsageInstruction);
+                }
             }
 
-            // 6. QR Code & Doctor Signature Area
             Panel pnlBottom = new Panel
             {
-                Location = new Point(30, 586),
+                Location = new Point(30, 585),
                 Size = new Size(710, 180)
             };
 
-            // Generate QR Code bitmap encoded with prescription payload
             var qrPayload = new
             {
+                type = "DTT_PRESCRIPTION",
                 prescriptionId = _appointment.AppointmentId,
                 patientName = _appointment.PatientName,
-                doctorName = !string.IsNullOrEmpty(TokenVault.FullName) ? TokenVault.FullName : "BS. CKII PHẠM TUẤN KIỆT",
+                doctorName = !string.IsNullOrEmpty(TokenVault.FullName) ? TokenVault.FullName : "BS. CKII Nguyễn Văn A",
                 date = DateTime.Now.ToString("yyyy-MM-dd")
             };
             string payloadJson = JsonConvert.SerializeObject(qrPayload);
@@ -232,33 +244,52 @@ namespace DTT.Doctor.UI.Forms
 
             Label lblQrNote = new Label
             {
-                Text = "📱  Quét mã QR Code này bằng App Mobile\nDTT Patients để lưu tự động đơn thuốc!",
+                Text = "Quét mã QR Code này bằng App Mobile" + Environment.NewLine + "DTT Patients để lưu tự động đơn thuốc!",
                 Font = ClinicalColors.GetMainFont(8f, FontStyle.Bold),
                 ForeColor = ClinicalColors.PrimaryBlue,
                 Location = new Point(10, 144),
                 Size = new Size(240, 32)
             };
 
-            Label lblSignArea = new Label
+            Label lblSignDate = new Label
             {
-                Text = $"Ngày {DateTime.Now.Day:D2} tháng {DateTime.Now.Month:D2} năm {DateTime.Now.Year}\n" +
-                       "BÁC SĨ ĐIỀU TRỊ\n" +
-                       "(Đã ký bằng Chữ ký Số điện tử)\n\n\n\n" +
-                       $"{( !string.IsNullOrEmpty(TokenVault.FullName) ? TokenVault.FullName : "BS. CKII PHẠM TUẤN KIỆT" )}",
+                Text = string.Format("Ngày {0:D2} tháng {1:D2} năm {2}", DateTime.Now.Day, DateTime.Now.Month, DateTime.Now.Year),
                 Font = ClinicalColors.GetMainFont(9.5f, FontStyle.Bold),
                 ForeColor = ClinicalColors.TextDark,
-                Location = new Point(400, 10),
-                Size = new Size(300, 160),
+                Location = new Point(450, 10),
+                Size = new Size(250, 22),
+                TextAlign = ContentAlignment.MiddleCenter
+            };
+
+            Label lblDoctorTitle = new Label
+            {
+                Text = "BÁC SĨ ĐIỀU TRỊ" + Environment.NewLine + "(Đã ký bằng Chữ ký Số điện tử)",
+                Font = ClinicalColors.GetMainFont(9f, FontStyle.Bold),
+                ForeColor = ClinicalColors.TextDark,
+                Location = new Point(450, 34),
+                Size = new Size(250, 36),
                 TextAlign = ContentAlignment.TopCenter
+            };
+
+            Label lblDoctorName = new Label
+            {
+                Text = !string.IsNullOrEmpty(TokenVault.FullName) ? TokenVault.FullName : "BS. CKII Nguyễn Văn A",
+                Font = ClinicalColors.GetMainFont(10.5f, FontStyle.Bold),
+                ForeColor = ClinicalColors.PrimaryBlue,
+                Location = new Point(450, 130),
+                Size = new Size(250, 24),
+                TextAlign = ContentAlignment.MiddleCenter
             };
 
             pnlBottom.Controls.Add(picQr);
             pnlBottom.Controls.Add(lblQrNote);
-            pnlBottom.Controls.Add(lblSignArea);
+            pnlBottom.Controls.Add(lblSignDate);
+            pnlBottom.Controls.Add(lblDoctorTitle);
+            pnlBottom.Controls.Add(lblDoctorName);
 
-            paper.Controls.Add(lblHospital);
-            paper.Controls.Add(lblAddress);
-            paper.Controls.Add(lblGovHeader);
+            paper.Controls.Add(lblHospitalName);
+            paper.Controls.Add(lblHospitalSub);
+            paper.Controls.Add(lblHeaderRight);
             paper.Controls.Add(line1);
             paper.Controls.Add(lblRxTitle);
             paper.Controls.Add(lblRxCode);
@@ -269,27 +300,29 @@ namespace DTT.Doctor.UI.Forms
             paper.Controls.Add(pnlBottom);
         }
 
-        private void OnExecutePrintClick(object sender, EventArgs e)
+        private void ExecutePrintDocument()
         {
             try
             {
                 PrintDocument pd = new PrintDocument();
-                pd.PrintPage += (s, ev) => {
+                pd.PrintPage += (s, ev) =>
+                {
                     Bitmap bmp = new Bitmap(_pnlPaper.Width, _pnlPaper.Height);
                     _pnlPaper.DrawToBitmap(bmp, new Rectangle(0, 0, _pnlPaper.Width, _pnlPaper.Height));
-                    ev.Graphics.DrawImage(bmp, 20, 20);
+                    ev.Graphics.DrawImage(bmp, 0, 0);
                 };
-                PrintPreviewDialog dlg = new PrintPreviewDialog
+
+                PrintPreviewDialog previewDlg = new PrintPreviewDialog
                 {
                     Document = pd,
                     Width = 900,
                     Height = 700
                 };
-                dlg.ShowDialog(this);
+                previewDlg.ShowDialog(this);
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"✅ Lệnh In Đơn Thuốc Kèm Mã QR Code đã được phát hành thành công cho máy in phòng khám!\n\nMã đơn: RX-2026-{_appointment.AppointmentId:D4}", "In Đơn Thuốc Thành Công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(string.Format("Không thể thực hiện in đơn thuốc: {0}", ex.Message), "Lỗi In Ấn", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
     }

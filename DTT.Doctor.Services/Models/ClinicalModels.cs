@@ -43,6 +43,7 @@ namespace DTT.Doctor.Services.Models
     public class MedicineModel
     {
         public int MedicineId { get; set; }
+        public int CategoryId { get; set; }
         public string MedicineName { get; set; } = string.Empty;
         public string Unit { get; set; } = string.Empty;
         public decimal UnitPrice { get; set; }
@@ -75,5 +76,25 @@ namespace DTT.Doctor.Services.Models
         public string Diagnosis { get; set; } = string.Empty;
         public string TreatmentPlan { get; set; } = string.Empty;
         public System.Collections.Generic.List<PrescribedDrugItem> Prescriptions { get; set; } = new System.Collections.Generic.List<PrescribedDrugItem>();
+    }
+
+    public class PatientSimpleModel
+    {
+        [Newtonsoft.Json.JsonProperty("id")]
+        public int Id { get; set; }
+        [Newtonsoft.Json.JsonProperty("fullName")]
+        public string FullName { get; set; } = string.Empty;
+        [Newtonsoft.Json.JsonProperty("phone")]
+        public string Phone { get; set; } = string.Empty;
+        [Newtonsoft.Json.JsonProperty("cccd")]
+        public string Cccd { get; set; } = string.Empty;
+        [Newtonsoft.Json.JsonProperty("bhyt")]
+        public string Bhyt { get; set; } = string.Empty;
+        [Newtonsoft.Json.JsonProperty("verificationStatus")]
+        public string VerificationStatus { get; set; } = "pending";
+        [Newtonsoft.Json.JsonProperty("gender")]
+        public string Gender { get; set; } = string.Empty;
+        [Newtonsoft.Json.JsonProperty("dob")]
+        public string Dob { get; set; } = string.Empty;
     }
 }

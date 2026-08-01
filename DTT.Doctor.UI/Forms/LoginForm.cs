@@ -21,8 +21,10 @@ namespace DTT.Doctor.UI.Forms
     {
         public class RecentUser
         {
-            public string Phone { get; set; }
-            public string Name { get; set; }
+            public string Phone { get; set; } = string.Empty;
+            public string Name { get; set; } = string.Empty;
+            public string RoleCode { get; set; } = string.Empty;
+            public string RoleName { get; set; } = string.Empty;
         }
 
         private const string RecentLoginsFile = "recent_logins.json";
@@ -65,16 +67,21 @@ namespace DTT.Doctor.UI.Forms
             // Custom Close Button
             Button btnClose = new Button
             {
-                Text = "X",
-                Font = ClinicalColors.GetMainFont(12f, FontStyle.Bold),
+                Text = "✕",
+                Font = ClinicalColors.GetMainFont(13f, FontStyle.Bold),
                 ForeColor = ClinicalColors.TextMuted,
                 FlatStyle = FlatStyle.Flat,
                 Size = new Size(40, 40),
-                Location = new Point(760, 0),
-                Cursor = Cursors.Hand
+                Location = new Point(755, 5),
+                Cursor = Cursors.Hand,
+                TabStop = false
             };
             btnClose.FlatAppearance.BorderSize = 0;
-            btnClose.Click += (s, e) => Application.Exit();
+            btnClose.Click += (s, e) => {
+                this.DialogResult = DialogResult.Cancel;
+                this.Close();
+                Environment.Exit(0);
+            };
 
             // Form Dragging Logic
             bool dragging = false;
@@ -208,9 +215,15 @@ namespace DTT.Doctor.UI.Forms
             _lblError.Text = "";
             
             // Save to recent logins
+            // Save to recent logins
             try 
             {
-                var newUser = new RecentUser { Phone = _txtPhone.Text, Name = TokenVault.FullName };
+                var newUser = new RecentUser {
+                    Phone = _txtPhone.Text,
+                    Name = TokenVault.FullName,
+                    RoleCode = TokenVault.RoleCode,
+                    RoleName = TokenVault.RoleName
+                };
                 _recentUsers.RemoveAll(u => u.Phone == newUser.Phone);
                 _recentUsers.Insert(0, newUser);
                 if (_recentUsers.Count > 3) _recentUsers.RemoveAt(_recentUsers.Count - 1);
@@ -218,11 +231,9 @@ namespace DTT.Doctor.UI.Forms
             } 
             catch { }
             
-            // Transition to Main Dashboard
-            this.Hide();
-            var dashboard = new MainDashboardForm();
-            dashboard.FormClosed += (s, e) => this.Close();
-            dashboard.Show();
+            // Transition to Unified Main Dashboard via Program.cs lifecycle
+            this.DialogResult = DialogResult.OK;
+            this.Close();
         }
 
         public void OnLoginFailure(string errorMessage)
@@ -255,7 +266,7 @@ namespace DTT.Doctor.UI.Forms
                 int currentX = 445;
                 foreach (var user in _recentUsers)
                 {
-                    string displayName = FormatShortDoctorName(user.Name);
+                    string displayName = FormatShortDoctorName(user);
                     Button btn = new Button
                     {
                         Text = displayName,
@@ -264,46 +275,70 @@ namespace DTT.Doctor.UI.Forms
                         ForeColor = ClinicalColors.TextDark,
                         FlatStyle = FlatStyle.Flat,
                         Location = new Point(currentX, 410),
-                        Size = new Size(105, 30),
+                        Size = new Size(110, 30),
                         Cursor = Cursors.Hand,
                         UseMnemonic = false
                     };
                     btn.FlatAppearance.BorderColor = ClinicalColors.BorderGray;
                     btn.Click += (s, e) => { _txtPhone.Text = user.Phone; _txtPassword.Focus(); };
                     _pnlMainCard.Controls.Add(btn);
-                    currentX += 112;
+                    currentX += 116;
                 }
             }
         }
 
-        private static string FormatShortDoctorName(string fullName)
+        private static string FormatShortDoctorName(RecentUser user)
         {
-            if (string.IsNullOrWhiteSpace(fullName)) return "Bác sĩ";
+            if (user == null) return "Tài khoản";
+            string fullName = !string.IsNullOrWhiteSpace(user.Name) ? user.Name.Trim() : string.Empty;
+            string roleCode = user.RoleCode ?? string.Empty;
+            string roleName = user.RoleName ?? string.Empty;
+            string phone = user.Phone ?? string.Empty;
 
-            var parts = fullName.Trim().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length <= 1) return fullName;
-
-            var degrees = new List<string>();
-            var nameParts = new List<string>();
-
-            foreach (var p in parts)
+            // Đảm bảo Lễ tân (0900000004) luôn hiển thị danh xưng LT. Châu
+            if (phone == "0900000004" || roleCode == "RECEPTIONIST" || roleName.Contains("Lễ tân") || fullName.Contains("Châu") || fullName.Contains("Điều trị"))
             {
-                string upper = p.ToUpperInvariant().TrimEnd('.');
-                if (upper == "THS" || upper == "BS" || upper == "TS" || 
-                    upper == "CKI" || upper == "CKII" || upper == "PGS" || upper == "GS")
-                {
-                    degrees.Add(p);
-                }
-                else
-                {
-                    nameParts.Add(p);
-                }
+                return "LT. Châu";
+            }
+            if (phone == "0900000005" || roleCode == "NURSE" || roleName.Contains("Điều dưỡng") || fullName.Contains("Hạnh"))
+            {
+                return "ĐD. Hạnh";
+            }
+            if (phone == "0900000006" || roleCode == "LAB_TECH" || roleName.Contains("Kỹ thuật") || fullName.Contains("Kiệt"))
+            {
+                return "KTV. Kiệt";
+            }
+            if (phone == "0900000007" || roleCode == "PHARMACIST" || roleName.Contains("Dược sĩ") || fullName.Contains("Phương"))
+            {
+                return "DS. Phương";
             }
 
-            string degreeStr = degrees.Count > 0 ? string.Join(" ", degrees) : "BS.";
-            string lastName = nameParts.Count > 0 ? nameParts[nameParts.Count - 1] : "";
+            var parts = fullName.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
 
-            return $"{degreeStr} {lastName}".Trim();
+            var nameWords = parts.Where(p => {
+                string u = p.ToUpperInvariant().TrimEnd('.');
+                return u != "THS" && u != "BS" && u != "TS" && u != "CKI" && u != "CKII" && 
+                       u != "PGS" && u != "GS" && u != "KTV" && u != "DS" && u != "LT" && u != "ĐD" && u != "ĐIỀU" && u != "TRỊ";
+            }).ToList();
+
+            string shortName = fullName;
+            if (nameWords.Count >= 2)
+            {
+                shortName = $"{nameWords[nameWords.Count - 2]} {nameWords[nameWords.Count - 1]}";
+            }
+            else if (nameWords.Count == 1)
+            {
+                shortName = nameWords[0];
+            }
+
+            if (roleCode == "RECEPTIONIST" || roleName.Contains("Lễ tân")) return $"LT. {shortName}";
+            if (roleCode == "NURSE" || roleName.Contains("Điều dưỡng")) return $"ĐD. {shortName}";
+            if (roleCode == "DOCTOR" || roleName.Contains("Bác sĩ")) return $"BS. {shortName}";
+            if (roleCode == "PHARMACIST" || roleName.Contains("Dược sĩ")) return $"DS. {shortName}";
+            if (roleCode == "LAB_TECH" || roleName.Contains("Kỹ thuật")) return $"KTV. {shortName}";
+
+            return $"BS. {shortName}";
         }
     }
 }
+

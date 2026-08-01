@@ -95,25 +95,40 @@ namespace DTT.Doctor.UI.Forms
             _dtpDate = new DateTimePicker
             {
                 Format = DateTimePickerFormat.Custom,
-                CustomFormat = "dd/MM/yyyy (dddd)",
-                Font = ClinicalColors.GetMainFont(10f, FontStyle.Bold),
-                Location = new Point(160, 14),
-                Size = new Size(220, 30)
+                CustomFormat = "dd/MM/yyyy",
+                Font = ClinicalColors.GetMainFont(10.5f, FontStyle.Bold),
+                Location = new Point(175, 14),
+                Size = new Size(140, 30)
             };
-            _dtpDate.ValueChanged += (s, e) => LoadDoctorScheduleForDate(_dtpDate.Value);
+
+            Label lblDayOfWeek = new Label
+            {
+                Text = $"({GetVietnameseDayName(DateTime.Today)})",
+                Font = ClinicalColors.GetMainFont(10f, FontStyle.Bold),
+                ForeColor = ClinicalColors.PrimaryBlue,
+                Location = new Point(322, 19),
+                AutoSize = true
+            };
+
+            _dtpDate.ValueChanged += (s, e) =>
+            {
+                lblDayOfWeek.Text = $"({GetVietnameseDayName(_dtpDate.Value)})";
+                LoadDoctorScheduleForDate(_dtpDate.Value);
+            };
 
             lblShiftStatus = new Label
             {
                 Text = "Trạng thái: Đang tải ca trực...",
                 Font = ClinicalColors.GetMainFont(10.5f, FontStyle.Bold),
                 ForeColor = ClinicalColors.PrimaryBlue,
-                Location = new Point(410, 18),
+                Location = new Point(440, 18),
                 Size = new Size(400, 26),
                 TextAlign = ContentAlignment.MiddleLeft
             };
 
             pnlFilter.Controls.Add(lblDateSelect);
             pnlFilter.Controls.Add(_dtpDate);
+            pnlFilter.Controls.Add(lblDayOfWeek);
             pnlFilter.Controls.Add(lblShiftStatus);
 
             // DataGridView for slots
@@ -279,6 +294,21 @@ namespace DTT.Doctor.UI.Forms
             {
                 Console.WriteLine("Lỗi nạp lịch trực: " + ex.Message);
             }
+        }
+
+        private static string GetVietnameseDayName(DateTime dt)
+        {
+            return dt.DayOfWeek switch
+            {
+                DayOfWeek.Monday => "Thứ Hai",
+                DayOfWeek.Tuesday => "Thứ Ba",
+                DayOfWeek.Wednesday => "Thứ Tư",
+                DayOfWeek.Thursday => "Thứ Năm",
+                DayOfWeek.Friday => "Thứ Sáu",
+                DayOfWeek.Saturday => "Thứ Bảy",
+                DayOfWeek.Sunday => "Chủ Nhật",
+                _ => ""
+            };
         }
     }
 }
