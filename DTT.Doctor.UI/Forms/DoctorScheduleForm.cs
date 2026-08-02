@@ -220,7 +220,7 @@ namespace DTT.Doctor.UI.Forms
 
                     if (!isWorking)
                     {
-                        lblShiftStatus.Text = "Trạng thái: 🔴 NGÀY NGHỈ OFF (Nghỉ phép)";
+                        lblShiftStatus.Text = "Trạng thái: NGÀY NGHỈ OFF (Nghỉ phép)";
                         lblShiftStatus.ForeColor = Color.FromArgb(239, 68, 68);
 
                         _gridSchedule.Rows.Add(1, "08:00 - 12:00", "Ca Sáng", "OFF (Nghỉ)", "Không có ca trực được phân công");
@@ -228,7 +228,7 @@ namespace DTT.Doctor.UI.Forms
                         return;
                     }
 
-                    lblShiftStatus.Text = $"Trạng thái: 🟢 {statusText}";
+                    lblShiftStatus.Text = $"Trạng thái: {statusText}";
                     lblShiftStatus.ForeColor = Color.FromArgb(16, 185, 129);
 
                     int stt = 1;
@@ -238,13 +238,13 @@ namespace DTT.Doctor.UI.Forms
                         {
                             string time = slot.ToString();
                             string shiftName = time.StartsWith("08") || time.StartsWith("09") || time.StartsWith("10") || time.StartsWith("11") ? "Ca Sáng" : "Ca Chiều";
-                            _gridSchedule.Rows.Add(stt++, time, shiftName, "🟢 Trống (Khả dụng)", "Sẵn sàng tiếp nhận bệnh nhân");
+                            _gridSchedule.Rows.Add(stt++, time, shiftName, "Trống (Khả dụng)", "Sẵn sàng tiếp nhận bệnh nhân");
                         }
                     }
                     if (_gridSchedule.Rows.Count == 0)
                     {
-                        _gridSchedule.Rows.Add(1, "08:00 - 12:00", "Ca Sáng", "🟢 Trống (Khả dụng)", "Sẵn sàng tiếp nhận bệnh nhân");
-                        _gridSchedule.Rows.Add(2, "13:30 - 17:30", "Ca Chiều", "🟢 Trống (Khả dụng)", "Sẵn sàng tiếp nhận bệnh nhân");
+                        _gridSchedule.Rows.Add(1, "08:00 - 12:00", "Ca Sáng", "Trống (Khả dụng)", "Sẵn sàng tiếp nhận bệnh nhân");
+                        _gridSchedule.Rows.Add(2, "13:30 - 17:30", "Ca Chiều", "Trống (Khả dụng)", "Sẵn sàng tiếp nhận bệnh nhân");
                     }
                     return;
                 }
@@ -254,7 +254,7 @@ namespace DTT.Doctor.UI.Forms
 
                 if (randPattern == 0)
                 {
-                    lblShiftStatus.Text = "Trạng thái: 🔴 NGÀY NGHỈ OFF (Nghỉ phép)";
+                    lblShiftStatus.Text = "Trạng thái: NGÀY NGHỈ OFF (Nghỉ phép)";
                     lblShiftStatus.ForeColor = Color.FromArgb(239, 68, 68);
 
                     _gridSchedule.Rows.Add(1, "08:00 - 12:00", "Ca Sáng", "OFF (Nghỉ)", "Không có ca trực được phân công");
@@ -263,25 +263,25 @@ namespace DTT.Doctor.UI.Forms
                 }
 
                 string fallbackShiftName = randPattern == 1 ? "Ca Sáng (08:00 - 12:00)" : randPattern == 2 ? "Ca Chiều (13:30 - 17:30)" : "Trực Cả Ngày (08:00 - 17:30)";
-                lblShiftStatus.Text = $"Trạng thái: 🟢 {fallbackShiftName}";
+                lblShiftStatus.Text = $"Trạng thái: {fallbackShiftName}";
                 lblShiftStatus.ForeColor = Color.FromArgb(16, 185, 129);
 
                 var slots = new List<Tuple<string, string, string, string>>();
 
                 if (randPattern == 1 || randPattern == 3)
                 {
-                    slots.Add(Tuple.Create("08:00 - 09:00", "Ca Sáng", "🟢 Trống (Khả dụng)", "Sẵn sàng tiếp nhận bệnh nhân"));
-                    slots.Add(Tuple.Create("09:00 - 10:00", "Ca Sáng", "🔵 Đã Có Đặt Lịch", "Bệnh nhân đã hẹn qua App Mobile"));
-                    slots.Add(Tuple.Create("10:00 - 11:00", "Ca Sáng", "🟢 Trống (Khả dụng)", "Sẵn sàng tiếp nhận bệnh nhân"));
-                    slots.Add(Tuple.Create("11:00 - 12:00", "Ca Sáng", "🟢 Trống (Khả dụng)", "Sẵn sàng tiếp nhận bệnh nhân"));
+                    slots.Add(Tuple.Create("08:00 - 09:00", "Ca Sáng", "Trống (Khả dụng)", "Sẵn sàng tiếp nhận bệnh nhân"));
+                    slots.Add(Tuple.Create("09:00 - 10:00", "Ca Sáng", "Đã Có Đặt Lịch", "Bệnh nhân đã hẹn qua App Mobile"));
+                    slots.Add(Tuple.Create("10:00 - 11:00", "Ca Sáng", "Trống (Khả dụng)", "Sẵn sàng tiếp nhận bệnh nhân"));
+                    slots.Add(Tuple.Create("11:00 - 12:00", "Ca Sáng", "Trống (Khả dụng)", "Sẵn sàng tiếp nhận bệnh nhân"));
                 }
 
                 if (randPattern == 2 || randPattern == 3)
                 {
-                    slots.Add(Tuple.Create("13:30 - 14:30", "Ca Chiều", "🟢 Trống (Khả dụng)", "Sẵn sàng tiếp nhận bệnh nhân"));
-                    slots.Add(Tuple.Create("14:30 - 15:30", "Ca Chiều", "🔵 Đã Có Đặt Lịch", "Bệnh nhân đã hẹn qua App Mobile"));
-                    slots.Add(Tuple.Create("15:30 - 16:30", "Ca Chiều", "🟢 Trống (Khả dụng)", "Sẵn sàng tiếp nhận bệnh nhân"));
-                    slots.Add(Tuple.Create("16:30 - 17:30", "Ca Chiều", "🟢 Trống (Khả dụng)", "Sẵn sàng tiếp nhận bệnh nhân"));
+                    slots.Add(Tuple.Create("13:30 - 14:30", "Ca Chiều", "Trống (Khả dụng)", "Sẵn sàng tiếp nhận bệnh nhân"));
+                    slots.Add(Tuple.Create("14:30 - 15:30", "Ca Chiều", "Đã Có Đặt Lịch", "Bệnh nhân đã hẹn qua App Mobile"));
+                    slots.Add(Tuple.Create("15:30 - 16:30", "Ca Chiều", "Trống (Khả dụng)", "Sẵn sàng tiếp nhận bệnh nhân"));
+                    slots.Add(Tuple.Create("16:30 - 17:30", "Ca Chiều", "Trống (Khả dụng)", "Sẵn sàng tiếp nhận bệnh nhân"));
                 }
 
                 int fallbackStt = 1;

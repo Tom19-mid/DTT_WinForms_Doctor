@@ -18,9 +18,18 @@ namespace DTT.Doctor.UI.Forms
         private AntiFlickerDataGridView _gridHistory;
         private Label _lblStatus;
 
-        public MedicalHistoryForm()
+        private int _targetApptId = 0;
+
+        public MedicalHistoryForm() : this("", 0) { }
+
+        public MedicalHistoryForm(string filterPatientName, int targetApptId = 0)
         {
+            _targetApptId = targetApptId;
             InitializeComponent();
+            if (!string.IsNullOrWhiteSpace(filterPatientName) && _txtSearch != null)
+            {
+                _txtSearch.Text = filterPatientName.Trim();
+            }
             _ = LoadMedicalHistoryAsync();
         }
 
@@ -171,6 +180,16 @@ namespace DTT.Doctor.UI.Forms
             };
             _gridHistory.Columns.Add(btnPrintCol);
 
+            // Cột "THAO TÁC" — dùng đúng tên "ColAction"/chứa chữ "THAO TÁC" để tự động được
+            // AntiFlickerDataGridView vẽ theo kiểu nút pill xanh có sẵn (xem CellPainting override).
+            _gridHistory.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                HeaderText = "THAO TÁC",
+                Name = "ColAction",
+                FillWeight = 85,
+                MinimumWidth = 100
+            });
+
             _gridHistory.CellClick += OnGridCellClick;
 
             // ── Footer ───────────────────────────────────────────────────────
@@ -258,12 +277,52 @@ namespace DTT.Doctor.UI.Forms
                                 (string)r.phoneNumber,
                                 (string)r.doctorName,
                                 !string.IsNullOrEmpty(diagFull) ? diagFull : "Khám sức khỏe",
-                                (string)r.prescriptionsSummary
+                                (string)r.prescriptionsSummary,
+                                "", // Cột nút "In Toa QR" (DataGridViewButtonColumn tự vẽ, không cần gán Text ở đây)
+                                "Xem Hồ Sơ"
                             );
 
                             _gridHistory.Rows[rowIdx].Tag = r;
                         }
                         _lblStatus.Text = $"Đã tải thành công {_gridHistory.Rows.Count} hồ sơ bệnh án";
+
+                        if (_targetApptId > 0 || !string.IsNullOrWhiteSpace(_txtSearch.Text))
+                        {
+                            DataGridViewRow targetRow = null;
+                            if (_targetApptId > 0)
+                            {
+                                foreach (DataGridViewRow r in _gridHistory.Rows)
+                                {
+                                    if (r.Tag != null)
+                                    {
+                                        dynamic tag = r.Tag;
+                                        int apptId = (int)(tag.appointmentId ?? 0);
+                                        if (apptId == _targetApptId) { targetRow = r; break; }
+                                    }
+                                }
+                            }
+
+                            if (targetRow == null && _gridHistory.Rows.Count > 0)
+                                targetRow = _gridHistory.Rows[0];
+
+                            if (targetRow != null)
+                            {
+                                targetRow.Selected = true;
+                                _gridHistory.CurrentCell = targetRow.Cells[0];
+
+                                if (targetRow.Tag != null)
+                                {
+                                    var rowData = targetRow.Tag;
+                                    BeginInvoke((Action)(() =>
+                                    {
+                                        using (var examForm = new PrintExamRecordForm(rowData))
+                                        {
+                                            examForm.ShowDialog(this);
+                                        }
+                                    }));
+                                }
+                            }
+                        }
                         return;
                     }
                 }
@@ -302,22 +361,37 @@ namespace DTT.Doctor.UI.Forms
                 string pSum = (string)r.prescriptionsSummary;
                 if (!string.IsNullOrEmpty(pSum))
                 {
+                    // Backend trả prescriptionsSummary dạng "{Tên thuốc} ({Số lượng} {Đơn vị})" nối bằng ", "
+                    // (xem MedicalRecordsController.cs GetAllMedicalRecords) — trước đây chỗ này bỏ qua phần
+                    // số lượng/đơn vị thật và gán cứng "1 Liều" cho mọi thuốc khi in lại từ Lịch Sử Khám Bệnh,
+                    // khiến đơn in ra sai lệch hoàn toàn so với đơn thật đã lưu (và đang hiện đúng bên App Mobile).
                     var parts = pSum.Split(',');
                     int drugIdx = 1;
                     foreach (var p in parts)
                     {
                         string itemStr = p.Trim();
-                        if (!string.IsNullOrEmpty(itemStr))
+                        if (string.IsNullOrEmpty(itemStr)) continue;
+
+                        var match = System.Text.RegularExpressions.Regex.Match(itemStr, @"^(.*)\((\d+)\s+([^()]+)\)$");
+                        string medName = itemStr;
+                        int qty = 1;
+                        string unit = "Liều";
+                        if (match.Success)
                         {
-                            presList.Add(new PrescribedDrugItem
-                            {
-                                MedicineId = drugIdx++,
-                                MedicineName = itemStr,
-                                Quantity = 1,
-                                Unit = "Liều",
-                                UsageInstruction = "Theo chỉ dẫn của Bác sĩ điều trị"
-                            });
+                            medName = match.Groups[1].Value.Trim();
+                            int.TryParse(match.Groups[2].Value, out qty);
+                            if (qty <= 0) qty = 1;
+                            unit = match.Groups[3].Value.Trim();
                         }
+
+                        presList.Add(new PrescribedDrugItem
+                        {
+                            MedicineId = drugIdx++,
+                            MedicineName = medName,
+                            Quantity = qty,
+                            Unit = unit,
+                            UsageInstruction = "Theo chỉ dẫn của Bác sĩ điều trị"
+                        });
                     }
                 }
 
@@ -339,6 +413,19 @@ namespace DTT.Doctor.UI.Forms
                 using (var printForm = new PrintPrescriptionForm(appt, req))
                 {
                     printForm.ShowDialog(this);
+                }
+                return;
+            }
+
+            // Cột "THAO TÁC" (Column index 8) — mở Phiếu Khám của lượt khám này
+            if (e.ColumnIndex == 8)
+            {
+                var rowTag = _gridHistory.Rows[e.RowIndex].Tag;
+                if (rowTag == null) return;
+
+                using (var examForm = new PrintExamRecordForm(rowTag))
+                {
+                    examForm.ShowDialog(this);
                 }
             }
         }

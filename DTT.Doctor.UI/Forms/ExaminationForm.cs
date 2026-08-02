@@ -24,6 +24,9 @@ namespace DTT.Doctor.UI.Forms
         private MaterialTextBoxEdit _txtWeight;
         private MaterialTextBoxEdit _txtSymptoms;
         private MaterialTextBoxEdit _txtDiagnosis;
+        private ComboBox _cboIcdSuggest;
+        private string _selectedIcdCode;
+        private string _selectedIcdDescription;
         private MaterialTextBoxEdit _txtTreatmentPlan;
 
         private ComboBox _cboDrugSelect;
@@ -32,12 +35,114 @@ namespace DTT.Doctor.UI.Forms
         private AntiFlickerDataGridView _gridPrescription;
 
         private List<MedicineModel> _availableMedicines = new List<MedicineModel>();
+        private Label _lblClsSummary;
         public bool IsSaved { get; private set; } = false;
 
         public ExaminationForm(AppointmentModel appointment)
         {
             _appointment = appointment ?? new AppointmentModel();
             InitializeComponent();
+            PreFillNurseVitals(); // Auto-fill từ bộ sinh hiệu điều dưỡng đã đo
+            _ = LoadIcdSuggestionsAsync();
+            _ = LoadClsStatusAsync();
+        }
+
+        // Tải trạng thái CLS THẬT từ server (không chỉ đếm trong phiên làm việc hiện tại) —
+        // để Bác sĩ mở lại ca khám vẫn thấy đúng đã có kết quả Xét nghiệm/Siêu âm hay chưa.
+        private async System.Threading.Tasks.Task LoadClsStatusAsync()
+        {
+            try
+            {
+                var api = new ApiService();
+                var items = await api.GetClinicalOrdersByAppointmentAsync(_appointment.AppointmentId);
+                if (items == null || items.Count == 0)
+                {
+                    _lblClsSummary.Text = "Chưa chỉ định CLS nào.";
+                    _lblClsSummary.ForeColor = ClinicalColors.TextMuted;
+                    return;
+                }
+
+                int pending = items.Count(i => i.Status == "Pending");
+                int abnormal = items.Count(i => i.Status == "Abnormal");
+                if (pending > 0)
+                {
+                    _lblClsSummary.Text = $"📋 {items.Count} chỉ định CLS — {items.Count - pending} đã có kết quả, {pending} đang chờ. (Bấm để xem)";
+                    _lblClsSummary.ForeColor = Color.FromArgb(180, 83, 9);
+                }
+                else if (abnormal > 0)
+                {
+                    _lblClsSummary.Text = $"⚠️ {items.Count} chỉ định CLS đã có đủ kết quả — {abnormal} chỉ số BẤT THƯỜNG, vui lòng xem lại. (Bấm để xem)";
+                    _lblClsSummary.ForeColor = Color.FromArgb(185, 28, 28);
+                }
+                else
+                {
+                    _lblClsSummary.Text = $"✅ {items.Count} chỉ định CLS đã có đủ kết quả, tất cả bình thường. (Bấm để xem)";
+                    _lblClsSummary.ForeColor = Color.FromArgb(16, 185, 129);
+                }
+            }
+            catch { }
+        }
+
+        // Tải danh mục ICD-10, ưu tiên hiện mã thuộc đúng chuyên khoa của bác sĩ đang đăng nhập lên đầu
+        private async System.Threading.Tasks.Task LoadIcdSuggestionsAsync()
+        {
+            try
+            {
+                var api = new ApiService();
+                var items = await api.GetIcd10CatalogAsync(TokenVault.SpecialtyId);
+                if (items == null || items.Count == 0) return;
+
+                _cboIcdSuggest.Items.Clear();
+                foreach (var it in items) _cboIcdSuggest.Items.Add(it);
+
+                var autoComplete = new AutoCompleteStringCollection();
+                autoComplete.AddRange(items.Select(i => i.ToString()).ToArray());
+                _cboIcdSuggest.AutoCompleteMode = AutoCompleteMode.SuggestAppend;
+                _cboIcdSuggest.AutoCompleteSource = AutoCompleteSource.CustomSource;
+                _cboIcdSuggest.AutoCompleteCustomSource = autoComplete;
+            }
+            catch { }
+        }
+
+        /// <summary>
+        /// Đọc NurseNote (JSONB) từ appointment và điền sẵn vào các ô sinh hiệu.
+        /// Bác sĩ vẫn có thể chỉnh sửa nếu cần.
+        /// </summary>
+        private void PreFillNurseVitals()
+        {
+            if (string.IsNullOrEmpty(_appointment.NurseNote)) return;
+            try
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(_appointment.NurseNote);
+                var root = doc.RootElement;
+
+                // Nhịp tim
+                if (root.TryGetProperty("heartRate", out var hr) && hr.GetInt32() > 0)
+                    _txtPulse.Text = hr.GetInt32().ToString();
+
+                // Huyết áp
+                if (root.TryGetProperty("bloodPressure", out var bp) && !string.IsNullOrEmpty(bp.GetString()))
+                    _txtBP.Text = bp.GetString()!;
+
+                // Thân nhiệt
+                if (root.TryGetProperty("temperature", out var tmp) && tmp.GetDouble() > 0)
+                    _txtTemp.Text = tmp.GetDouble().ToString("F1", System.Globalization.CultureInfo.InvariantCulture);
+
+                // Cân nặng
+                if (root.TryGetProperty("weight", out var wt) && wt.GetDouble() > 0)
+                    _txtWeight.Text = wt.GetDouble().ToString("F1", System.Globalization.CultureInfo.InvariantCulture);
+
+                // Đổi màu ô để báo hiệu đã được điền từ ĐD
+                foreach (var ctrl in new[] { _txtPulse, _txtBP, _txtTemp, _txtWeight })
+                {
+                    if (!string.IsNullOrEmpty(ctrl.Text))
+                        ctrl.BackColor = Color.FromArgb(219, 234, 254); // light-blue badge
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("PreFillNurseVitals error: " + ex.Message);
+            }
         }
 
         private void InitializeComponent()
@@ -150,9 +255,35 @@ namespace DTT.Doctor.UI.Forms
                 Hint = "Chẩn đoán chính (Mã ICD-10)"
             };
 
+            Label lblIcdHint = new Label
+            {
+                Text = "Gợi ý mã ICD-10 (ưu tiên đúng chuyên khoa của bạn) — gõ để tìm, chọn để tự điền:",
+                Font = ClinicalColors.GetMainFont(8f, FontStyle.Regular),
+                ForeColor = ClinicalColors.TextMuted,
+                Location = new Point(16, 312),
+                AutoSize = true
+            };
+
+            _cboIcdSuggest = new ComboBox
+            {
+                Location = new Point(16, 330),
+                Size = new Size(464, 30),
+                DropDownStyle = ComboBoxStyle.DropDown,
+                Font = ClinicalColors.GetMainFont(9.5f, FontStyle.Regular)
+            };
+            _cboIcdSuggest.SelectedIndexChanged += (s, e) =>
+            {
+                if (_cboIcdSuggest.SelectedItem is Icd10Item item)
+                {
+                    _selectedIcdCode = item.IcdCode;
+                    _selectedIcdDescription = item.DiseaseName;
+                    _txtDiagnosis.Text = item.ToString();
+                }
+            };
+
             _txtTreatmentPlan = new MaterialTextBoxEdit
             {
-                Location = new Point(16, 325),
+                Location = new Point(16, 368),
                 Size = new Size(464, 48),
                 Hint = "Lời khuyên & Hướng điều trị"
             };
@@ -165,7 +296,48 @@ namespace DTT.Doctor.UI.Forms
             pnlLeft.Controls.Add(lblSec2);
             pnlLeft.Controls.Add(_txtSymptoms);
             pnlLeft.Controls.Add(_txtDiagnosis);
+            pnlLeft.Controls.Add(lblIcdHint);
+            pnlLeft.Controls.Add(_cboIcdSuggest);
             pnlLeft.Controls.Add(_txtTreatmentPlan);
+
+            // ── 4. Chỉ định Cận Lâm Sàng (Xét nghiệm / Siêu âm) ────────────────
+            Label lblSec4 = new Label
+            {
+                Text = "4. CẬN LÂM SÀNG (XÉT NGHIỆM / SIÊU ÂM)",
+                Font = ClinicalColors.GetMainFont(10.5f, FontStyle.Bold),
+                ForeColor = ClinicalColors.PrimaryBlue,
+                Location = new Point(16, 424),
+                AutoSize = true
+            };
+
+            RoundedButton btnOrderCls = new RoundedButton
+            {
+                Text = "🔬  Chỉ Định XN / SA",
+                Font = ClinicalColors.GetMainFont(9.5f, FontStyle.Bold),
+                BackColor = Color.FromArgb(139, 92, 246), // Purple violet - đồng bộ màu WaitingForDoctor/AwaitingTestResults
+                HoverBackColor = Color.FromArgb(124, 58, 237),
+                ForeColor = Color.White,
+                BorderRadius = 10,
+                Size = new Size(170, 36),
+                Location = new Point(16, 452),
+                Cursor = Cursors.Hand
+            };
+            btnOrderCls.Click += OnOrderClsClick;
+
+            _lblClsSummary = new Label
+            {
+                Text = "Đang tải trạng thái CLS...",
+                Font = ClinicalColors.GetMainFont(9f, FontStyle.Regular),
+                ForeColor = ClinicalColors.TextMuted,
+                Location = new Point(196, 458),
+                Size = new Size(284, 40),
+                Cursor = Cursors.Hand
+            };
+            _lblClsSummary.Click += (s, e) => { using var f = new ClinicalResultsSummaryForm(_appointment.AppointmentId); f.ShowDialog(this); };
+
+            pnlLeft.Controls.Add(lblSec4);
+            pnlLeft.Controls.Add(btnOrderCls);
+            pnlLeft.Controls.Add(_lblClsSummary);
 
             // Right Panel: Prescription & Drugs
             AntiFlickerPanel pnlRight = new AntiFlickerPanel
@@ -392,48 +564,33 @@ namespace DTT.Doctor.UI.Forms
             Button btnCancel = new Button
             {
                 Text = "Đóng",
-                Font = ClinicalColors.GetMainFont(10f, FontStyle.Regular),
-                ForeColor = ClinicalColors.TextMuted,
+                Font = ClinicalColors.GetMainFont(10f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(71, 85, 105), // Slate dark clear text (không mờ)
+                BackColor = Color.FromArgb(241, 245, 249), // Soft button background
                 FlatStyle = FlatStyle.Flat,
-                Size = new Size(90, 44),
-                Location = new Point(1005, 10),
+                Size = new Size(100, 44),
+                Location = new Point(1000, 10),
                 Cursor = Cursors.Hand
             };
-            btnCancel.FlatAppearance.BorderColor = ClinicalColors.BorderGray;
+            btnCancel.FlatAppearance.BorderColor = Color.FromArgb(203, 213, 225);
+            btnCancel.FlatAppearance.BorderSize = 1;
             btnCancel.Click += (s, e) => this.Close();
 
             pnlFooter.Controls.Add(btnSave);
             pnlFooter.Controls.Add(btnPrint);
             pnlFooter.Controls.Add(btnCancel);
 
-            pnlHeader.Dock = DockStyle.Fill;
-            pnlHeader.Margin = new Padding(0);
+            pnlHeader.Dock = DockStyle.Top;
+            pnlHeader.Height = 70;
+
+            pnlFooter.Dock = DockStyle.Bottom;
+            pnlFooter.Height = 65;
 
             pnlBody.Dock = DockStyle.Fill;
-            pnlBody.Margin = new Padding(0);
 
-            pnlFooter.Dock = DockStyle.Fill;
-            pnlFooter.Margin = new Padding(0);
-
-            TableLayoutPanel mainLayout = new TableLayoutPanel
-            {
-                Dock = DockStyle.Fill,
-                RowCount = 3,
-                ColumnCount = 1,
-                Padding = new Padding(0),
-                Margin = new Padding(0),
-                BackColor = ClinicalColors.GhostWhite
-            };
-            mainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-            mainLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 70f));  // Row 0: Top Header (70px)
-            mainLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100f)); // Row 1: Middle Body
-            mainLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 65f));  // Row 2: Bottom Footer (65px)
-
-            mainLayout.Controls.Add(pnlHeader, 0, 0);
-            mainLayout.Controls.Add(pnlBody, 0, 1);
-            mainLayout.Controls.Add(pnlFooter, 0, 2);
-
-            Controls.Add(mainLayout);
+            Controls.Add(pnlBody);
+            Controls.Add(pnlFooter);
+            Controls.Add(pnlHeader);
         }
 
         private async void LoadMedicinesIntoCombo()
@@ -545,16 +702,52 @@ namespace DTT.Doctor.UI.Forms
             }
         }
 
+        // Mở dialog chọn Xét nghiệm/Siêu âm để chỉ định — bệnh nhân sẽ chuyển sang trạng thái
+        // "Chờ kết quả CLS" và xuất hiện trong hàng đợi của Kỹ thuật viên (KTV Siêu âm/Xét nghiệm).
+        private async void OnOrderClsClick(object sender, EventArgs e)
+        {
+            using (var picker = new ClinicalOrderPickerForm(_appointment.AppointmentId, _appointment.PatientId, TokenVault.DoctorId))
+            {
+                if (picker.ShowDialog(this) == DialogResult.OK && picker.OrderedCount > 0)
+                {
+                    await LoadClsStatusAsync();
+                }
+            }
+        }
+
         private async void OnSaveClinicalRecordClick(object sender, EventArgs e)
         {
-            var req = BuildCurrentRecordRequest();
-
             var api = new ApiService();
-            await api.SaveClinicalRecordAsync(req);
+
+            // Cảnh báo nếu ca khám này còn chỉ định Xét nghiệm/Siêu âm CHƯA có kết quả — tránh bấm
+            // nhầm (nút "Hoàn Tất" hoặc phím tắt Ctrl+S) khiến ca khám kết thúc trước khi có kết quả CLS.
+            var pendingOrders = await api.GetClinicalOrderQueueAsync(done: false);
+            int stillPending = pendingOrders.Count(o => o.AppointmentId == _appointment.AppointmentId);
+            if (stillPending > 0)
+            {
+                var confirm = MessageBox.Show(
+                    $"Ca khám này còn {stillPending} chỉ định Xét nghiệm/Siêu âm CHƯA có kết quả.\n\nBạn có chắc muốn hoàn tất ca khám ngay bây giờ không?",
+                    "Còn chỉ định CLS chưa hoàn tất", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+                if (confirm != DialogResult.Yes) return;
+            }
+
+            var req = BuildCurrentRecordRequest();
+            var (saveOk, insufficientStock) = await api.SaveClinicalRecordAsync(req);
             await api.UpdateAppointmentStatusAsync(_appointment.AppointmentId, "Completed");
 
             IsSaved = true;
             MessageBox.Show($"✅ HOÀN TẤT CA KHÁM VÀ LƯU HỒ SƠ Y TẾ!\n\n• Bệnh nhân: {_appointment.PatientName}\n• Chẩn đoán: {(!string.IsNullOrEmpty(_txtDiagnosis.Text) ? _txtDiagnosis.Text : "Khám sức khỏe")}\n• Số loại thuốc đã kê: {_prescriptions.Count} thuốc\n\nHồ sơ khám bệnh và đơn thuốc đã được ghi nhận thành công trên hệ thống.", "Hoàn Tất Ca Khám Lâm Sàng", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+            // Kho thuốc đã tự động trừ theo đơn vừa kê — nếu có thuốc không đủ hàng (đã trừ về 0),
+            // cảnh báo riêng để Dược sĩ/Bác sĩ biết cần nhập thêm hàng.
+            if (saveOk && insufficientStock.Count > 0)
+            {
+                MessageBox.Show(
+                    "⚠️ CÁC THUỐC SAU KHÔNG ĐỦ TỒN KHO (đã trừ về 0):\n\n" + string.Join("\n", insufficientStock) +
+                    "\n\nVui lòng báo Nhà Thuốc Bệnh Viện nhập thêm hàng.",
+                    "Cảnh Báo Hết Thuốc", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+
             this.Close();
         }
 
@@ -571,6 +764,8 @@ namespace DTT.Doctor.UI.Forms
                 Weight = _txtWeight.Text,
                 Symptoms = _txtSymptoms.Text,
                 Diagnosis = _txtDiagnosis.Text,
+                IcdCode = _selectedIcdCode,
+                IcdDescription = _selectedIcdDescription,
                 TreatmentPlan = _txtTreatmentPlan.Text,
                 Prescriptions = _prescriptions
             };

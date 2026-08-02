@@ -14,6 +14,8 @@ namespace DTT.Doctor.Presenter.ViewModels
         void UpdateKpiCards(int total, int waiting, int inProgress, int completed);
         void OnError(string message);
         void OnNewAppointmentNotified(string patientName, string timeSlot, string specialtyName);
+        // Bệnh nhân vừa có đủ kết quả Xét nghiệm/Siêu âm và quay lại hàng chờ Bác sĩ (status 9 → 3)
+        void OnClinicalResultsReady(string patientName, string specialtyName);
     }
 
     public class QueuePresenter
@@ -25,6 +27,7 @@ namespace DTT.Doctor.Presenter.ViewModels
         private bool _isFirstLoad = true;
         private string _currentQuery = "";
         private string _currentStatusFilter = "Tất cả";
+        private Dictionary<int, string> _previousStatuses = new Dictionary<int, string>();
 
         public QueuePresenter(IQueueView view, ApiService apiService = null)
         {
@@ -43,7 +46,34 @@ namespace DTT.Doctor.Presenter.ViewModels
             try
             {
                 var newList = await _apiService.GetQueueAppointmentsAsync();
-                
+
+                // ── Lọc theo role ────────────────────────────────────────────────
+                bool isDoctor = TokenVault.RoleCode == "DOCTOR" || TokenVault.RoleId == 2 ||
+                                (!string.IsNullOrEmpty(TokenVault.RoleName) && TokenVault.RoleName.Contains("Bác sĩ"));
+                bool isNurse  = TokenVault.RoleCode == "NURSE"  || TokenVault.RoleId == 5 ||
+                                (!string.IsNullOrEmpty(TokenVault.RoleName) && TokenVault.RoleName.Contains("Điều dưỡng"));
+
+                if (isDoctor)
+                {
+                    // Bác sĩ chỉ thấy bệnh nhân từ WaitingForDoctor (8) trở đi
+                    // → CheckedIn (7) chưa đo sinh hiệu → Bác sĩ không thấy
+                    newList = newList.Where(a =>
+                        a.Status == "WaitingForDoctor"     ||
+                        a.Status == "InProgress"           ||
+                        a.Status == "AwaitingTestResults"  || // Đã chỉ định CLS, đang chờ KTV trả kết quả
+                        a.Status == "Completed"            ||
+                        a.Status == "NoShow"               ||
+                        a.Status == "Cancelled").ToList();
+                }
+                else if (isNurse)
+                {
+                    // Điều dưỡng chỉ thấy CheckedIn (7) + WaitingForDoctor (8) đã đo hôm nay
+                    newList = newList.Where(a =>
+                        a.Status == "CheckedIn"        ||
+                        a.Status == "WaitingForDoctor").ToList();
+                }
+                // Lễ tân thấy toàn bộ (không lọc)
+
                 int currentMaxId = newList.Any() ? newList.Max(a => a.AppointmentId) : 0;
                 if (!_isFirstLoad && currentMaxId > _lastMaxId)
                 {
@@ -53,6 +83,21 @@ namespace DTT.Doctor.Presenter.ViewModels
                         _view.OnNewAppointmentNotified(appt.PatientName ?? "Khách", appt.TimeSlot ?? "Trong ngày", appt.SpecialtyName ?? "Nội tổng quát");
                     }
                 }
+
+                // Phát hiện ca vừa có đủ kết quả CLS quay lại hàng chờ (status: AwaitingTestResults → InProgress)
+                // để báo Bác sĩ chủ động, thay vì phải tự làm mới màn hình mới biết.
+                if (!_isFirstLoad)
+                {
+                    foreach (var appt in newList)
+                    {
+                        if (_previousStatuses.TryGetValue(appt.AppointmentId, out var prevStatus) &&
+                            prevStatus == "AwaitingTestResults" && appt.Status == "InProgress")
+                        {
+                            _view.OnClinicalResultsReady(appt.PatientName ?? "Bệnh nhân", appt.SpecialtyName ?? "Nội tổng quát");
+                        }
+                    }
+                }
+                _previousStatuses = newList.ToDictionary(a => a.AppointmentId, a => a.Status ?? "");
 
                 _lastMaxId = Math.Max(_lastMaxId, currentMaxId);
                 _isFirstLoad = false;
@@ -101,11 +146,11 @@ namespace DTT.Doctor.Presenter.ViewModels
             // Filter by pill tab buttons
             if (statusFilter == "Đang chờ")
             {
-                filtered = filtered.Where(a => a.Status == "Confirmed" || a.Status == "Đang chờ" || a.Status == "CheckedIn" || a.Status == "Scheduled");
+                filtered = filtered.Where(a => a.Status == "Confirmed" || a.Status == "Đang chờ" || a.Status == "CheckedIn" || a.Status == "Scheduled" || a.Status == "WaitingForDoctor");
             }
             else if (statusFilter == "Đang khám")
             {
-                filtered = filtered.Where(a => a.Status == "InProgress" || a.Status == "Đang khám");
+                filtered = filtered.Where(a => a.Status == "InProgress" || a.Status == "AwaitingTestResults" || a.Status == "Đang khám");
             }
             else if (statusFilter == "Đã xong")
             {
@@ -121,8 +166,8 @@ namespace DTT.Doctor.Presenter.ViewModels
 
             // Compute KPI counts from full list
             int total = _allAppointments.Count;
-            int waiting = _allAppointments.Count(a => a.Status == "Confirmed" || a.Status == "Đang chờ" || a.Status == "CheckedIn" || a.Status == "Scheduled");
-            int inProgress = _allAppointments.Count(a => a.Status == "InProgress" || a.Status == "Đang khám");
+            int waiting = _allAppointments.Count(a => a.Status == "Confirmed" || a.Status == "Đang chờ" || a.Status == "CheckedIn" || a.Status == "Scheduled" || a.Status == "WaitingForDoctor");
+            int inProgress = _allAppointments.Count(a => a.Status == "InProgress" || a.Status == "AwaitingTestResults" || a.Status == "Đang khám");
             int completed = _allAppointments.Count(a => a.Status == "Completed" || a.Status == "Đã xong" || a.Status == "Đã hoàn thành");
 
             _view.UpdateKpiCards(total, waiting, inProgress, completed);

@@ -41,7 +41,31 @@ namespace DTT.Doctor.UI.Forms
         {
             _presenter = new LoginPresenter(this);
             InitializeComponent();
+            SeedDefaultRecentUsersIfEmpty();
             LoadRecentUsers();
+        }
+
+        /// <summary>
+        /// Lần đầu khởi chạy (chưa có file recent_logins.json) → seed sẵn 5 tài khoản demo
+        /// để mục "Gần đây" luôn hiển thị đủ các role cho người dùng thử.
+        /// </summary>
+        private void SeedDefaultRecentUsersIfEmpty()
+        {
+            var defaults = new List<RecentUser>
+            {
+                new RecentUser { Phone = "0900000004", Name = "Nguyễn Thị Minh Châu", RoleCode = "RECEPTIONIST", RoleName = "Lễ tân tiếp đón" },
+                new RecentUser { Phone = "0900000006", Name = "KTV. Trần Tuấn Kiệt", RoleCode = "LAB_TECH",     RoleName = "Kỹ thuật viên CLS" },
+                new RecentUser { Phone = "0900000005", Name = "Phạm Thị Hồng Hạnh",  RoleCode = "NURSE",         RoleName = "Điều dưỡng" },
+                new RecentUser { Phone = "0900000007", Name = "Ds. Trịnh Mai Phương", RoleCode = "PHARMACIST",  RoleName = "Dược sĩ" },
+                new RecentUser { Phone = "0901111111", Name = "BS. CKII Nguyễn Văn A", RoleCode = "DOCTOR",    RoleName = "Bác sĩ" },
+                new RecentUser { Phone = "0906666666", Name = "BS. CKII Phạm Tuấn Kiệt", RoleCode = "DOCTOR",  RoleName = "Bác sĩ" }
+            };
+
+            if (!File.Exists(RecentLoginsFile))
+            {
+                try { File.WriteAllText(RecentLoginsFile, JsonSerializer.Serialize(defaults)); }
+                catch { }
+            }
         }
 
         private void InitializeComponent()
@@ -144,6 +168,7 @@ namespace DTT.Doctor.UI.Forms
                 Location = new Point(390, 170),
                 Size = new Size(360, 48),
                 Hint = "Số điện thoại",
+                MaxLength = 10,
                 Font = ClinicalColors.GetMainFont(11f, FontStyle.Regular)
             };
 
@@ -226,7 +251,7 @@ namespace DTT.Doctor.UI.Forms
                 };
                 _recentUsers.RemoveAll(u => u.Phone == newUser.Phone);
                 _recentUsers.Insert(0, newUser);
-                if (_recentUsers.Count > 3) _recentUsers.RemoveAt(_recentUsers.Count - 1);
+                if (_recentUsers.Count > 6) _recentUsers.RemoveAt(_recentUsers.Count - 1);
                 File.WriteAllText(RecentLoginsFile, JsonSerializer.Serialize(_recentUsers));
             } 
             catch { }
@@ -250,6 +275,25 @@ namespace DTT.Doctor.UI.Forms
                     _recentUsers = JsonSerializer.Deserialize<List<RecentUser>>(File.ReadAllText(RecentLoginsFile)) ?? new List<RecentUser>();
                 } catch { }
             }
+
+            // Đảm bảo đủ các tài khoản mẫu cho người dùng chọn nhanh nếu cần
+            var defaultsList = new List<RecentUser>
+            {
+                new RecentUser { Phone = "0900000004", Name = "Nguyễn Thị Minh Châu", RoleCode = "RECEPTIONIST", RoleName = "Lễ tân tiếp đón" },
+                new RecentUser { Phone = "0900000006", Name = "KTV. Trần Tuấn Kiệt", RoleCode = "LAB_TECH",     RoleName = "Kỹ thuật viên CLS" },
+                new RecentUser { Phone = "0900000005", Name = "Phạm Thị Hồng Hạnh",  RoleCode = "NURSE",         RoleName = "Điều dưỡng" },
+                new RecentUser { Phone = "0900000007", Name = "Ds. Trịnh Mai Phương", RoleCode = "PHARMACIST",  RoleName = "Dược sĩ" },
+                new RecentUser { Phone = "0901111111", Name = "BS. CKII Nguyễn Văn A", RoleCode = "DOCTOR",    RoleName = "Bác sĩ" },
+                new RecentUser { Phone = "0906666666", Name = "BS. CKII Phạm Tuấn Kiệt", RoleCode = "DOCTOR",  RoleName = "Bác sĩ" }
+            };
+
+            foreach (var def in defaultsList)
+            {
+                if (!_recentUsers.Any(u => u.Phone == def.Phone) && _recentUsers.Count < 6)
+                {
+                    _recentUsers.Add(def);
+                }
+            }
             
             if (_recentUsers.Any())
             {
@@ -258,13 +302,21 @@ namespace DTT.Doctor.UI.Forms
                     Text = "Gần đây:",
                     Font = ClinicalColors.GetMainFont(9f, FontStyle.Italic),
                     ForeColor = ClinicalColors.TextMuted,
-                    Location = new Point(390, 415),
+                    Location = new Point(390, 410),
                     AutoSize = true
                 };
                 _pnlMainCard.Controls.Add(lblRecent);
 
-                int currentX = 445;
-                foreach (var user in _recentUsers)
+                FlowLayoutPanel flowRecent = new FlowLayoutPanel
+                {
+                    Location = new Point(445, 404),
+                    Size = new Size(330, 68),
+                    BackColor = Color.Transparent,
+                    WrapContents = true,
+                    AutoScroll = false
+                };
+
+                foreach (var user in _recentUsers.Take(6))
                 {
                     string displayName = FormatShortDoctorName(user);
                     Button btn = new Button
@@ -274,16 +326,17 @@ namespace DTT.Doctor.UI.Forms
                         BackColor = Color.FromArgb(241, 245, 249),
                         ForeColor = ClinicalColors.TextDark,
                         FlatStyle = FlatStyle.Flat,
-                        Location = new Point(currentX, 410),
-                        Size = new Size(110, 30),
+                        Size = new Size(102, 28),
+                        Margin = new Padding(0, 0, 6, 6),
                         Cursor = Cursors.Hand,
                         UseMnemonic = false
                     };
                     btn.FlatAppearance.BorderColor = ClinicalColors.BorderGray;
                     btn.Click += (s, e) => { _txtPhone.Text = user.Phone; _txtPassword.Focus(); };
-                    _pnlMainCard.Controls.Add(btn);
-                    currentX += 116;
+                    flowRecent.Controls.Add(btn);
                 }
+
+                _pnlMainCard.Controls.Add(flowRecent);
             }
         }
 
@@ -295,14 +348,19 @@ namespace DTT.Doctor.UI.Forms
             string roleName = user.RoleName ?? string.Empty;
             string phone = user.Phone ?? string.Empty;
 
-            // Đảm bảo Lễ tân (0900000004) luôn hiển thị danh xưng LT. Châu
-            if (phone == "0900000004" || roleCode == "RECEPTIONIST" || roleName.Contains("Lễ tân") || fullName.Contains("Châu") || fullName.Contains("Điều trị"))
+            if (phone == "0900000005" || roleCode == "NURSE" || roleName.Contains("Điều dưỡng"))
             {
-                return "LT. Châu";
+                string cleanName = fullName.Replace("ĐD.", "").Replace("ĐD", "").Trim();
+                if (string.IsNullOrEmpty(cleanName) || cleanName.Contains("000")) cleanName = "Phạm Thị Hồng Hạnh";
+                var partsN = cleanName.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                return "ĐD. " + (partsN.Length > 0 ? partsN[partsN.Length - 1] : cleanName);
             }
-            if (phone == "0900000005" || roleCode == "NURSE" || roleName.Contains("Điều dưỡng") || fullName.Contains("Hạnh"))
+            if (phone == "0900000004" || roleCode == "RECEPTIONIST" || roleName.Contains("Lễ tân"))
             {
-                return "ĐD. Hạnh";
+                string cleanName = fullName.Replace("LT.", "").Replace("LT", "").Trim();
+                if (string.IsNullOrEmpty(cleanName) || cleanName.Contains("000")) cleanName = "Nguyễn Thị Minh Châu";
+                var partsL = cleanName.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                return "LT. " + (partsL.Length > 0 ? partsL[partsL.Length - 1] : cleanName);
             }
             if (phone == "0900000006" || roleCode == "LAB_TECH" || roleName.Contains("Kỹ thuật") || fullName.Contains("Kiệt"))
             {

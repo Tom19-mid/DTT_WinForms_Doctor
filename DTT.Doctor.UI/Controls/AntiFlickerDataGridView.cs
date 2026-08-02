@@ -150,7 +150,13 @@ namespace DTT.Doctor.UI.Controls
                     Color fg = Color.FromArgb(180, 83, 9);   // Amber text
                     string label = "Đang chờ";
 
-                    if (val.Equals("InProgress", StringComparison.OrdinalIgnoreCase) || val.Contains("khám") || val.Equals("2"))
+                    if (val.Equals("AwaitingTestResults", StringComparison.OrdinalIgnoreCase))
+                    {
+                        bg = Color.FromArgb(237, 233, 254); // Pastel violet
+                        fg = Color.FromArgb(109, 40, 217);  // Violet text
+                        label = "Chờ Kết Quả CLS";
+                    }
+                    else if (val.Equals("InProgress", StringComparison.OrdinalIgnoreCase) || val.Contains("khám") || val.Equals("2"))
                     {
                         bg = Color.FromArgb(219, 234, 254); // Pastel blue
                         fg = Color.FromArgb(29, 78, 216);  // Blue text
@@ -194,13 +200,14 @@ namespace DTT.Doctor.UI.Controls
                         e.Graphics.DrawString(label, font, textBrush, pillRect, format);
                     }
                 }
-                else if (colName == "ColAction")
+                else if (colName == "ColAction" || (Columns[e.ColumnIndex].HeaderText != null && (Columns[e.ColumnIndex].HeaderText.Contains("THAO TÁC") || Columns[e.ColumnIndex].HeaderText.Contains("HỦY"))))
                 {
-                    string actionText = e.Value != null ? e.Value.ToString() : "Khám ▼";
+                    string actionText = e.Value != null ? e.Value.ToString() : "";
 
                     e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-                    int btnWidth = 92;
-                    int btnHeight = 30;
+                    int btnWidth = e.CellBounds.Width - 16;
+                    if (btnWidth > 105) btnWidth = 105;
+                    int btnHeight = 24; // Thu gọn chiều cao xuống 24px gọn gàng, dịu mắt
                     int btnX = e.CellBounds.X + (e.CellBounds.Width - btnWidth) / 2;
                     int btnY = e.CellBounds.Y + (e.CellBounds.Height - btnHeight) / 2;
                     Rectangle btnRect = new Rectangle(btnX, btnY, btnWidth, btnHeight);
@@ -211,26 +218,30 @@ namespace DTT.Doctor.UI.Controls
                     Color btnBorder = ClinicalColors.PrimaryBlue;
                     Color btnFg = ClinicalColors.PrimaryBlue;
 
-                    if (actionText.Contains("Hồ sơ"))
+                    if (actionText.Contains("Check-in"))
                     {
-                        btnBg = isBtnHovered ? Color.FromArgb(16, 185, 129) : Color.FromArgb(236, 253, 245);
-                        btnBorder = Color.FromArgb(16, 185, 129);
-                        btnFg = isBtnHovered ? Color.White : Color.FromArgb(16, 185, 129);
+                        if (actionText.Contains("Đã Check-in"))
+                        {
+                            // Trạng thái đã Check-in rồi: Khóa nút màu xám xanh chìm nhẹ, dịu mắt
+                            btnBg = Color.FromArgb(241, 245, 249);
+                            btnBorder = Color.FromArgb(226, 232, 240);
+                            btnFg = Color.FromArgb(148, 163, 184);
+                        }
+                        else
+                        {
+                            btnBg = isBtnHovered ? Color.FromArgb(16, 185, 129) : Color.FromArgb(236, 253, 245);
+                            btnBorder = Color.FromArgb(16, 185, 129);
+                            btnFg = isBtnHovered ? Color.White : Color.FromArgb(16, 185, 129);
+                        }
                     }
-                    else if (actionText.Contains("hủy"))
+                    else if (actionText.Contains("Tùy chọn"))
                     {
-                        btnBg = Color.FromArgb(241, 245, 249);
-                        btnBorder = ClinicalColors.BorderGray;
-                        btnFg = ClinicalColors.TextMuted;
-                    }
-                    else
-                    {
-                        btnBg = isBtnHovered ? ClinicalColors.PrimaryBlue : Color.FromArgb(239, 246, 255);
-                        btnBorder = ClinicalColors.PrimaryBlue;
-                        btnFg = isBtnHovered ? Color.White : ClinicalColors.PrimaryBlue;
+                        btnBg = isBtnHovered ? Color.FromArgb(241, 245, 249) : Color.White;
+                        btnBorder = Color.FromArgb(203, 213, 225);
+                        btnFg = Color.FromArgb(71, 85, 105);
                     }
 
-                    using (var path = CreateRoundedRectPath(btnRect, 14))
+                    using (var path = CreateRoundedRectPath(btnRect, 5))
                     {
                         using (var brush = new SolidBrush(btnBg))
                         {
@@ -242,7 +253,7 @@ namespace DTT.Doctor.UI.Controls
                         }
                     }
 
-                    using (var font = ClinicalColors.GetMainFont(9f, FontStyle.Bold))
+                    using (var font = ClinicalColors.GetMainFont(8f, FontStyle.Bold)) // Font 8pt dịu vừa vặn
                     using (var textBrush = new SolidBrush(btnFg))
                     {
                         var format = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };

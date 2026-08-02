@@ -122,8 +122,10 @@ namespace DTT.Doctor.Services.Core
                 // Nếu là Bác sĩ thì truyền doctorId để chỉ lấy ca khám của bác sĩ đó.
                 // Nếu là Lễ Tân thì gọi /api/Appointments (không có doctorId) để xem toàn bộ bệnh nhân của tất cả Bác sĩ.
                 string url = "/api/Appointments?todayOnly=true";
-                bool isReceptionist = TokenVault.RoleId == 4 || TokenVault.RoleCode == "RECEPTIONIST" || (!string.IsNullOrEmpty(TokenVault.RoleName) && TokenVault.RoleName.Contains("Lễ tân"));
-                if (TokenVault.DoctorId > 0 && !isReceptionist)
+                bool isStaffViewAll = TokenVault.RoleId == 4 || TokenVault.RoleId == 5 || TokenVault.RoleId == 6 || TokenVault.RoleId == 7 ||
+                                     TokenVault.RoleCode == "RECEPTIONIST" || TokenVault.RoleCode == "NURSE" || TokenVault.RoleCode == "LAB_TECH" || TokenVault.RoleCode == "PHARMACIST" ||
+                                     (!string.IsNullOrEmpty(TokenVault.RoleName) && (TokenVault.RoleName.Contains("Lễ tân") || TokenVault.RoleName.Contains("Điều dưỡng") || TokenVault.RoleName.Contains("Kỹ thuật") || TokenVault.RoleName.Contains("Dược sĩ")));
+                if (TokenVault.DoctorId > 0 && !isStaffViewAll)
                 {
                     url = $"/api/Appointments?doctorId={TokenVault.DoctorId}&todayOnly=true";
                 }
@@ -145,9 +147,9 @@ namespace DTT.Doctor.Services.Core
                             {
                                 list[i].PatientGender = "Nam";
                             }
-                            if (list[i].PatientAge <= 0)
+                            if (list[i].PatientAge < 0)
                             {
-                                list[i].PatientAge = 35;
+                                list[i].PatientAge = 0;
                             }
                         }
 
@@ -190,6 +192,31 @@ namespace DTT.Doctor.Services.Core
             }
             catch { }
             return false;
+        }
+
+        // Lấy phí khám + phí thuốc THẬT (tính từ đơn thuốc điện tử) để hiển thị đúng trên màn Thanh Toán trước khi thu tiền
+        public async Task<(decimal ExamFee, decimal ServicesFee, decimal MedsFee, decimal Total, bool IsPackage)> GetInvoiceEstimateAsync(int appointmentId)
+        {
+            AttachBearerToken();
+            try
+            {
+                var res = await _httpClient.GetAsync($"/api/Invoices/estimate/{appointmentId}");
+                if (res.IsSuccessStatusCode)
+                {
+                    var json = await res.Content.ReadAsStringAsync();
+                    dynamic? obj = JsonConvert.DeserializeObject<dynamic>(json);
+                    if (obj != null && (bool)(obj.success ?? false))
+                    {
+                        decimal exam = (decimal)(obj.examFee ?? 250000m);
+                        decimal svc = (decimal)(obj.servicesFee ?? 0m);
+                        decimal meds = (decimal)(obj.medsFee ?? 0m);
+                        bool isPkg = (bool)(obj.isPackage ?? false);
+                        return (exam, svc, meds, exam + svc + meds, isPkg);
+                    }
+                }
+            }
+            catch { }
+            return (250000m, 0m, 0m, 250000m, false);
         }
 
         // Lễ Tân xác nhận thu tiền → Tạo Invoice trong DB + gửi thông báo App Mobile
@@ -275,6 +302,42 @@ namespace DTT.Doctor.Services.Core
             };
         }
 
+        // ── Điều Dưỡng: Lưu sinh hiệu & chuyển trạng thái → WaitingForDoctor (8) ──
+        public async Task<(bool Success, double Bmi)> SaveNurseVitalsAsync(
+            int appointmentId,
+            string bloodPressure,
+            int heartRate,
+            double temperature,
+            double weight,
+            double height,
+            string nurseNote = "")
+        {
+            AttachBearerToken();
+            try
+            {
+                var payload = new
+                {
+                    BloodPressure = bloodPressure,
+                    HeartRate     = heartRate,
+                    Temperature   = temperature,
+                    Weight        = weight,
+                    Height        = height,
+                    NurseNote     = nurseNote
+                };
+                var content = new StringContent(JsonConvert.SerializeObject(payload), Encoding.UTF8, "application/json");
+                var res = await _httpClient.PutAsync($"/api/Appointments/{appointmentId}/nurse-vitals", content);
+                if (res.IsSuccessStatusCode)
+                {
+                    var json = await res.Content.ReadAsStringAsync();
+                    dynamic? obj = JsonConvert.DeserializeObject<dynamic>(json);
+                    double bmi = (double)(obj?.bmi ?? 0);
+                    return (true, bmi);
+                }
+            }
+            catch { }
+            return (false, 0);
+        }
+
         public async Task<bool> UpdateAppointmentStatusAsync(int appointmentId, string status)
         {
             AttachBearerToken();
@@ -295,18 +358,49 @@ namespace DTT.Doctor.Services.Core
             }
         }
 
-        public async Task<bool> SaveClinicalRecordAsync(SaveClinicalRecordRequest req)
+        // Lễ Tân hủy lịch hẹn tại quầy — kèm lý do (khác luồng bệnh nhân tự hủy trên App, không cần lý do)
+        public async Task<bool> CancelAppointmentWithReasonAsync(int appointmentId, string reason)
+        {
+            AttachBearerToken();
+            try
+            {
+                var payload = new
+                {
+                    CancelReason = reason,
+                    CancelledBy = !string.IsNullOrEmpty(TokenVault.FullName) ? TokenVault.FullName : "Lễ tân tiếp đón"
+                };
+                var content = new StringContent(JsonConvert.SerializeObject(payload), Encoding.UTF8, "application/json");
+                var res = await _httpClient.PutAsync($"/api/Appointments/{appointmentId}/cancel", content);
+                return res.IsSuccessStatusCode;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public async Task<(bool Success, List<string> InsufficientStock)> SaveClinicalRecordAsync(SaveClinicalRecordRequest req)
         {
             AttachBearerToken();
             try
             {
                 var content = new StringContent(JsonConvert.SerializeObject(req), Encoding.UTF8, "application/json");
                 var res = await _httpClient.PostAsync("/api/MedicalRecords", content);
-                return res.IsSuccessStatusCode;
+                if (!res.IsSuccessStatusCode) return (false, new List<string>());
+
+                var json = await res.Content.ReadAsStringAsync();
+                dynamic? obj = JsonConvert.DeserializeObject<dynamic>(json);
+                var insufficient = new List<string>();
+                if (obj?.insufficientStock != null)
+                {
+                    var list = JsonConvert.DeserializeObject<List<string>>(obj.insufficientStock.ToString());
+                    if (list != null) insufficient = list;
+                }
+                return (true, insufficient);
             }
             catch
             {
-                return false;
+                return (false, new List<string>());
             }
         }
 
@@ -350,6 +444,31 @@ namespace DTT.Doctor.Services.Core
                 new MedicineModel { MedicineId = 2, MedicineName = "Paracetamol 500mg", Unit = "Viên", DefaultUsage = "Uống 1 viên khi sốt > 38.5°C" },
                 new MedicineModel { MedicineId = 3, MedicineName = "Vitamin C 1000mg", Unit = "Hộp", DefaultUsage = "Pha 1 viên với 200ml nước ấm" }
             };
+        }
+
+        // Lấy danh mục ICD-10 — mã thuộc đúng chuyên khoa của bác sĩ đang đăng nhập được xếp lên đầu
+        public async Task<List<Icd10Item>> GetIcd10CatalogAsync(int specialtyId, string search = "")
+        {
+            AttachBearerToken();
+            try
+            {
+                string url = $"/api/MedicalRecords/icd10?specialtyId={specialtyId}";
+                if (!string.IsNullOrWhiteSpace(search)) url += $"&search={Uri.EscapeDataString(search)}";
+
+                var res = await _httpClient.GetAsync(url);
+                if (res.IsSuccessStatusCode)
+                {
+                    var json = await res.Content.ReadAsStringAsync();
+                    dynamic? obj = JsonConvert.DeserializeObject<dynamic>(json);
+                    if (obj != null && (bool)(obj.success ?? false) && obj.items != null)
+                    {
+                        var list = JsonConvert.DeserializeObject<List<Icd10Item>>(obj.items.ToString());
+                        if (list != null) return list;
+                    }
+                }
+            }
+            catch { }
+            return new List<Icd10Item>();
         }
 
         public async Task<dynamic> GetDoctorSchedulesAsync(int doctorId, string dateStr)
@@ -426,6 +545,249 @@ namespace DTT.Doctor.Services.Core
                 var payload = JsonConvert.SerializeObject(new { cccdNumber = cccd });
                 var content = new System.Net.Http.StringContent(payload, System.Text.Encoding.UTF8, "application/json");
                 var res = await _httpClient.PatchAsync($"/api/Patients/{patientId}/verify", content);
+                return res.IsSuccessStatusCode;
+            }
+            catch { }
+            return false;
+        }
+
+        // ── Cận Lâm Sàng (Xét nghiệm / Siêu âm): Bác sĩ chỉ định + Kỹ thuật viên xử lý ──
+
+        // Danh mục dịch vụ Xét nghiệm/Siêu âm để Bác sĩ chọn khi chỉ định
+        public async Task<List<ClinicalOrderServiceItem>> GetClinicalServicesAsync()
+        {
+            AttachBearerToken();
+            try
+            {
+                var res = await _httpClient.GetAsync("/api/ClinicalOrders/services");
+                if (res.IsSuccessStatusCode)
+                {
+                    var json = await res.Content.ReadAsStringAsync();
+                    dynamic? obj = JsonConvert.DeserializeObject<dynamic>(json);
+                    if (obj != null && (bool)(obj.success ?? false) && obj.items != null)
+                    {
+                        var list = JsonConvert.DeserializeObject<List<ClinicalOrderServiceItem>>(obj.items.ToString());
+                        if (list != null) return list;
+                    }
+                }
+            }
+            catch { }
+            return new List<ClinicalOrderServiceItem>();
+        }
+
+        // Bác sĩ chỉ định 1..N dịch vụ Xét nghiệm/Siêu âm cho ca khám đang diễn ra
+        public async Task<(bool Success, string Message)> CreateClinicalOrdersAsync(int appointmentId, int patientId, int doctorId, List<int> serviceIds, bool isUrgent = false, string clinicalNote = "")
+        {
+            AttachBearerToken();
+            try
+            {
+                var payload = new
+                {
+                    AppointmentId = appointmentId,
+                    PatientId = patientId,
+                    DoctorId = doctorId,
+                    OrderedByUserId = TokenVault.UserId,
+                    ServiceIds = serviceIds,
+                    IsUrgent = isUrgent,
+                    ClinicalNote = clinicalNote
+                };
+                var content = new StringContent(JsonConvert.SerializeObject(payload), Encoding.UTF8, "application/json");
+                var res = await _httpClient.PostAsync("/api/ClinicalOrders", content);
+                var json = await res.Content.ReadAsStringAsync();
+                if (res.IsSuccessStatusCode) return (true, "");
+
+                try
+                {
+                    dynamic? obj = JsonConvert.DeserializeObject<dynamic>(json);
+                    string msg = (string)(obj?.message ?? "Không thể gửi chỉ định lên hệ thống.");
+                    return (false, msg);
+                }
+                catch { return (false, "Không thể gửi chỉ định lên hệ thống."); }
+            }
+            catch (Exception ex)
+            {
+                return (false, "Lỗi kết nối: " + ex.Message);
+            }
+        }
+
+        // Hủy 1 chỉ định Xét nghiệm/Siêu âm đã tạo nhầm (chỉ khi còn 'Pending')
+        public async Task<bool> CancelClinicalOrderAsync(string kind, int id)
+        {
+            AttachBearerToken();
+            try
+            {
+                string path = kind == "Test" ? $"/api/ClinicalOrders/tests/{id}/cancel" : $"/api/ClinicalOrders/ultrasound/{id}/cancel";
+                var content = new StringContent("{}", Encoding.UTF8, "application/json");
+                var res = await _httpClient.PutAsync(path, content);
+                return res.IsSuccessStatusCode;
+            }
+            catch { }
+            return false;
+        }
+
+        // Toàn bộ chỉ định CLS (mọi trạng thái) của 1 lượt khám — Bác sĩ xem lại kết quả trong Phiếu Khám
+        public async Task<List<ClinicalOrderQueueItem>> GetClinicalOrdersByAppointmentAsync(int appointmentId)
+        {
+            AttachBearerToken();
+            try
+            {
+                var res = await _httpClient.GetAsync($"/api/ClinicalOrders/by-appointment/{appointmentId}");
+                if (res.IsSuccessStatusCode)
+                {
+                    var json = await res.Content.ReadAsStringAsync();
+                    dynamic? obj = JsonConvert.DeserializeObject<dynamic>(json);
+                    if (obj != null && (bool)(obj.success ?? false) && obj.items != null)
+                    {
+                        var list = JsonConvert.DeserializeObject<List<ClinicalOrderQueueItem>>(obj.items.ToString());
+                        if (list != null) return list;
+                    }
+                }
+            }
+            catch { }
+            return new List<ClinicalOrderQueueItem>();
+        }
+
+        // Chi tiết 1 chỉ định siêu âm (mô tả/kết luận/ảnh đã đính kèm) — hiển thị khi KTV mở cửa sổ nhập kết quả
+        public async Task<(string Description, string Conclusion, List<string> ImageUrls)> GetUltrasoundDetailAsync(int ultrasoundId)
+        {
+            AttachBearerToken();
+            try
+            {
+                var res = await _httpClient.GetAsync($"/api/ClinicalOrders/ultrasound/{ultrasoundId}");
+                if (res.IsSuccessStatusCode)
+                {
+                    var json = await res.Content.ReadAsStringAsync();
+                    dynamic? obj = JsonConvert.DeserializeObject<dynamic>(json);
+                    if (obj != null && (bool)(obj.success ?? false))
+                    {
+                        string desc = (string)(obj.description ?? "");
+                        string concl = (string)(obj.conclusion ?? "");
+                        var urls = new List<string>();
+                        if (obj.imageUrls != null)
+                        {
+                            var list = JsonConvert.DeserializeObject<List<string>>(obj.imageUrls.ToString());
+                            if (list != null) urls = list;
+                        }
+                        return (desc, concl, urls);
+                    }
+                }
+            }
+            catch { }
+            return ("", "", new List<string>());
+        }
+
+        // KTV đính kèm 1 ảnh siêu âm thật (chọn từ máy tính) — trả về URL ảnh vừa upload
+        public async Task<(bool Success, string Url)> UploadUltrasoundImageAsync(int ultrasoundId, string filePath)
+        {
+            AttachBearerToken();
+            try
+            {
+                using var form = new MultipartFormDataContent();
+                var fileBytes = await System.IO.File.ReadAllBytesAsync(filePath);
+                var fileContent = new ByteArrayContent(fileBytes);
+                fileContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+                form.Add(fileContent, "file", System.IO.Path.GetFileName(filePath));
+
+                var res = await _httpClient.PostAsync($"/api/ClinicalOrders/ultrasound/{ultrasoundId}/images", form);
+                if (res.IsSuccessStatusCode)
+                {
+                    var json = await res.Content.ReadAsStringAsync();
+                    dynamic? obj = JsonConvert.DeserializeObject<dynamic>(json);
+                    string url = (string)(obj?.url ?? "");
+                    return (true, url);
+                }
+            }
+            catch { }
+            return (false, "");
+        }
+
+        // Bỏ 1 ảnh siêu âm đính kèm nhầm (theo vị trí index trong danh sách ảnh hiện tại)
+        public async Task<bool> RemoveUltrasoundImageAsync(int ultrasoundId, int index)
+        {
+            AttachBearerToken();
+            try
+            {
+                var res = await _httpClient.DeleteAsync($"/api/ClinicalOrders/ultrasound/{ultrasoundId}/images?index={index}");
+                return res.IsSuccessStatusCode;
+            }
+            catch { }
+            return false;
+        }
+
+        // Hàng đợi của Kỹ thuật viên CLS: done=false → còn 'Pending', done=true → đã có kết quả hôm nay
+        public async Task<List<ClinicalOrderQueueItem>> GetClinicalOrderQueueAsync(string? type = null, bool done = false)
+        {
+            AttachBearerToken();
+            try
+            {
+                string url = $"/api/ClinicalOrders/queue?done={done}" + (!string.IsNullOrEmpty(type) ? $"&type={type}" : "");
+                var res = await _httpClient.GetAsync(url);
+                if (res.IsSuccessStatusCode)
+                {
+                    var json = await res.Content.ReadAsStringAsync();
+                    dynamic? obj = JsonConvert.DeserializeObject<dynamic>(json);
+                    if (obj != null && (bool)(obj.success ?? false) && obj.items != null)
+                    {
+                        var list = JsonConvert.DeserializeObject<List<ClinicalOrderQueueItem>>(obj.items.ToString());
+                        if (list != null) return list;
+                    }
+                }
+            }
+            catch { }
+            return new List<ClinicalOrderQueueItem>();
+        }
+
+        // KTV nộp kết quả Xét nghiệm
+        public async Task<bool> SubmitTestResultAsync(int testId, string resultValue, string unit, string referenceRange, string resultStatus)
+        {
+            AttachBearerToken();
+            try
+            {
+                var payload = new
+                {
+                    ResultValue = resultValue,
+                    Unit = unit,
+                    ReferenceRange = referenceRange,
+                    ResultStatus = resultStatus,
+                    PerformedByUserId = TokenVault.UserId
+                };
+                var content = new StringContent(JsonConvert.SerializeObject(payload), Encoding.UTF8, "application/json");
+                var res = await _httpClient.PutAsync($"/api/ClinicalOrders/tests/{testId}/result", content);
+                return res.IsSuccessStatusCode;
+            }
+            catch { }
+            return false;
+        }
+
+        // KTV nộp kết quả Siêu âm
+        public async Task<bool> SubmitUltrasoundResultAsync(int ultrasoundId, string description, string conclusion)
+        {
+            AttachBearerToken();
+            try
+            {
+                var payload = new
+                {
+                    Description = description,
+                    Conclusion = conclusion,
+                    PerformedByUserId = TokenVault.UserId
+                };
+                var content = new StringContent(JsonConvert.SerializeObject(payload), Encoding.UTF8, "application/json");
+                var res = await _httpClient.PutAsync($"/api/ClinicalOrders/ultrasound/{ultrasoundId}/result", content);
+                return res.IsSuccessStatusCode;
+            }
+            catch { }
+            return false;
+        }
+
+        // Xác thực CCCD hồ sơ NGƯỜI THÂN bởi Lễ Tân (PATCH /api/FamilyMembers/{id}/verify)
+        public async Task<bool> VerifyFamilyMemberCccdAsync(int memberId, string cccd)
+        {
+            AttachBearerToken();
+            try
+            {
+                var payload = JsonConvert.SerializeObject(new { cccdNumber = cccd });
+                var content = new System.Net.Http.StringContent(payload, System.Text.Encoding.UTF8, "application/json");
+                var res = await _httpClient.PatchAsync($"/api/FamilyMembers/{memberId}/verify", content);
                 return res.IsSuccessStatusCode;
             }
             catch { }

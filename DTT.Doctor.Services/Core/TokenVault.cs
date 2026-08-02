@@ -41,39 +41,47 @@ namespace DTT.Doctor.Services.Core
             string fullName = !string.IsNullOrWhiteSpace(FullName) ? FullName.Trim() : string.Empty;
 
             bool isReceptionist = RoleId == 4 || RoleCode == "RECEPTIONIST" || (!string.IsNullOrEmpty(RoleName) && RoleName.Contains("Lễ tân"));
-            bool isNurse = RoleId == 3 || RoleCode == "NURSE" || (!string.IsNullOrEmpty(RoleName) && RoleName.Contains("Điều dưỡng"));
+            bool isNurse        = RoleId == 5 || RoleCode == "NURSE"        || (!string.IsNullOrEmpty(RoleName) && RoleName.Contains("Điều dưỡng"));
+            bool isLabTech      = RoleId == 6 || RoleCode == "LAB_TECH"     || (!string.IsNullOrEmpty(RoleName) && RoleName.Contains("Kỹ thuật"));
+            bool isPharmacist   = RoleId == 7 || RoleCode == "PHARMACIST"   || (!string.IsNullOrEmpty(RoleName) && RoleName.Contains("Dược sĩ"));
 
             if (isReceptionist)
             {
-                if (string.IsNullOrEmpty(fullName) || fullName.Contains("Điều trị") || fullName.Contains("Bác sĩ")) return "LT. Nguyễn Thị Minh Châu";
-                string cleanName = fullName.Replace("BS.", "").Replace("BS", "").Replace("ThS.", "").Replace("TS.", "").Replace("LT.", "").Trim();
-                return "LT. " + cleanName;
+                if (string.IsNullOrEmpty(fullName) || fullName.Contains("Điều trị") || fullName.Contains("Bác sĩ") || fullName.Contains("000")) return "Nguyễn Thị Minh Châu";
+                return fullName.Replace("BS.", "").Replace("BS", "").Replace("ThS.", "").Replace("TS.", "").Replace("LT.", "").Trim();
             }
 
             if (isNurse)
             {
-                if (string.IsNullOrEmpty(fullName) || fullName.Contains("Điều trị")) return "ĐD. Phạm Thị Hồng Hạnh";
-                string cleanName = fullName.Replace("BS.", "").Replace("BS", "").Replace("ĐD.", "").Trim();
-                return "ĐD. " + cleanName;
+                if (string.IsNullOrEmpty(fullName) || fullName.Contains("Điều trị") || fullName.Contains("000")) return "Phạm Thị Hồng Hạnh";
+                return fullName.Replace("BS.", "").Replace("BS", "").Replace("ĐD.", "").Trim();
             }
 
-            if (string.IsNullOrEmpty(fullName) || fullName == "BS. Điều trị" || fullName == "Điều trị")
+            if (isLabTech)
+            {
+                if (string.IsNullOrEmpty(fullName) || fullName.Contains("000")) return "Trần Tuấn Kiệt";
+                return fullName.Replace("KTV.", "").Replace("KTV", "").Trim();
+            }
+
+            if (isPharmacist)
+            {
+                if (string.IsNullOrEmpty(fullName) || fullName.Contains("000")) return "Trịnh Mai Phương";
+                return fullName.Replace("Ds.", "").Replace("DS.", "").Replace("DS", "").Trim();
+            }
+
+            if (string.IsNullOrEmpty(fullName) || fullName == "BS. Điều trị" || fullName == "Điều trị" || fullName.Contains("000"))
             {
                 return "BS. CKII Trịnh Hoàng Minh";
             }
 
             if (fullName.StartsWith("BS") || fullName.StartsWith("ThS") || fullName.StartsWith("TS") ||
-                fullName.StartsWith("LT") || fullName.StartsWith("ĐD") || fullName.StartsWith("DS") || fullName.StartsWith("KTV"))
+                fullName.StartsWith("LT") || fullName.StartsWith("ĐD") || fullName.StartsWith("DS") || fullName.StartsWith("Ds") || fullName.StartsWith("KTV"))
             {
                 return fullName;
             }
 
             if (RoleId == 2 || RoleCode == "DOCTOR" || (!string.IsNullOrEmpty(RoleName) && RoleName.Contains("Bác sĩ")))
                 return (!string.IsNullOrEmpty(Degree) ? Degree + " " : "BS. ") + fullName;
-            if (RoleId == 7 || RoleCode == "PHARMACIST" || (!string.IsNullOrEmpty(RoleName) && RoleName.Contains("Dược sĩ")))
-                return "DS. " + fullName;
-            if (RoleId == 6 || RoleCode == "LAB_TECH" || (!string.IsNullOrEmpty(RoleName) && RoleName.Contains("Kỹ thuật")))
-                return "KTV. " + fullName;
 
             return fullName;
         }

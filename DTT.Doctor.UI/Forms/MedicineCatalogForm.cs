@@ -215,17 +215,31 @@ namespace DTT.Doctor.UI.Forms
                 foreach (var m in list)
                 {
                     string priceStr = m.UnitPrice > 0 ? $"{m.UnitPrice:#,##0} VNĐ" : "15.000 VNĐ";
-                    int stock = m.StockQuantity > 0 ? m.StockQuantity : 500;
+                    // Hiện ĐÚNG tồn kho thật (trước đây khi StockQuantity = 0 sẽ hiện giả "500", che mất
+                    // việc thuốc đã thật sự hết hàng — khiến bác sĩ không bao giờ biết cần báo nhập thêm).
+                    int stock = m.StockQuantity;
+                    string trangThai = stock <= 0 ? "❌ Hết Hàng" : stock < 20 ? "⚠️ Sắp Hết" : "✅ Khả Dụng";
 
-                    _gridMeds.Rows.Add(
+                    int rowIdx = _gridMeds.Rows.Add(
                         stt++,
                         m.MedicineName,
                         m.Unit,
                         priceStr,
                         $"{stock} {m.Unit}",
                         !string.IsNullOrEmpty(m.DefaultUsage) ? m.DefaultUsage : "Uống sau ăn 30 phút",
-                        "Khả Dụng"
+                        trangThai
                     );
+
+                    if (stock <= 0)
+                    {
+                        _gridMeds.Rows[rowIdx].DefaultCellStyle.ForeColor = Color.FromArgb(185, 28, 28);
+                        _gridMeds.Rows[rowIdx].DefaultCellStyle.BackColor = Color.FromArgb(254, 242, 242);
+                    }
+                    else if (stock < 20)
+                    {
+                        _gridMeds.Rows[rowIdx].DefaultCellStyle.ForeColor = Color.FromArgb(161, 98, 7);
+                        _gridMeds.Rows[rowIdx].DefaultCellStyle.BackColor = Color.FromArgb(255, 251, 235);
+                    }
                 }
 
                 _lblStatus.Text = $"Tổng cộng có {_gridMeds.Rows.Count} loại thuốc trong kho";
