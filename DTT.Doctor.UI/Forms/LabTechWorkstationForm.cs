@@ -201,16 +201,25 @@ namespace DTT.Doctor.UI.Forms
                 string ageSex = it.PatientAge > 0
                     ? $"{it.PatientAge} / {(it.PatientGender == "Male" ? "♂" : it.PatientGender == "Female" ? "♀" : "—")}"
                     : "—";
-                string kindLabel = it.Kind == "Test" ? "🔬 XN" : "📡 SA";
+                string kindLabel = it.Kind == "Test" ? "XN" : "SA";
                 string lastCol = isDone
-                    ? (it.Status == "Abnormal" ? "⚠ Bất thường" : it.Status == "Normal" ? "✓ Bình thường" : "✓ Hoàn tất")
-                    : "▶ Nhập kết quả";
-                string priorityLabel = it.IsUrgent ? "🚨 Khẩn" : "";
+                    ? (it.Status == "Abnormal" ? "Bất thường" : it.Status == "Normal" ? "Bình thường" : "Hoàn tất")
+                    : "Nhập kết quả";
+                string priorityLabel = it.IsUrgent ? "Khẩn" : "";
 
                 int idx = grid.Rows.Add(i + 1, priorityLabel, it.PatientName, ageSex, kindLabel, it.ServiceName, it.DoctorName, lastCol, it.Kind, it.Id);
                 var row = grid.Rows[idx];
 
-                if (isDone)
+                if (isDone && it.Status == "Abnormal")
+                {
+                    // Trước đây mọi dòng "Đã Thực Hiện" đều tô xanh lá đồng loạt, kể cả kết quả Bất
+                    // thường — KTV vừa nhập xong không hề thấy cảnh báo gì, khác với màn Điều dưỡng
+                    // (NurseWorkstationForm) đã tô đỏ đúng cho cùng loại dữ liệu này.
+                    row.DefaultCellStyle.BackColor = Color.FromArgb(254, 226, 226);
+                    row.DefaultCellStyle.ForeColor = Color.FromArgb(153, 27, 27);
+                    row.DefaultCellStyle.Font = ClinicalColors.GetMainFont(10f, FontStyle.Bold);
+                }
+                else if (isDone)
                 {
                     row.DefaultCellStyle.BackColor = Color.FromArgb(236, 253, 245);
                     row.DefaultCellStyle.ForeColor = Color.FromArgb(15, 118, 110);

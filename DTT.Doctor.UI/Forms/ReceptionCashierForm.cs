@@ -1407,11 +1407,21 @@ namespace DTT.Doctor.UI.Forms
 
         private async void OnDirectPatientRowSelected()
         {
-            if (_gridDirectPatients.SelectedRows.Count == 0) return;
-            var found = _gridDirectPatients.SelectedRows[0].Tag as PatientSimpleModel;
-            if (found == null) return;
+            try
+            {
+                if (_gridDirectPatients.SelectedRows.Count == 0) return;
+                var found = _gridDirectPatients.SelectedRows[0].Tag as PatientSimpleModel;
+                if (found == null) return;
 
-            await ShowDirectPatientDetailsAsync(found);
+                await ShowDirectPatientDetailsAsync(found);
+            }
+            catch (Exception ex)
+            {
+                // async void không có nơi nào khác bắt được ngoại lệ — nếu để lọt sẽ làm crash cả app
+                // (khác với ExecuteCheckInRow và các handler khác trong file này đã có try/catch riêng).
+                System.Diagnostics.Debug.WriteLine("OnDirectPatientRowSelected error: " + ex.Message);
+                ShowReceptionNotification("LỖI TẢI THÔNG TIN BỆNH NHÂN", "Không thể tải thông tin bệnh nhân đã chọn. Vui lòng thử lại.", false);
+            }
         }
 
         // Hiển thị thông tin bệnh nhân đã chọn (từ lưới hoặc tìm theo SĐT) + kiểm tra lịch hôm nay
@@ -1422,7 +1432,7 @@ namespace DTT.Doctor.UI.Forms
             _pnlDirectBookingBox.Visible = false;
             _directFoundPatient = found;
 
-            _lblDirectName.Text = found.FullName.ToUpper();
+            _lblDirectName.Text = (found.FullName ?? "Bệnh nhân").ToUpper();
             if (found.VerificationStatus == "verified")
             {
                 _lblDirectStatusBadge.Text = "✓ Đã xác thực CCCD qua App/Quầy";
@@ -2257,21 +2267,31 @@ namespace DTT.Doctor.UI.Forms
         // và cập nhật lại bảng kê viện phí — tránh hiển thị "0 VNĐ" như trước đây (vốn chỉ đoán từ cột phí tĩnh).
         private async void RefreshBillingEstimateAsync(int rowIndex, int appointmentId)
         {
-            var api = new ApiService();
-            var estimate = await api.GetInvoiceEstimateAsync(appointmentId);
+            try
+            {
+                var api = new ApiService();
+                var estimate = await api.GetInvoiceEstimateAsync(appointmentId);
 
-            // Bỏ qua nếu người dùng đã chọn sang dòng khác trong lúc chờ API phản hồi
-            if (_gridBilling.SelectedRows.Count == 0 || _gridBilling.SelectedRows[0].Index != rowIndex) return;
+                // Bỏ qua nếu người dùng đã chọn sang dòng khác trong lúc chờ API phản hồi
+                if (_gridBilling.SelectedRows.Count == 0 || _gridBilling.SelectedRows[0].Index != rowIndex) return;
 
-            // Giá gói chỉ bao gồm các hạng mục CÓ SẴN trong gói — nếu bác sĩ kê thêm thuốc ngoài
-            // phạm vi gói (vd: phát sinh chẩn đoán khác), vẫn phải cộng thêm phí thuốc thật, không
-            // được coi là miễn phí.
-            _lblFeeExam.Text = estimate.IsPackage
-                ? string.Format("1. Trọn gói khám sức khỏe  :  {0:N0} VNĐ", estimate.ExamFee)
-                : string.Format("1. Công khám lâm sàng chuyên khoa  :  {0:N0} VNĐ", estimate.ExamFee);
-            _lblFeeServices.Text = string.Format("2. Phí dịch vụ Cận lâm sàng (CLS)       :  {0:N0} VNĐ", estimate.ServicesFee);
-            _lblFeeMeds.Text = string.Format("3. Phí thuốc theo Đơn thuốc điện tử  :  {0:N0} VNĐ", estimate.MedsFee);
-            _lblTotalAmount.Text = string.Format("TỔNG THANH TOÁN :  {0:N0} VNĐ", estimate.Total);
+                // Giá gói chỉ bao gồm các hạng mục CÓ SẴN trong gói — nếu bác sĩ kê thêm thuốc ngoài
+                // phạm vi gói (vd: phát sinh chẩn đoán khác), vẫn phải cộng thêm phí thuốc thật, không
+                // được coi là miễn phí.
+                _lblFeeExam.Text = estimate.IsPackage
+                    ? string.Format("1. Trọn gói khám sức khỏe  :  {0:N0} VNĐ", estimate.ExamFee)
+                    : string.Format("1. Công khám lâm sàng chuyên khoa  :  {0:N0} VNĐ", estimate.ExamFee);
+                _lblFeeServices.Text = string.Format("2. Phí dịch vụ Cận lâm sàng (CLS)       :  {0:N0} VNĐ", estimate.ServicesFee);
+                _lblFeeMeds.Text = string.Format("3. Phí thuốc theo Đơn thuốc điện tử  :  {0:N0} VNĐ", estimate.MedsFee);
+                _lblTotalAmount.Text = string.Format("TỔNG THANH TOÁN :  {0:N0} VNĐ", estimate.Total);
+            }
+            catch (Exception ex)
+            {
+                // async void không có nơi nào khác bắt được ngoại lệ — GetInvoiceEstimateAsync hiện tự
+                // nuốt lỗi và trả về ước tính mặc định nên rủi ro thấp, nhưng vẫn phòng hờ nếu logic đó
+                // thay đổi sau này (vd: throw thay vì trả về default).
+                System.Diagnostics.Debug.WriteLine("RefreshBillingEstimateAsync error: " + ex.Message);
+            }
         }
 
         private async void ExecuteConfirmPayment()

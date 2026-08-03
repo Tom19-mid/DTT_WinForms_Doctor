@@ -703,10 +703,12 @@ namespace DTT.Doctor.UI.Forms
                 b.BackColor = Color.Transparent;
                 b.ForeColor = Color.FromArgb(71, 85, 105); // Subtle dark slate text
                 b.Font = ClinicalColors.GetMainFont(10f, FontStyle.Regular);
+                b.Invalidate();
             }
             activeBtn.BackColor = Color.FromArgb(238, 242, 255); // Soft indigo-tinted active background
             activeBtn.ForeColor = ClinicalColors.DeepNavy; // Deep Indigo text for active state (#4338CA)
             activeBtn.Font = ClinicalColors.GetMainFont(10f, FontStyle.Bold);
+            activeBtn.Invalidate();
         }
 
         private Button CreateNavButton(string text, int y, bool active)
@@ -726,6 +728,17 @@ namespace DTT.Doctor.UI.Forms
                 UseMnemonic = false
             };
             btn.FlatAppearance.BorderSize = 0;
+            btn.Paint += (s, e) =>
+            {
+                if (btn.Font.Bold)
+                {
+                    e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                    using (var brush = new SolidBrush(ClinicalColors.PrimaryBlue))
+                    {
+                        e.Graphics.FillRectangle(brush, 0, 4, 4, btn.Height - 8);
+                    }
+                }
+            };
             btn.MouseEnter += (s, e) => {
                 if (btn.BackColor != Color.FromArgb(238, 242, 255))
                 {

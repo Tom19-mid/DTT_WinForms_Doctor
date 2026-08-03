@@ -28,11 +28,14 @@ namespace DTT.Doctor.Services.Core
             RoleId = auth.RoleId > 0 ? auth.RoleId : 2;
             RoleCode = !string.IsNullOrEmpty(auth.RoleCode) ? auth.RoleCode : "DOCTOR";
             RoleName = !string.IsNullOrEmpty(auth.RoleName) ? auth.RoleName : "Bác sĩ";
-            FullName = auth.FullName;
-            Degree = auth.Degree;
-            ClinicRoom = auth.ClinicRoom;
+            // Cùng lý do với RoleCode/RoleName ở trên: DoctorAuthResponseDto có default = string.Empty,
+            // nhưng deserialize JSON với field null/thiếu sẽ GHI ĐÈ default đó thành null thật, khiến
+            // mọi nơi gọi TokenVault.FullName.ToUpper() (vd. DoctorScheduleForm) crash NullReferenceException.
+            FullName = auth.FullName ?? string.Empty;
+            Degree = auth.Degree ?? string.Empty;
+            ClinicRoom = auth.ClinicRoom ?? string.Empty;
             SpecialtyId = auth.SpecialtyId;
-            SpecialtyName = auth.SpecialtyName;
+            SpecialtyName = auth.SpecialtyName ?? string.Empty;
             AvatarUrl = auth.AvatarUrl ?? string.Empty;
         }
 

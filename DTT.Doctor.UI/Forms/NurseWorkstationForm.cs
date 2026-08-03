@@ -434,10 +434,10 @@ namespace DTT.Doctor.UI.Forms
         {
             switch (status)
             {
-                case "Pending": return "⏳ Chưa làm";
-                case "Abnormal": return "⚠️ Bất thường";
-                case "Normal": return "✅ Bình thường";
-                case "Completed": return "✅ Đã có kết quả";
+                case "Pending": return "Chưa làm";
+                case "Abnormal": return "Bất thường";
+                case "Normal": return "Bình thường";
+                case "Completed": return "Đã có kết quả";
                 default: return status ?? "";
             }
         }

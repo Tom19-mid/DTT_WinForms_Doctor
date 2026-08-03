@@ -88,18 +88,18 @@ namespace DTT.Doctor.UI.Controls
             if (e.RowIndex == -1 && e.ColumnIndex >= 0)
             {
                 e.Handled = true;
-                using (var bgBrush = new SolidBrush(Color.FromArgb(248, 250, 252)))
+                using (var bgBrush = new SolidBrush(Color.FromArgb(250, 250, 250))) // Antd header background #FAFAFA
                 {
                     e.Graphics.FillRectangle(bgBrush, e.CellBounds);
                 }
-                using (var dividerPen = new Pen(Color.FromArgb(226, 232, 240), 1f))
+                using (var dividerPen = new Pen(Color.FromArgb(240, 240, 240), 1f)) // Antd border #F0F0F0
                 {
                     e.Graphics.DrawLine(dividerPen, e.CellBounds.Left, e.CellBounds.Bottom - 1, e.CellBounds.Right, e.CellBounds.Bottom - 1);
                 }
                 if (e.Value != null)
                 {
                     using (var font = ClinicalColors.GetMainFont(9.5f, FontStyle.Bold))
-                    using (var textBrush = new SolidBrush(Color.FromArgb(71, 85, 105)))
+                    using (var textBrush = new SolidBrush(Color.FromArgb(38, 38, 38))) // Antd dark text #262626
                     {
                         var format = new StringFormat { 
                             Alignment = StringAlignment.Near, 
@@ -107,7 +107,7 @@ namespace DTT.Doctor.UI.Controls
                             FormatFlags = StringFormatFlags.NoWrap,
                             Trimming = StringTrimming.EllipsisCharacter
                         };
-                        Rectangle textBounds = new Rectangle(e.CellBounds.X + 6, e.CellBounds.Y, e.CellBounds.Width - 10, e.CellBounds.Height);
+                        Rectangle textBounds = new Rectangle(e.CellBounds.X + 8, e.CellBounds.Y, e.CellBounds.Width - 12, e.CellBounds.Height);
                         e.Graphics.DrawString(e.Value.ToString().ToUpper(), font, textBrush, textBounds, format);
                     }
                 }
@@ -119,14 +119,14 @@ namespace DTT.Doctor.UI.Controls
                 e.Handled = true;
 
                 // 1. Paint clean row background (alternating soft neutral vs white)
-                Color bgColor = (e.RowIndex % 2 == 1) ? Color.FromArgb(249, 250, 251) : Color.White;
+                Color bgColor = (e.RowIndex % 2 == 1) ? Color.FromArgb(250, 250, 250) : Color.White;
                 if (e.RowIndex == _hoveredRow)
                 {
-                    bgColor = Color.FromArgb(241, 245, 249); // Responsive interactive hover feedback!
+                    bgColor = Color.FromArgb(245, 245, 245); // Antd row hover feedback
                 }
                 if ((e.State & DataGridViewElementStates.Selected) != 0)
                 {
-                    bgColor = Color.FromArgb(238, 242, 255);
+                    bgColor = Color.FromArgb(230, 244, 255); // Antd active selection #E6F4FF
                 }
 
                 using (var bgBrush = new SolidBrush(bgColor))
@@ -135,69 +135,93 @@ namespace DTT.Doctor.UI.Controls
                 }
 
                 // 2. Draw a delicate, subtle horizontal separator underneath every row
-                using (var dividerPen = new Pen(Color.FromArgb(226, 232, 240), 1f))
+                using (var dividerPen = new Pen(Color.FromArgb(240, 240, 240), 1f))
                 {
                     e.Graphics.DrawLine(dividerPen, e.CellBounds.Left, e.CellBounds.Bottom - 1, e.CellBounds.Right, e.CellBounds.Bottom - 1);
                 }
 
                 // 3. Render content cleanly
                 string colName = Columns[e.ColumnIndex].Name;
+                string headerText = Columns[e.ColumnIndex].HeaderText ?? "";
+                string rawVal = e.Value?.ToString() ?? "";
 
-                if (colName == "ColStatus")
+                // Ant Design Tag Pill System for Status & Priority columns
+                // ColPriority RỖNG nghĩa là "không khẩn" (ưu tiên bình thường) — KHÁC với cột Trạng Thái
+                // (rỗng = chưa có trạng thái/đang chờ). Trước đây dùng chung 1 nhánh nên MỌI ca không khẩn
+                // đều bị vẽ nhầm badge "Đang chờ" dù đã hoàn tất từ lâu, khiến KTV tưởng trạng thái không
+                // đổi dù đã nhập kết quả xong — chỉ vào nhánh pill khi ColPriority THẬT SỰ có giá trị (khẩn).
+                bool isPriorityWithValue = colName == "ColPriority" && !string.IsNullOrWhiteSpace(rawVal);
+                if (colName == "ColStatus" || headerText.Contains("TRẠNG THÁI") || headerText.Contains("ĐÁNH GIÁ") || isPriorityWithValue)
                 {
-                    string val = e.Value?.ToString() ?? "";
-                    Color bg = Color.FromArgb(254, 243, 199); // Pastel amber
-                    Color fg = Color.FromArgb(180, 83, 9);   // Amber text
-                    string label = "Đang chờ";
+                    Color bg = Color.FromArgb(255, 251, 230);    // Antd Warning Gold bg #FFFBE6
+                    Color border = Color.FromArgb(255, 229, 143);// Antd Warning Gold border #FFE58F
+                    Color fg = Color.FromArgb(212, 136, 6);      // Antd Warning Gold text #D48806
+                    string label = string.IsNullOrWhiteSpace(rawVal) ? "Đang chờ" : rawVal;
 
-                    if (val.Equals("AwaitingTestResults", StringComparison.OrdinalIgnoreCase))
+                    if (rawVal.Equals("AwaitingTestResults", StringComparison.OrdinalIgnoreCase) || rawVal.Contains("Chờ Kết Quả") || rawVal.Contains("Chờ kết quả"))
                     {
-                        bg = Color.FromArgb(237, 233, 254); // Pastel violet
-                        fg = Color.FromArgb(109, 40, 217);  // Violet text
+                        bg = Color.FromArgb(249, 240, 255);     // Antd Purple bg #F9F0FF
+                        border = Color.FromArgb(211, 173, 247); // Antd Purple border #D3ADF7
+                        fg = Color.FromArgb(114, 46, 209);      // Antd Purple text #722ED1
                         label = "Chờ Kết Quả CLS";
                     }
-                    else if (val.Equals("InProgress", StringComparison.OrdinalIgnoreCase) || val.Contains("khám") || val.Equals("2"))
+                    else if (rawVal.Equals("InProgress", StringComparison.OrdinalIgnoreCase) || rawVal.Contains("Đang khám") || rawVal.Contains("Đang tư vấn") || rawVal.Contains("Đang đo") || rawVal.Equals("2"))
                     {
-                        bg = Color.FromArgb(219, 234, 254); // Pastel blue
-                        fg = Color.FromArgb(29, 78, 216);  // Blue text
-                        label = "Đang khám";
+                        bg = Color.FromArgb(230, 244, 255);     // Antd Processing Blue bg #E6F4FF
+                        border = Color.FromArgb(145, 202, 255); // Antd Processing Blue border #91CAFF
+                        fg = Color.FromArgb(22, 119, 255);      // Antd Processing Blue text #1677FF
+                        label = rawVal.Equals("2") ? "Đang khám" : rawVal;
                     }
-                    else if (val.Equals("Completed", StringComparison.OrdinalIgnoreCase) || val.Contains("xong") || val.Equals("3") || val.Contains("hoàn thành"))
+                    else if (rawVal.Equals("Completed", StringComparison.OrdinalIgnoreCase) || rawVal.Contains("Đã khám") || rawVal.Contains("Hoàn tất") || rawVal.Contains("Bình thường") || rawVal.Equals("Normal", StringComparison.OrdinalIgnoreCase) || rawVal.Contains("Đã thanh toán") || rawVal.Contains("Đã duyệt") || rawVal.Equals("3"))
                     {
-                        bg = Color.FromArgb(209, 250, 229); // Pastel emerald
-                        fg = Color.FromArgb(4, 120, 87);   // Emerald text
-                        label = "Đã hoàn thành";
+                        bg = Color.FromArgb(246, 255, 237);     // Antd Success Green bg #F6FFED
+                        border = Color.FromArgb(183, 235, 143); // Antd Success Green border #B7EB8F
+                        fg = Color.FromArgb(82, 196, 26);       // Antd Success Green text #52C41A
+                        label = rawVal.Equals("3") ? "Đã khám" : rawVal;
                     }
-                    else if (val.Equals("Cancelled", StringComparison.OrdinalIgnoreCase) || val.Contains("hủy") || val.Contains("Hủy"))
+                    else if (rawVal.Equals("Cancelled", StringComparison.OrdinalIgnoreCase) || rawVal.Contains("Hủy") || rawVal.Contains("hủy"))
                     {
-                        bg = Color.FromArgb(254, 240, 138); // Warm yellow
-                        fg = Color.FromArgb(133, 77, 14);   // Deep gold brown
-                        label = "Hủy Lịch";
+                        bg = Color.FromArgb(255, 241, 240);     // Antd Error Red bg #FFF1F0
+                        border = Color.FromArgb(255, 204, 199); // Antd Error Red border #FFCCC7
+                        fg = Color.FromArgb(255, 77, 79);       // Antd Error Red text #FF4D4F
+                        label = rawVal.Equals("Cancelled", StringComparison.OrdinalIgnoreCase) ? "Hủy Lịch" : rawVal;
                     }
-                    else if (val.Equals("NoShow", StringComparison.OrdinalIgnoreCase) || val.Equals("Expired", StringComparison.OrdinalIgnoreCase) || val.Contains("Quá hạn") || val.Contains("Bỏ khám"))
+                    else if (rawVal.Equals("NoShow", StringComparison.OrdinalIgnoreCase) || rawVal.Equals("Expired", StringComparison.OrdinalIgnoreCase) || rawVal.Contains("Quá hạn") || rawVal.Contains("Bỏ khám") || rawVal.Contains("Bất thường") || rawVal.Equals("Abnormal", StringComparison.OrdinalIgnoreCase) || rawVal.Contains("Khẩn"))
                     {
-                        bg = Color.FromArgb(254, 215, 170); // Soft Amber/Orange
-                        fg = Color.FromArgb(194, 65, 12);   // Deep Amber Text
-                        label = "Bỏ Khám";
-                    }
-
-                    e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-                    int padY = (e.CellBounds.Height - 26) / 2;
-                    int padX = 14;
-                    int pillWidth = 112;
-                    Rectangle pillRect = new Rectangle(e.CellBounds.X + padX, e.CellBounds.Y + padY, pillWidth, 26);
-
-                    using (var path = CreateRoundedRectPath(pillRect, 13))
-                    using (var brush = new SolidBrush(bg))
-                    {
-                        e.Graphics.FillPath(brush, path);
+                        bg = Color.FromArgb(255, 241, 240);     // Antd Error Red bg #FFF1F0
+                        border = Color.FromArgb(255, 204, 199); // Antd Error Red border #FFCCC7
+                        fg = Color.FromArgb(255, 77, 79);       // Antd Error Red text #FF4D4F
+                        label = rawVal.Equals("NoShow", StringComparison.OrdinalIgnoreCase) ? "Bỏ Khám" : rawVal;
                     }
 
-                    using (var font = ClinicalColors.GetMainFont(9f, FontStyle.Bold))
-                    using (var textBrush = new SolidBrush(fg))
+                    if (!string.IsNullOrWhiteSpace(label))
                     {
-                        var format = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-                        e.Graphics.DrawString(label, font, textBrush, pillRect, format);
+                        e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                        int padY = (e.CellBounds.Height - 26) / 2;
+                        int padX = 8;
+                        int pillWidth = e.CellBounds.Width - 16;
+                        if (pillWidth > 115) pillWidth = 115;
+                        if (pillWidth < 60) pillWidth = 60;
+                        Rectangle pillRect = new Rectangle(e.CellBounds.X + padX, e.CellBounds.Y + padY, pillWidth, 26);
+
+                        using (var path = CreateRoundedRectPath(pillRect, 6)) // Antd 6px rounded tag corners
+                        {
+                            using (var brush = new SolidBrush(bg))
+                            {
+                                e.Graphics.FillPath(brush, path);
+                            }
+                            using (var pen = new Pen(border, 1f))
+                            {
+                                e.Graphics.DrawPath(pen, path);
+                            }
+                        }
+
+                        using (var font = ClinicalColors.GetMainFont(8.5f, FontStyle.Bold))
+                        using (var textBrush = new SolidBrush(fg))
+                        {
+                            var format = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+                            e.Graphics.DrawString(label, font, textBrush, pillRect, format);
+                        }
                     }
                 }
                 else if (colName == "ColAction" || (Columns[e.ColumnIndex].HeaderText != null && (Columns[e.ColumnIndex].HeaderText.Contains("THAO TÁC") || Columns[e.ColumnIndex].HeaderText.Contains("HỦY"))))

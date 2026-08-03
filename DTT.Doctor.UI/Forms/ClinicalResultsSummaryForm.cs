@@ -110,7 +110,7 @@ namespace DTT.Doctor.UI.Forms
             _grid.Rows.Clear();
             foreach (var it in _items)
             {
-                string kind = it.Kind == "Test" ? "🔬 XN" : "📡 SA";
+                string kind = it.Kind == "Test" ? "XN" : "SA";
                 string summary = it.Status == "Pending"
                     ? "—"
                     : it.Kind == "Test"
@@ -118,11 +118,11 @@ namespace DTT.Doctor.UI.Forms
                         : (it.Conclusion ?? "");
                 string status = it.Status switch
                 {
-                    "Pending" => "⏳ Chờ thực hiện",
-                    "Abnormal" => "⚠️ Bất thường",
-                    "Normal" => "✅ Bình thường",
-                    "Completed" => "✅ Hoàn tất",
-                    "Cancelled" => "❌ Đã hủy",
+                    "Pending" => "Chờ thực hiện",
+                    "Abnormal" => "Bất thường",
+                    "Normal" => "Bình thường",
+                    "Completed" => "Hoàn tất",
+                    "Cancelled" => "Đã hủy",
                     _ => it.Status
                 };
 
