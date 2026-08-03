@@ -733,6 +733,18 @@ namespace DTT.Doctor.UI.Forms
 
             var req = BuildCurrentRecordRequest();
             var (saveOk, insufficientStock) = await api.SaveClinicalRecordAsync(req);
+
+            // KHÔNG được báo "Hoàn tất" / đóng form / đổi trạng thái appointment nếu hồ sơ THỰC SỰ
+            // chưa lưu được (vd: phiên đăng nhập hết hạn, mất mạng) — trước đây luôn báo thành công
+            // và đóng form bất kể saveOk, khiến bác sĩ tưởng đã lưu trong khi dữ liệu chưa vào DB.
+            if (!saveOk)
+            {
+                MessageBox.Show(
+                    "❌ LƯU HỒ SƠ THẤT BẠI!\n\nKhông kết nối được máy chủ (phiên đăng nhập có thể đã hết hạn). Hồ sơ khám bệnh và đơn thuốc CHƯA được ghi nhận.\n\nVui lòng đăng nhập lại và thử lưu lại.",
+                    "Lưu Hồ Sơ Thất Bại", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
             await api.UpdateAppointmentStatusAsync(_appointment.AppointmentId, "Completed");
 
             IsSaved = true;
@@ -740,7 +752,7 @@ namespace DTT.Doctor.UI.Forms
 
             // Kho thuốc đã tự động trừ theo đơn vừa kê — nếu có thuốc không đủ hàng (đã trừ về 0),
             // cảnh báo riêng để Dược sĩ/Bác sĩ biết cần nhập thêm hàng.
-            if (saveOk && insufficientStock.Count > 0)
+            if (insufficientStock.Count > 0)
             {
                 MessageBox.Show(
                     "⚠️ CÁC THUỐC SAU KHÔNG ĐỦ TỒN KHO (đã trừ về 0):\n\n" + string.Join("\n", insufficientStock) +

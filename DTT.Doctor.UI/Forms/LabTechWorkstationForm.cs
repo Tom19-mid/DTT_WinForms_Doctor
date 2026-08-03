@@ -201,7 +201,7 @@ namespace DTT.Doctor.UI.Forms
                 string ageSex = it.PatientAge > 0
                     ? $"{it.PatientAge} / {(it.PatientGender == "Male" ? "♂" : it.PatientGender == "Female" ? "♀" : "—")}"
                     : "—";
-                string kindLabel = it.Kind == "Test" ? "🧪 XN" : "📷 SA";
+                string kindLabel = it.Kind == "Test" ? "🔬 XN" : "📡 SA";
                 string lastCol = isDone
                     ? (it.Status == "Abnormal" ? "⚠ Bất thường" : it.Status == "Normal" ? "✓ Bình thường" : "✓ Hoàn tất")
                     : "▶ Nhập kết quả";

@@ -272,11 +272,28 @@ namespace DTT.Doctor.UI.Forms
                         _lblSuccessRate.Text = $"{rate:F1}%";
                     }
                 }
+                else
+                {
+                    // Server không trả dữ liệu — không được để lại các số KPI giả (12.500.000 VNĐ,
+                    // 15 Ca, 92.0%...) khởi tạo lúc dựng form, trông y như số liệu thật.
+                    ShowStatsUnavailable();
+                }
             }
             catch (Exception ex)
             {
                 Console.WriteLine("Lỗi nạp báo cáo thống kê: " + ex.Message);
+                // Cùng lý do: không được để các số KPI mặc định lúc dựng form đứng yên như thể là
+                // số liệu thật khi thực ra chưa tải được gì (mất kết nối, hết hạn đăng nhập...).
+                ShowStatsUnavailable();
             }
+        }
+
+        private void ShowStatsUnavailable()
+        {
+            _lblTotalAppts.Text = "—";
+            _lblCompletedAppts.Text = "—";
+            _lblRevenue.Text = "Không tải được";
+            _lblSuccessRate.Text = "—";
         }
     }
 }

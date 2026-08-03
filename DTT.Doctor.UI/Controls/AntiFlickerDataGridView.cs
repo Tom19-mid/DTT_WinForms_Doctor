@@ -234,6 +234,18 @@ namespace DTT.Doctor.UI.Controls
                             btnFg = isBtnHovered ? Color.White : Color.FromArgb(16, 185, 129);
                         }
                     }
+                    else if (actionText.Contains("Tiếp nhận"))
+                    {
+                        btnBg = isBtnHovered ? Color.FromArgb(79, 70, 229) : Color.FromArgb(238, 242, 255);
+                        btnBorder = Color.FromArgb(79, 70, 229);
+                        btnFg = isBtnHovered ? Color.White : Color.FromArgb(67, 56, 202);
+                    }
+                    else if (actionText.Contains("Mở lại"))
+                    {
+                        btnBg = isBtnHovered ? Color.FromArgb(16, 185, 129) : Color.FromArgb(236, 253, 245);
+                        btnBorder = Color.FromArgb(16, 185, 129);
+                        btnFg = isBtnHovered ? Color.White : Color.FromArgb(4, 120, 87);
+                    }
                     else if (actionText.Contains("Tùy chọn"))
                     {
                         btnBg = isBtnHovered ? Color.FromArgb(241, 245, 249) : Color.White;

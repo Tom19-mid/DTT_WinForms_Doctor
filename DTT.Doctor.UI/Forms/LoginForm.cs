@@ -255,7 +255,17 @@ namespace DTT.Doctor.UI.Forms
                 File.WriteAllText(RecentLoginsFile, JsonSerializer.Serialize(_recentUsers));
             } 
             catch { }
-            
+
+            // Cảnh báo rõ ràng khi rơi vào phiên demo ngoại tuyến (API không kết nối được lúc đăng
+            // nhập) — trước đây không có dấu hiệu gì phân biệt với đăng nhập thật, khiến người dùng
+            // thao tác bình thường rồi gặp một loạt lỗi "kết nối thất bại" không hiểu vì sao.
+            if (response.Token == "demo_jwt_token_doctor_2026")
+            {
+                MessageBox.Show(
+                    "⚠️ KHÔNG KẾT NỐI ĐƯỢC MÁY CHỦ API.\n\nBạn đang ở CHẾ ĐỘ DEMO NGOẠI TUYẾN — giao diện hiển thị dữ liệu mẫu, MỌI THAO TÁC LƯU/CẬP NHẬT (check-in, thu tiền, lưu hồ sơ khám...) SẼ KHÔNG được ghi nhận lên hệ thống thật.\n\nVui lòng kiểm tra kết nối mạng/server rồi đăng nhập lại để dùng dữ liệu thật.",
+                    "Chế Độ Demo Ngoại Tuyến", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+
             // Transition to Unified Main Dashboard via Program.cs lifecycle
             this.DialogResult = DialogResult.OK;
             this.Close();

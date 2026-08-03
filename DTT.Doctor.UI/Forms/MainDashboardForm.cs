@@ -192,31 +192,35 @@ namespace DTT.Doctor.UI.Forms
                 Button btnNavApprove = CreateNavButton("📑  Xác Thực Hồ Sơ", navY += 46, false);
                 Button btnNavWalkIn  = CreateNavButton("➕  Đăng Ký Hồ Sơ", navY += 46, false);
                 Button btnNavDirect  = CreateNavButton("🏥  Khám Trực Tiếp", navY += 46, false);
+                Button btnNavChat    = CreateNavButton("💬  Chat Hỗ Trợ", navY += 46, false);
 
                 btnNavCheckIn.Click += async (s, e) => { SetActiveNavButton(btnNavCheckIn, sidebarNavButtons); _receptionChildForm?.SelectTab(0); if (_receptionChildForm != null) await _receptionChildForm.LoadDataPublicAsync(); if (_lblPageTitle != null) _lblPageTitle.Text = "Tiếp Đón & Check-in"; };
                 btnNavCashier.Click += async (s, e) => { SetActiveNavButton(btnNavCashier, sidebarNavButtons); _receptionChildForm?.SelectTab(1); if (_receptionChildForm != null) await _receptionChildForm.LoadDataPublicAsync(); if (_lblPageTitle != null) _lblPageTitle.Text = "Thanh Toán"; };
                 btnNavApprove.Click += async (s, e) => { SetActiveNavButton(btnNavApprove, sidebarNavButtons); _receptionChildForm?.SelectTab(2); if (_receptionChildForm != null) await _receptionChildForm.LoadDataPublicAsync(); if (_lblPageTitle != null) _lblPageTitle.Text = "Xác thực hồ sơ"; };
                 btnNavWalkIn.Click  += (s, e) => { SetActiveNavButton(btnNavWalkIn,  sidebarNavButtons); _receptionChildForm?.SelectTab(3); if (_lblPageTitle != null) _lblPageTitle.Text = "Đăng Ký Hồ Sơ"; };
                 btnNavDirect.Click  += (s, e) => { SetActiveNavButton(btnNavDirect,  sidebarNavButtons); _receptionChildForm?.SelectTab(4); if (_lblPageTitle != null) _lblPageTitle.Text = "Khám Trực Tiếp"; };
+                btnNavChat.Click    += (s, e) => { SetActiveNavButton(btnNavChat,    sidebarNavButtons); _receptionChildForm?.SelectTab(5); if (_lblPageTitle != null) _lblPageTitle.Text = "Chat Hỗ Trợ"; };
 
                 sidebarNavButtons.Add(btnNavCheckIn);
                 sidebarNavButtons.Add(btnNavCashier);
                 sidebarNavButtons.Add(btnNavApprove);
                 sidebarNavButtons.Add(btnNavWalkIn);
                 sidebarNavButtons.Add(btnNavDirect);
+                sidebarNavButtons.Add(btnNavChat);
 
                 pnlSidebar.Controls.Add(btnNavCheckIn);
                 pnlSidebar.Controls.Add(btnNavCashier);
                 pnlSidebar.Controls.Add(btnNavApprove);
                 pnlSidebar.Controls.Add(btnNavWalkIn);
                 pnlSidebar.Controls.Add(btnNavDirect);
+                pnlSidebar.Controls.Add(btnNavChat);
             }
             else if (isNurse)
             {
                 Button btnNavVitals     = CreateNavButton("🩺  Đo Sinh Hiệu Bệnh Nhân", navY,       true);
                 Button btnNavHistory    = CreateNavButton("📝  Lịch Sử Ca Đo Hôm Nay",  navY += 46, false);
-                Button btnNavLabTests   = CreateNavButton("🧪  Danh Sách Xét Nghiệm",   navY += 46, false);
-                Button btnNavUltrasound = CreateNavButton("📷  Danh Sách Siêu Âm",     navY += 46, false);
+                Button btnNavLabTests   = CreateNavButton("🔬  Danh Sách Xét Nghiệm",   navY += 46, false);
+                Button btnNavUltrasound = CreateNavButton("📡  Danh Sách Siêu Âm",     navY += 46, false);
 
                 sidebarNavButtons.Add(btnNavVitals);
                 sidebarNavButtons.Add(btnNavHistory);

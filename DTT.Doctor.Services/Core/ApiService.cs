@@ -88,7 +88,13 @@ namespace DTT.Doctor.Services.Core
                     ["0910000000"] = (13, "ThS. BS Nguyễn Mai Chi", "Thạc sĩ Chuyên khoa Nhi", "Phòng 104", 2, "Nhi", "doctor10@gmail.com", 2, "DOCTOR", "Bác sĩ")
                 };
 
-                if (dbDoctors.TryGetValue(phone, out var doc) || phone == "admin" || phone == "demo")
+                // Chỉ cho phép fallback demo ngoại tuyến (khi không gọi được API) nếu mật khẩu khớp
+                // đúng mật khẩu demo cố định — trước đây bất kỳ mật khẩu nào cũng được chấp nhận cho
+                // ~14 số điện thoại liệt kê ở trên, tức là chỉ cần gây mất kết nối API (hoặc API tạm
+                // down) là đăng nhập được vào bất kỳ tài khoản nào trong danh sách mà không cần biết
+                // mật khẩu thật.
+                const string offlineDemoPassword = "Demo@2026";
+                if (password == offlineDemoPassword && (dbDoctors.TryGetValue(phone, out var doc) || phone == "admin" || phone == "demo"))
                 {
                     if (phone == "admin" || phone == "demo") doc = dbDoctors["0901111111"];
                     var demo = new DoctorAuthResponseDto
@@ -170,10 +176,17 @@ namespace DTT.Doctor.Services.Core
                         return list;
                     }
                 }
+
+                // Server PHẢN HỒI THẬT nhưng không thành công (vd: 401 do phiên đăng nhập hết hạn) —
+                // KHÔNG hiện danh sách bệnh nhân demo giả ("David Johns", "Test"...) vì trông giống hàng
+                // chờ thật, dễ khiến Lễ Tân/Bác sĩ tưởng nhầm không có ca khám nào thay vì nhận ra lỗi
+                // đăng nhập. Trả về rỗng để giao diện hiện "không có dữ liệu" thay vì dữ liệu giả.
+                return new List<AppointmentModel>();
             }
             catch
             {
-                // Ignore network error and return demo queue for offline UX verification
+                // Không kết nối được server (mất mạng/server tắt hẳn) — giữ hành vi demo ngoại tuyến cũ
+                // để vẫn xem được giao diện khi demo đồ án không có server chạy.
             }
 
             return GetDemoQueueList();
@@ -788,6 +801,133 @@ namespace DTT.Doctor.Services.Core
                 var payload = JsonConvert.SerializeObject(new { cccdNumber = cccd });
                 var content = new System.Net.Http.StringContent(payload, System.Text.Encoding.UTF8, "application/json");
                 var res = await _httpClient.PatchAsync($"/api/FamilyMembers/{memberId}/verify", content);
+                return res.IsSuccessStatusCode;
+            }
+            catch { }
+            return false;
+        }
+
+        // ── AI Symptom Checker + Escalate to Staff (Chat Hỗ Trợ) ──────────────
+
+        // Hàng chờ tiếp nhận: status='Escalated' AND assigned_staff_id IS NULL
+        public async Task<List<ChatQueueItem>> GetChatQueueAsync()
+        {
+            AttachBearerToken();
+            try
+            {
+                var res = await _httpClient.GetAsync("/api/chat/staff/queue");
+                if (res.IsSuccessStatusCode)
+                {
+                    var json = await res.Content.ReadAsStringAsync();
+                    dynamic? obj = JsonConvert.DeserializeObject<dynamic>(json);
+                    if (obj != null && (bool)(obj.success ?? false) && obj.items != null)
+                    {
+                        var list = JsonConvert.DeserializeObject<List<ChatQueueItem>>(obj.items.ToString());
+                        if (list != null) return list;
+                    }
+                }
+            }
+            catch { }
+            return new List<ChatQueueItem>();
+        }
+
+        // Các phiên CHÍNH lễ tân đang đăng nhập đã tiếp nhận nhưng chưa đóng — dùng để tìm lại phiên
+        // dở dang sau khi tắt/mở lại app (phiên đã claim không còn hiện trong /staff/queue nữa).
+        public async Task<List<ChatQueueItem>> GetMyChatSessionsAsync()
+        {
+            AttachBearerToken();
+            try
+            {
+                var res = await _httpClient.GetAsync("/api/chat/staff/my-sessions");
+                if (res.IsSuccessStatusCode)
+                {
+                    var json = await res.Content.ReadAsStringAsync();
+                    dynamic? obj = JsonConvert.DeserializeObject<dynamic>(json);
+                    if (obj != null && (bool)(obj.success ?? false) && obj.items != null)
+                    {
+                        var list = JsonConvert.DeserializeObject<List<ChatQueueItem>>(obj.items.ToString());
+                        if (list != null) return list;
+                    }
+                }
+            }
+            catch { }
+            return new List<ChatQueueItem>();
+        }
+
+        // Tiếp nhận 1 phiên chat — server chỉ cho gán nếu assigned_staff_id còn NULL (chống 2 lễ tân
+        // cùng nhận 1 phiên); 409 Conflict nếu người khác đã tiếp nhận trước.
+        public async Task<(bool Success, string Message)> ClaimChatSessionAsync(int sessionId)
+        {
+            AttachBearerToken();
+            try
+            {
+                var content = new StringContent("{}", Encoding.UTF8, "application/json");
+                var res = await _httpClient.PostAsync($"/api/chat/staff/sessions/{sessionId}/claim", content);
+                var json = await res.Content.ReadAsStringAsync();
+                if (res.IsSuccessStatusCode) return (true, "");
+
+                try
+                {
+                    dynamic? obj = JsonConvert.DeserializeObject<dynamic>(json);
+                    string msg = (string)(obj?.message ?? "Không thể tiếp nhận phiên chat.");
+                    return (false, msg);
+                }
+                catch { return (false, "Không thể tiếp nhận phiên chat."); }
+            }
+            catch (Exception ex)
+            {
+                return (false, "Lỗi kết nối: " + ex.Message);
+            }
+        }
+
+        // Lấy toàn bộ lịch sử tin nhắn của 1 phiên — dùng cả khi mở dialog lần đầu lẫn polling định kỳ
+        public async Task<(bool Success, string Status, List<ChatMessageModel> Messages)> GetChatMessagesAsync(int sessionId)
+        {
+            AttachBearerToken();
+            try
+            {
+                var res = await _httpClient.GetAsync($"/api/chat/sessions/{sessionId}/messages");
+                if (res.IsSuccessStatusCode)
+                {
+                    var json = await res.Content.ReadAsStringAsync();
+                    dynamic? obj = JsonConvert.DeserializeObject<dynamic>(json);
+                    if (obj != null && (bool)(obj.success ?? false))
+                    {
+                        string status = (string)(obj.status ?? "Escalated");
+                        var list = obj.messages != null
+                            ? JsonConvert.DeserializeObject<List<ChatMessageModel>>(obj.messages.ToString())
+                            : new List<ChatMessageModel>();
+                        return (true, status, list ?? new List<ChatMessageModel>());
+                    }
+                }
+            }
+            catch { }
+            return (false, "", new List<ChatMessageModel>());
+        }
+
+        // Lễ tân gửi tin nhắn trả lời trực tiếp cho bệnh nhân
+        public async Task<bool> SendStaffChatMessageAsync(int sessionId, string content)
+        {
+            AttachBearerToken();
+            try
+            {
+                var payload = new { Content = content };
+                var body = new StringContent(JsonConvert.SerializeObject(payload), Encoding.UTF8, "application/json");
+                var res = await _httpClient.PostAsync($"/api/chat/staff/sessions/{sessionId}/messages", body);
+                return res.IsSuccessStatusCode;
+            }
+            catch { }
+            return false;
+        }
+
+        // Lễ tân đóng phiên sau khi tư vấn xong
+        public async Task<bool> CloseChatSessionAsync(int sessionId)
+        {
+            AttachBearerToken();
+            try
+            {
+                var content = new StringContent("{}", Encoding.UTF8, "application/json");
+                var res = await _httpClient.PostAsync($"/api/chat/sessions/{sessionId}/close", content);
                 return res.IsSuccessStatusCode;
             }
             catch { }

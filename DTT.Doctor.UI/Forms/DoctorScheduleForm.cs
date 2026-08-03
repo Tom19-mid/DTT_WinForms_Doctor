@@ -249,50 +249,20 @@ namespace DTT.Doctor.UI.Forms
                     return;
                 }
 
-                // Fallback formula if API is offline
-                int randPattern = (docId * 13 + (targetDate - DateTime.Today).Days * 7 + targetDate.Day) % 5;
-
-                if (randPattern == 0)
-                {
-                    lblShiftStatus.Text = "Trạng thái: NGÀY NGHỈ OFF (Nghỉ phép)";
-                    lblShiftStatus.ForeColor = Color.FromArgb(239, 68, 68);
-
-                    _gridSchedule.Rows.Add(1, "08:00 - 12:00", "Ca Sáng", "OFF (Nghỉ)", "Không có ca trực được phân công");
-                    _gridSchedule.Rows.Add(2, "13:30 - 17:30", "Ca Chiều", "OFF (Nghỉ)", "Không có ca trực được phân công");
-                    return;
-                }
-
-                string fallbackShiftName = randPattern == 1 ? "Ca Sáng (08:00 - 12:00)" : randPattern == 2 ? "Ca Chiều (13:30 - 17:30)" : "Trực Cả Ngày (08:00 - 17:30)";
-                lblShiftStatus.Text = $"Trạng thái: {fallbackShiftName}";
-                lblShiftStatus.ForeColor = Color.FromArgb(16, 185, 129);
-
-                var slots = new List<Tuple<string, string, string, string>>();
-
-                if (randPattern == 1 || randPattern == 3)
-                {
-                    slots.Add(Tuple.Create("08:00 - 09:00", "Ca Sáng", "Trống (Khả dụng)", "Sẵn sàng tiếp nhận bệnh nhân"));
-                    slots.Add(Tuple.Create("09:00 - 10:00", "Ca Sáng", "Đã Có Đặt Lịch", "Bệnh nhân đã hẹn qua App Mobile"));
-                    slots.Add(Tuple.Create("10:00 - 11:00", "Ca Sáng", "Trống (Khả dụng)", "Sẵn sàng tiếp nhận bệnh nhân"));
-                    slots.Add(Tuple.Create("11:00 - 12:00", "Ca Sáng", "Trống (Khả dụng)", "Sẵn sàng tiếp nhận bệnh nhân"));
-                }
-
-                if (randPattern == 2 || randPattern == 3)
-                {
-                    slots.Add(Tuple.Create("13:30 - 14:30", "Ca Chiều", "Trống (Khả dụng)", "Sẵn sàng tiếp nhận bệnh nhân"));
-                    slots.Add(Tuple.Create("14:30 - 15:30", "Ca Chiều", "Đã Có Đặt Lịch", "Bệnh nhân đã hẹn qua App Mobile"));
-                    slots.Add(Tuple.Create("15:30 - 16:30", "Ca Chiều", "Trống (Khả dụng)", "Sẵn sàng tiếp nhận bệnh nhân"));
-                    slots.Add(Tuple.Create("16:30 - 17:30", "Ca Chiều", "Trống (Khả dụng)", "Sẵn sàng tiếp nhận bệnh nhân"));
-                }
-
-                int fallbackStt = 1;
-                foreach (var s in slots)
-                {
-                    _gridSchedule.Rows.Add(fallbackStt++, s.Item1, s.Item2, s.Item3, s.Item4);
-                }
+                // Không tải được lịch trực thật (API lỗi/mất kết nối/hết hạn đăng nhập) — trước đây
+                // ở đây tự bịa ra một lịch trực giả bằng công thức xác định (dựa trên docId/ngày),
+                // hiển thị y hệt dữ liệu thật (kể cả nhãn "Đã Có Đặt Lịch") không có cảnh báo gì, có
+                // thể xảy ra ngay giữa phiên làm việc thật chỉ vì 1 lần gọi API lỗi. Giờ báo rõ ràng
+                // là KHÔNG có dữ liệu, không tự bịa lịch trực.
+                lblShiftStatus.Text = "Trạng thái: KHÔNG TẢI ĐƯỢC LỊCH TRỰC";
+                lblShiftStatus.ForeColor = Color.FromArgb(239, 68, 68);
+                _gridSchedule.Rows.Add(1, "—", "—", "Lỗi kết nối", "Không tải được lịch trực từ máy chủ. Vui lòng kiểm tra kết nối mạng/đăng nhập lại và thử lại.");
             }
             catch (Exception ex)
             {
                 Console.WriteLine("Lỗi nạp lịch trực: " + ex.Message);
+                lblShiftStatus.Text = "Trạng thái: KHÔNG TẢI ĐƯỢC LỊCH TRỰC";
+                lblShiftStatus.ForeColor = Color.FromArgb(239, 68, 68);
             }
         }
 

@@ -1,25 +1,30 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using DTT.Doctor.Services.Core;
 using DTT.Doctor.Services.Models;
 using DTT.Doctor.UI.Controls;
 using DTT.Doctor.UI.Theme;
-using ReaLTaiizor.Controls;
 using Panel = System.Windows.Forms.Panel;
 using Button = System.Windows.Forms.Button;
 
 namespace DTT.Doctor.UI.Forms
 {
     /// <summary>
-    /// Cửa sổ riêng để KTV nhập kết quả 1 chỉ định Xét nghiệm/Siêu âm — tách khỏi panel dồn chung trước đây
-    /// để có đủ chỗ hiển thị ẢNH SIÊU ÂM THẬT (xem trước dạng thumbnail, đính kèm/gỡ từng ảnh).
+    /// Cửa sổ riêng để KTV nhập kết quả 1 chỉ định Xét nghiệm/Siêu âm — 
+    /// giao diện Clinical Dashboard hiện đại với xem trước thumbnail ảnh siêu âm và điều khiển nhập liệu bo góc.
     /// </summary>
     public class ClinicalResultDialogForm : Form
     {
+        [DllImport("user32.dll", CharSet = CharSet.Auto)]
+        private static extern int SendMessage(IntPtr hWnd, int msg, int wParam, [MarshalAs(UnmanagedType.LPWStr)] string lParam);
+        private const int EM_SETCUEBANNER = 0x1501;
+
         private readonly ApiService _api = new ApiService();
         private readonly ClinicalOrderQueueItem _item;
         private readonly bool _isTest;
@@ -28,13 +33,14 @@ namespace DTT.Doctor.UI.Forms
         private FlowLayoutPanel _flowImages;
         private Label _lblImagesEmpty;
 
-        private MaterialTextBoxEdit _txtResultValue, _txtUnit, _txtReferenceRange;
+        private TextBox _txtResultValue, _txtUnit, _txtReferenceRange;
         private ComboBox _cboResultStatus;
-        private MaterialTextBoxEdit _txtDescription, _txtConclusion;
+        private TextBox _txtDescription, _txtConclusion;
 
         private Label _lblStatus;
-        private Button _btnSave;
-        private Button _btnCancelOrder;
+        private RoundedButton _btnSave;
+        private RoundedButton _btnCancelOrder;
+        private RoundedButton _btnClose;
 
         public bool WasModified { get; private set; } = false;
 
@@ -49,23 +55,24 @@ namespace DTT.Doctor.UI.Forms
         private void InitializeComponent()
         {
             Text = _isTest ? "Nhập Kết Quả Xét Nghiệm" : "Nhập Kết Quả Siêu Âm";
-            Size = new Size(720, _isTest ? 590 : 720);
+            Size = new Size(720, _isTest ? 600 : 710);
             StartPosition = FormStartPosition.CenterParent;
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             MinimizeBox = false;
             BackColor = ClinicalColors.GhostWhite;
             Font = ClinicalColors.GetMainFont(10f, FontStyle.Regular);
+            DoubleBuffered = true;
 
-            // ── Header ───────────────────────────────────────────────────
+            // ── Header Panel ───────────────────────────────────────────────
             Panel pnlHeader = new Panel { Dock = DockStyle.Top, Height = 92, BackColor = Color.White };
             Panel pnlHeaderBorder = new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = ClinicalColors.BorderGray };
             pnlHeader.Controls.Add(pnlHeaderBorder);
 
             Label lblPatient = new Label
             {
-                Text = $"{(_isTest ? "🧪" : "📷")}  {_item.PatientName.ToUpper()}" + (_item.IsUrgent ? "   🚨 KHẨN" : ""),
-                Font = ClinicalColors.GetMainFont(13f, FontStyle.Bold),
+                Text = $"{(_isTest ? "🔬" : "📡")}  {_item.PatientName.ToUpper()}" + (_item.IsUrgent ? "   🚨 KHẨN" : ""),
+                Font = ClinicalColors.GetMainFont(13.5f, FontStyle.Bold),
                 ForeColor = _item.IsUrgent ? Color.FromArgb(185, 28, 28) : ClinicalColors.PrimaryBlue,
                 Location = new Point(20, 12),
                 Size = new Size(660, 28),
@@ -93,15 +100,15 @@ namespace DTT.Doctor.UI.Forms
             pnlHeader.Controls.Add(lblService);
             pnlHeader.Controls.Add(lblNote);
 
-            // ── Body ─────────────────────────────────────────────────────
+            // ── Body Panel ─────────────────────────────────────────────────
             Panel pnlBody = new Panel { Dock = DockStyle.Fill, Padding = new Padding(20, 16, 20, 16), AutoScroll = true };
 
             int y = 0;
             Label MkLbl(string text, int yy) => new Label
             {
                 Text = text,
-                Font = ClinicalColors.GetMainFont(9f, FontStyle.Bold),
-                ForeColor = ClinicalColors.TextMuted,
+                Font = ClinicalColors.GetMainFont(9.5f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(51, 65, 85),
                 Location = new Point(0, yy),
                 AutoSize = true
             };
@@ -110,150 +117,233 @@ namespace DTT.Doctor.UI.Forms
 
             if (_isTest)
             {
-                var lbl1 = MkLbl("Kết quả", y); y += 18;
-                _txtResultValue = new MaterialTextBoxEdit { Location = new Point(0, y), Size = new Size(660, 48), Hint = "Ví dụ: Hồng cầu 4.5 T/L, Bạch cầu 7.2 G/L", Text = _item.ResultValue ?? "" };
-                y += 60;
+                var lbl1 = MkLbl("Giá trị kết quả xét nghiệm", y); y += 22;
+                Panel pnlRes = CreateInputContainer(660, 52, out _txtResultValue, "Ví dụ: Hồng cầu 4.5 T/L, Bạch cầu 7.2 G/L");
+                pnlRes.Location = new Point(0, y);
+                _txtResultValue.Text = _item.ResultValue ?? "";
+                y += 62;
 
-                var lblU = MkLbl("Đơn vị", y);
-                var lblR = MkLbl("Khoảng tham chiếu", y); lblR.Location = new Point(340, y);
-                y += 18;
-                _txtUnit = new MaterialTextBoxEdit { Location = new Point(0, y), Size = new Size(320, 48), Hint = "Ví dụ: mg/dL", Text = _item.Unit ?? "" };
-                _txtReferenceRange = new MaterialTextBoxEdit { Location = new Point(340, y), Size = new Size(320, 48), Hint = "Ví dụ: 3.8 - 5.5", Text = _item.ReferenceRange ?? "" };
-                y += 60;
+                var lblU = MkLbl("Đơn vị đo", y);
+                var lblR = MkLbl("Khoảng tham chiếu chuẩn", y); lblR.Location = new Point(340, y);
+                y += 22;
 
-                var lblStatusHdr = MkLbl("Đánh giá kết quả", y); y += 18;
+                Panel pnlUnit = CreateInputContainer(320, 44, out _txtUnit, "Ví dụ: mg/dL");
+                pnlUnit.Location = new Point(0, y);
+                _txtUnit.Text = _item.Unit ?? "";
+
+                Panel pnlRef = CreateInputContainer(320, 44, out _txtReferenceRange, "Ví dụ: 3.8 - 5.5");
+                pnlRef.Location = new Point(340, y);
+                _txtReferenceRange.Text = _item.ReferenceRange ?? "";
+                y += 56;
+
+                var lblStatusHdr = MkLbl("Đánh giá kết quả", y); y += 22;
                 _cboResultStatus = new ComboBox
                 {
                     Location = new Point(0, y),
                     Size = new Size(660, 32),
                     DropDownStyle = ComboBoxStyle.DropDownList,
-                    Font = ClinicalColors.GetMainFont(9.5f, FontStyle.Regular)
+                    Font = ClinicalColors.GetMainFont(10f, FontStyle.Regular)
                 };
                 _cboResultStatus.Items.Add("Normal — Bình thường");
                 _cboResultStatus.Items.Add("Abnormal — Bất thường");
                 _cboResultStatus.SelectedIndex = _item.Status == "Abnormal" ? 1 : 0;
-                y += 40;
+                y += 44;
 
-                bodyControls.AddRange(new System.Windows.Forms.Control[] { lbl1, _txtResultValue, lblU, _txtUnit, lblR, _txtReferenceRange, lblStatusHdr, _cboResultStatus });
+                bodyControls.AddRange(new System.Windows.Forms.Control[] { lbl1, pnlRes, lblU, pnlUnit, lblR, pnlRef, lblStatusHdr, _cboResultStatus });
             }
             else
             {
-                var lblD = MkLbl("Mô tả hình ảnh", y); y += 18;
-                _txtDescription = new MaterialTextBoxEdit { Location = new Point(0, y), Size = new Size(660, 56), Hint = "Ví dụ: Tuyến giáp kích thước bình thường..." };
-                y += 66;
+                var lblD = MkLbl("Mô tả chi tiết hình ảnh siêu âm", y); y += 22;
+                Panel pnlDesc = CreateInputContainer(660, 68, out _txtDescription, "Ví dụ: Tuyến giáp kích thước bình thường, không có nhân bất thường...");
+                pnlDesc.Location = new Point(0, y);
+                y += 76;
 
-                var lblC = MkLbl("Kết luận", y); y += 18;
-                _txtConclusion = new MaterialTextBoxEdit { Location = new Point(0, y), Size = new Size(660, 56), Hint = "Ví dụ: Không phát hiện bất thường" };
-                y += 66;
+                var lblC = MkLbl("Kết luận chẩn đoán", y); y += 22;
+                Panel pnlConcl = CreateInputContainer(660, 58, out _txtConclusion, "Ví dụ: Không phát hiện bất thường / Nang tuyến giáp 2 bên...", isBold: true);
+                pnlConcl.Location = new Point(0, y);
+                y += 68;
 
-                var lblImg = MkLbl("Ảnh siêu âm đính kèm", y); y += 22;
+                Panel pnlImgBar = new Panel { Location = new Point(0, y), Size = new Size(660, 36), BackColor = Color.Transparent };
+                Label lblImg = new Label
+                {
+                    Text = "📷  Ảnh siêu âm đính kèm",
+                    Font = ClinicalColors.GetMainFont(9.5f, FontStyle.Bold),
+                    ForeColor = Color.FromArgb(51, 65, 85),
+                    Location = new Point(0, 8),
+                    AutoSize = true
+                };
 
-                Button btnAttach = new Button
+                RoundedButton btnAttach = new RoundedButton
                 {
                     Text = "📎  Đính Kèm Ảnh Mới",
-                    Font = ClinicalColors.GetMainFont(9.5f, FontStyle.Bold),
-                    FlatStyle = FlatStyle.Flat,
-                    BackColor = Color.FromArgb(224, 231, 255),
+                    Font = ClinicalColors.GetMainFont(9f, FontStyle.Bold),
+                    BackColor = Color.FromArgb(238, 242, 255),
+                    HoverBackColor = Color.FromArgb(224, 231, 255),
                     ForeColor = ClinicalColors.PrimaryBlue,
-                    Location = new Point(0, y),
-                    Size = new Size(180, 36),
+                    BorderRadius = 8,
+                    Location = new Point(480, 0),
+                    Size = new Size(180, 34),
                     Cursor = Cursors.Hand
                 };
-                btnAttach.FlatAppearance.BorderSize = 0;
                 btnAttach.Click += async (s, e) => await OnAttachImageClickAsync();
-                y += 46;
+                pnlImgBar.Controls.Add(lblImg);
+                pnlImgBar.Controls.Add(btnAttach);
+                y += 42;
 
                 _lblImagesEmpty = new Label
                 {
-                    Text = "Chưa có ảnh nào.",
-                    Font = ClinicalColors.GetMainFont(9f, FontStyle.Regular),
+                    Text = "Chưa có ảnh nào được đính kèm.",
+                    Font = ClinicalColors.GetMainFont(9.5f, FontStyle.Italic),
                     ForeColor = ClinicalColors.TextMuted,
                     Location = new Point(0, y),
-                    Size = new Size(660, 22)
+                    Size = new Size(660, 24)
                 };
 
                 _flowImages = new FlowLayoutPanel
                 {
                     Location = new Point(0, y),
-                    Size = new Size(660, 230),
+                    Size = new Size(660, 160),
                     AutoScroll = true,
                     WrapContents = true,
-                    FlowDirection = FlowDirection.LeftToRight
+                    FlowDirection = FlowDirection.LeftToRight,
+                    BackColor = Color.Transparent
                 };
-                y += 236;
+                y += 166;
 
-                bodyControls.AddRange(new System.Windows.Forms.Control[] { lblD, _txtDescription, lblC, _txtConclusion, lblImg, btnAttach, _lblImagesEmpty, _flowImages });
+                bodyControls.AddRange(new System.Windows.Forms.Control[] { lblD, pnlDesc, lblC, pnlConcl, pnlImgBar, _lblImagesEmpty, _flowImages });
             }
 
             _lblStatus = new Label
             {
                 Text = "",
-                Font = ClinicalColors.GetMainFont(9f, FontStyle.Bold),
+                Font = ClinicalColors.GetMainFont(9.5f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(16, 185, 129),
-                Location = new Point(0, y + 6),
-                Size = new Size(660, 30),
+                Location = new Point(0, y + 4),
+                Size = new Size(660, 28),
                 TextAlign = ContentAlignment.MiddleLeft
             };
             bodyControls.Add(_lblStatus);
 
             foreach (var c in bodyControls) pnlBody.Controls.Add(c);
 
-            // ── Footer ───────────────────────────────────────────────────
+            // ── Footer Panel ───────────────────────────────────────────────
             Panel pnlFooter = new Panel { Dock = DockStyle.Bottom, Height = 64, BackColor = Color.White };
             Panel pnlFooterBorder = new Panel { Dock = DockStyle.Top, Height = 1, BackColor = ClinicalColors.BorderGray };
             pnlFooter.Controls.Add(pnlFooterBorder);
 
-            _btnCancelOrder = new Button
+            _btnCancelOrder = new RoundedButton
             {
                 Text = "❌  Hủy Chỉ Định",
                 Font = ClinicalColors.GetMainFont(9.5f, FontStyle.Bold),
-                FlatStyle = FlatStyle.Flat,
-                ForeColor = Color.FromArgb(185, 28, 28),
                 BackColor = Color.White,
+                HoverBackColor = Color.FromArgb(254, 242, 242),
+                BorderColor = Color.FromArgb(252, 165, 165),
+                BorderSize = 1,
+                ForeColor = Color.FromArgb(185, 28, 28),
+                BorderRadius = 8,
                 Location = new Point(20, 12),
                 Size = new Size(160, 40),
                 Cursor = Cursors.Hand
             };
-            _btnCancelOrder.FlatAppearance.BorderColor = Color.FromArgb(254, 202, 202);
-            _btnCancelOrder.FlatAppearance.BorderSize = 1;
             _btnCancelOrder.Click += async (s, e) => await OnCancelOrderClickAsync();
 
-            Button btnClose = new Button
+            _btnClose = new RoundedButton
             {
-                Text = "Đóng",
-                Font = ClinicalColors.GetMainFont(10f, FontStyle.Bold),
-                ForeColor = Color.FromArgb(71, 85, 105),
+                Text = "Đóng cửa sổ",
+                Font = ClinicalColors.GetMainFont(9.5f, FontStyle.Bold),
                 BackColor = Color.FromArgb(241, 245, 249),
-                FlatStyle = FlatStyle.Flat,
-                Size = new Size(110, 40),
-                Location = new Point(390, 12),
+                HoverBackColor = Color.FromArgb(226, 232, 240),
+                ForeColor = Color.FromArgb(71, 85, 105),
+                BorderRadius = 8,
+                Size = new Size(125, 40),
+                Location = new Point(365, 12),
                 Cursor = Cursors.Hand
             };
-            btnClose.FlatAppearance.BorderColor = Color.FromArgb(203, 213, 225);
-            btnClose.FlatAppearance.BorderSize = 1;
-            btnClose.Click += (s, e) => { DialogResult = WasModified ? DialogResult.OK : DialogResult.Cancel; Close(); };
+            _btnClose.Click += (s, e) => { DialogResult = WasModified ? DialogResult.OK : DialogResult.Cancel; Close(); };
 
             _btnSave = new RoundedButton
             {
                 Text = "✅  Lưu Kết Quả",
-                Font = ClinicalColors.GetMainFont(10f, FontStyle.Bold),
+                Font = ClinicalColors.GetMainFont(9.5f, FontStyle.Bold),
                 BackColor = Color.FromArgb(16, 185, 129),
                 HoverBackColor = Color.FromArgb(5, 150, 105),
                 ForeColor = Color.White,
-                BorderRadius = 10,
-                Size = new Size(185, 40),
-                Location = new Point(515, 12),
+                BorderRadius = 8,
+                Size = new Size(175, 40),
+                Location = new Point(505, 12),
                 Cursor = Cursors.Hand
             };
             _btnSave.Click += async (s, e) => await OnSaveClickAsync();
 
             pnlFooter.Controls.Add(_btnCancelOrder);
-            pnlFooter.Controls.Add(btnClose);
+            pnlFooter.Controls.Add(_btnClose);
             pnlFooter.Controls.Add(_btnSave);
 
             Controls.Add(pnlBody);
             Controls.Add(pnlFooter);
             Controls.Add(pnlHeader);
+        }
+
+        private Panel CreateInputContainer(int width, int height, out TextBox txt, string placeholder, bool isBold = false)
+        {
+            bool isFocused = false;
+            Panel container = new Panel
+            {
+                Size = new Size(width, height),
+                BackColor = Color.White,
+                Padding = new Padding(10, 8, 10, 8)
+            };
+
+            container.Paint += (s, e) =>
+            {
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                Rectangle rect = new Rectangle(0, 0, container.Width - 1, container.Height - 1);
+                Color border = isFocused ? ClinicalColors.PrimaryBlue : Color.FromArgb(203, 213, 225);
+                using (var path = CreateRoundedPath(rect, 6))
+                using (var pen = new Pen(border, isFocused ? 1.8f : 1f))
+                {
+                    e.Graphics.DrawPath(pen, path);
+                }
+            };
+
+            txt = new TextBox
+            {
+                Dock = DockStyle.Fill,
+                Multiline = height > 42,
+                BorderStyle = BorderStyle.None,
+                Font = ClinicalColors.GetMainFont(isBold ? 10.5f : 10f, isBold ? FontStyle.Bold : FontStyle.Regular),
+                ScrollBars = ScrollBars.None
+            };
+
+            TextBox localTxt = txt;
+            txt.GotFocus += (s, e) => { isFocused = true; container.Invalidate(); };
+            txt.LostFocus += (s, e) => { isFocused = false; container.Invalidate(); };
+
+            if (!string.IsNullOrEmpty(placeholder))
+            {
+                txt.HandleCreated += (s, e) =>
+                {
+                    SendMessage(localTxt.Handle, EM_SETCUEBANNER, 1, placeholder);
+                };
+            }
+
+            container.Controls.Add(txt);
+            return container;
+        }
+
+        private GraphicsPath CreateRoundedPath(Rectangle rect, int radius)
+        {
+            GraphicsPath path = new GraphicsPath();
+            int d = radius * 2;
+            if (d > rect.Width) d = rect.Width;
+            if (d > rect.Height) d = rect.Height;
+
+            path.AddArc(rect.X, rect.Y, d, d, 180, 90);
+            path.AddArc(rect.Right - d, rect.Y, d, d, 270, 90);
+            path.AddArc(rect.Right - d, rect.Bottom - d, d, d, 0, 90);
+            path.AddArc(rect.X, rect.Bottom - d, d, d, 90, 90);
+            path.CloseFigure();
+            return path;
         }
 
         // ── Ultrasound: tải mô tả/kết luận/ảnh hiện có khi mở cửa sổ ─────────
@@ -276,35 +366,122 @@ namespace DTT.Doctor.UI.Forms
                 int index = i;
                 string fullUrl = _api.BaseUrl + _imageUrls[i];
 
-                Panel card = new Panel { Size = new Size(112, 140), Margin = new Padding(4) };
+                Panel card = new Panel
+                {
+                    Size = new Size(116, 142),
+                    Margin = new Padding(6),
+                    BackColor = Color.White
+                };
+                card.Paint += (s, e) =>
+                {
+                    e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                    Rectangle rect = new Rectangle(0, 0, card.Width - 1, card.Height - 1);
+                    using (var path = CreateRoundedPath(rect, 8))
+                    using (var pen = new Pen(Color.FromArgb(226, 232, 240), 1f))
+                    {
+                        e.Graphics.DrawPath(pen, path);
+                    }
+                };
+
+                string currentUrl = fullUrl;
                 PictureBox pb = new PictureBox
                 {
-                    Size = new Size(104, 104),
-                    Location = new Point(4, 4),
+                    Size = new Size(104, 100),
+                    Location = new Point(6, 6),
                     SizeMode = PictureBoxSizeMode.Zoom,
-                    BackColor = Color.FromArgb(241, 245, 249),
-                    BorderStyle = BorderStyle.FixedSingle
-                };
-                try { pb.LoadAsync(fullUrl); } catch { }
-
-                Button btnRemove = new Button
-                {
-                    Text = "🗑️ Xóa",
-                    Font = ClinicalColors.GetMainFont(8f, FontStyle.Bold),
-                    FlatStyle = FlatStyle.Flat,
-                    ForeColor = Color.FromArgb(185, 28, 28),
-                    BackColor = Color.FromArgb(254, 226, 226),
-                    Location = new Point(4, 112),
-                    Size = new Size(104, 24),
+                    BackColor = Color.FromArgb(248, 250, 252),
                     Cursor = Cursors.Hand
                 };
-                btnRemove.FlatAppearance.BorderSize = 0;
+                try { pb.LoadAsync(fullUrl); } catch { }
+                pb.Click += (s, e) => OpenFullImageViewer(currentUrl, index + 1, _imageUrls.Count);
+
+                RoundedButton btnRemove = new RoundedButton
+                {
+                    Text = "🗑️  Xóa ảnh",
+                    Font = ClinicalColors.GetMainFont(8.5f, FontStyle.Bold),
+                    BackColor = Color.FromArgb(254, 226, 226),
+                    HoverBackColor = Color.FromArgb(252, 165, 165),
+                    ForeColor = Color.FromArgb(185, 28, 28),
+                    BorderRadius = 6,
+                    Location = new Point(6, 110),
+                    Size = new Size(104, 26),
+                    Cursor = Cursors.Hand
+                };
                 btnRemove.Click += async (s, e) => await OnRemoveImageClickAsync(index);
 
                 card.Controls.Add(pb);
                 card.Controls.Add(btnRemove);
                 _flowImages.Controls.Add(card);
             }
+        }
+
+        private void OpenFullImageViewer(string imageUrl, int imgIndex, int totalImages)
+        {
+            using Form viewer = new Form
+            {
+                Text = $"🔎 Xem Ảnh Siêu Âm ({imgIndex}/{totalImages}) — {_item.PatientName}",
+                Size = new Size(960, 720),
+                StartPosition = FormStartPosition.CenterParent,
+                BackColor = Color.FromArgb(15, 23, 42),
+                Font = ClinicalColors.GetMainFont(10f, FontStyle.Regular),
+                MinimizeBox = false,
+                MaximizeBox = true
+            };
+
+            Panel pnlViewHeader = new Panel
+            {
+                Dock = DockStyle.Top,
+                Height = 52,
+                BackColor = Color.FromArgb(30, 41, 59),
+                Padding = new Padding(16, 0, 16, 0)
+            };
+
+            Label lblInfo = new Label
+            {
+                Text = $"📷 Ảnh siêu âm ({imgIndex}/{totalImages})  •  Bệnh nhân: {_item.PatientName}  •  Chỉ định: {_item.ServiceName}",
+                Font = ClinicalColors.GetMainFont(10.5f, FontStyle.Bold),
+                ForeColor = Color.White,
+                Location = new Point(16, 15),
+                AutoSize = true,
+                UseMnemonic = false
+            };
+
+            RoundedButton btnCloseViewer = new RoundedButton
+            {
+                Text = "✕  Đóng (Esc)",
+                Font = ClinicalColors.GetMainFont(9.5f, FontStyle.Bold),
+                BackColor = Color.FromArgb(51, 65, 85),
+                HoverBackColor = Color.FromArgb(71, 85, 105),
+                ForeColor = Color.White,
+                BorderRadius = 6,
+                Size = new Size(120, 34),
+                Location = new Point(viewer.ClientSize.Width - 136, 9),
+                Anchor = AnchorStyles.Top | AnchorStyles.Right,
+                Cursor = Cursors.Hand
+            };
+            btnCloseViewer.Click += (s, e) => viewer.Close();
+
+            pnlViewHeader.Controls.Add(lblInfo);
+            pnlViewHeader.Controls.Add(btnCloseViewer);
+
+            PictureBox pbFull = new PictureBox
+            {
+                Dock = DockStyle.Fill,
+                SizeMode = PictureBoxSizeMode.Zoom,
+                BackColor = Color.FromArgb(15, 23, 42)
+            };
+            try { pbFull.LoadAsync(imageUrl); } catch { }
+
+            viewer.Controls.Add(pbFull);
+            viewer.Controls.Add(pnlViewHeader);
+
+            viewer.KeyPreview = true;
+            viewer.KeyDown += (s, e) =>
+            {
+                if (e.KeyCode == Keys.Escape) viewer.Close();
+            };
+
+            viewer.ShowDialog(this);
         }
 
         private async Task OnAttachImageClickAsync()
@@ -325,7 +502,7 @@ namespace DTT.Doctor.UI.Forms
                 _imageUrls.Add(url);
                 RenderImageGallery();
                 WasModified = true;
-                _lblStatus.Text = "✅ Đã đính kèm ảnh.";
+                _lblStatus.Text = "✅ Đã đính kèm ảnh thành công.";
                 _lblStatus.ForeColor = Color.FromArgb(22, 163, 74);
             }
             else
@@ -344,7 +521,7 @@ namespace DTT.Doctor.UI.Forms
                 _imageUrls.RemoveAt(index);
                 RenderImageGallery();
                 WasModified = true;
-                _lblStatus.Text = "✅ Đã gỡ ảnh.";
+                _lblStatus.Text = "✅ Đã gỡ ảnh thành công.";
                 _lblStatus.ForeColor = Color.FromArgb(22, 163, 74);
             }
             else

@@ -110,7 +110,7 @@ namespace DTT.Doctor.UI.Forms
             _grid.Rows.Clear();
             foreach (var it in _items)
             {
-                string kind = it.Kind == "Test" ? "🧪 XN" : "📷 SA";
+                string kind = it.Kind == "Test" ? "🔬 XN" : "📡 SA";
                 string summary = it.Status == "Pending"
                     ? "—"
                     : it.Kind == "Test"

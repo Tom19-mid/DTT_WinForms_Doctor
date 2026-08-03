@@ -51,6 +51,9 @@ namespace DTT.Doctor.UI.Forms
         private TextBox _txtWalkinBhyt;
         private TextBox _txtWalkinAddress;
         private DateTimePicker _dtpWalkinDob;
+        // DateTimePicker LUÔN có sẵn 1 giá trị (mặc định hôm nay) kể cả khi lễ tân chưa hề đụng vào —
+        // nếu không có checkbox này, hồ sơ vãng lai sẽ âm thầm lưu "hôm nay" làm ngày sinh thật.
+        private CheckBox _chkWalkinDobUnknown;
         private DateTimePicker _dtpWalkinExamDate;
         private ComboBox _cboWalkinGender;
         private ComboBox _cboWalkinSpecialty;
@@ -82,11 +85,44 @@ namespace DTT.Doctor.UI.Forms
         private AntiFlickerDataGridView _gridDirectPatients;
         private List<PatientSimpleModel> _allDirectPatients = new List<PatientSimpleModel>();
 
+        // Tab 6 — Chat Hỗ Trợ (AI Symptom Checker + Escalate to Staff)
+        private AntiFlickerDataGridView _gridChatQueue;
+        private List<ChatQueueItem> _chatQueueList = new List<ChatQueueItem>();
+        // Phiên CHÍNH lễ tân này đã tiếp nhận nhưng chưa đóng — để tìm lại phiên dở dang sau khi
+        // tắt/mở lại app (phiên đã claim biến mất khỏi hàng chờ chung, cần chỗ riêng để không "kẹt").
+        private AntiFlickerDataGridView _gridMyChatSessions;
+        private List<ChatQueueItem> _myChatSessionsList = new List<ChatQueueItem>();
+        private Label _lblMySessionsTitle;
+        private Label _lblKpiChatWaiting;
+        private Label _lblKpiChatMine;
+        private Label _lblKpiAiStatus;
+        private TabPage _tabChat; // reference to update badge
+        private System.Windows.Forms.Timer _chatAutoRefreshTimer;
+        // Theo dõi session_id đã từng thấy trong hàng chờ để phát hiện phiên Escalated MỚI xuất hiện
+        // giữa các lần poll (5s/lần) — chỉ những phiên mới mới hiện toast, tránh spam lại toàn bộ
+        // hàng chờ có sẵn mỗi khi Lễ tân mở lại app/chuyển tab.
+        private HashSet<int> _knownChatSessionIds = new HashSet<int>();
+        private bool _chatQueueInitialized = false;
+        // Dialog giờ non-modal (Show thay vì ShowDialog) để lễ tân vừa chat vừa chuyển sang tab khác
+        // (vd: đặt lịch) — theo dõi theo session_id để tránh mở trùng 2 cửa sổ cho cùng 1 phiên.
+        private Dictionary<int, ChatSessionDialogForm> _openChatDialogs = new Dictionary<int, ChatSessionDialogForm>();
+
         public ReceptionCashierForm()
         {
             InitializeComponent();
-            this.Shown += async (s, e) => await LoadDataPublicAsync();
+            this.Shown += async (s, e) =>
+            {
+                await LoadDataPublicAsync();
+                await RefreshChatQueueAsync();
+                if (_chatAutoRefreshTimer == null)
+                {
+                    _chatAutoRefreshTimer = new System.Windows.Forms.Timer { Interval = 5000 };
+                    _chatAutoRefreshTimer.Tick += async (ts, te) => await RefreshChatQueueAsync();
+                    _chatAutoRefreshTimer.Start();
+                }
+            };
             this.VisibleChanged += async (s, e) => { if (this.Visible) await LoadDataPublicAsync(); };
+            this.FormClosed += (s, e) => { _chatAutoRefreshTimer?.Stop(); _chatAutoRefreshTimer?.Dispose(); };
         }
 
         public void SelectTab(int index)
@@ -185,19 +221,23 @@ namespace DTT.Doctor.UI.Forms
             TabPage tabApprove = new TabPage("[*] 3. ĐỐI CHIẾU CCCD & DUYỆT APP MOBILE") { BackColor = ClinicalColors.GhostWhite };
             TabPage tabWalkIn = new TabPage("➕ 4. TẠO HỒ SƠ KHÁCH VÃNG LAI") { BackColor = ClinicalColors.GhostWhite };
             TabPage tabDirect = new TabPage("🏥 5. KHÁM TRỰC TIẾP CHO HỒ SƠ CÓ SẴN") { BackColor = ClinicalColors.GhostWhite };
+            TabPage tabChat = new TabPage("💬 6. CHAT HỖ TRỢ") { BackColor = ClinicalColors.GhostWhite };
 
             BuildReceptionTab(tabReception);
             BuildCashierTab(tabCashier);
             BuildApproveTab(tabApprove);
             BuildWalkInTab(tabWalkIn);
             BuildDirectExamTab(tabDirect);
+            BuildChatSupportTab(tabChat);
             _tabCashier = tabCashier; // store reference for badge updates
+            _tabChat = tabChat;
 
             _tabControl.TabPages.Add(tabReception);
             _tabControl.TabPages.Add(tabCashier);
             _tabControl.TabPages.Add(tabApprove);
             _tabControl.TabPages.Add(tabWalkIn);
             _tabControl.TabPages.Add(tabDirect);
+            _tabControl.TabPages.Add(tabChat);
 
             Controls.Add(_tabControl);
         }
@@ -725,10 +765,29 @@ namespace DTT.Doctor.UI.Forms
             y += 50;
 
             Label lblDob = new Label { Text = "Ngày tháng năm sinh:", Font = ClinicalColors.GetMainFont(10f, FontStyle.Bold), Location = new Point(30, y), AutoSize = true, UseMnemonic = false };
-            _dtpWalkinDob = new DateTimePicker { Format = DateTimePickerFormat.Custom, CustomFormat = "dd/MM/yyyy", Font = ClinicalColors.GetMainFont(10.5f, FontStyle.Regular), Location = new Point(230, y - 4), Size = new Size(180, 30) };
+            _dtpWalkinDob = new DateTimePicker
+            {
+                Format = DateTimePickerFormat.Custom,
+                CustomFormat = "dd/MM/yyyy",
+                Font = ClinicalColors.GetMainFont(10.5f, FontStyle.Regular),
+                Location = new Point(230, y - 4),
+                Size = new Size(180, 30),
+                MinDate = DateTime.Today.AddYears(-120),
+                MaxDate = DateTime.Today
+            };
+            _chkWalkinDobUnknown = new CheckBox
+            {
+                Text = "Chưa rõ ngày sinh",
+                Font = ClinicalColors.GetMainFont(9.5f, FontStyle.Regular),
+                ForeColor = ClinicalColors.TextMuted,
+                Location = new Point(418, y),
+                AutoSize = true,
+                UseMnemonic = false
+            };
+            _chkWalkinDobUnknown.CheckedChanged += (s, e) => _dtpWalkinDob.Enabled = !_chkWalkinDobUnknown.Checked;
 
-            Label lblGender = new Label { Text = "Giới tính:", Font = ClinicalColors.GetMainFont(10f, FontStyle.Bold), Location = new Point(560, y), AutoSize = true, UseMnemonic = false };
-            _cboWalkinGender = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Font = ClinicalColors.GetMainFont(10.5f, FontStyle.Regular), Location = new Point(710, y - 4), Size = new Size(150, 30) };
+            Label lblGender = new Label { Text = "Giới tính:", Font = ClinicalColors.GetMainFont(10f, FontStyle.Bold), Location = new Point(620, y), AutoSize = true, UseMnemonic = false };
+            _cboWalkinGender = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Font = ClinicalColors.GetMainFont(10.5f, FontStyle.Regular), Location = new Point(770, y - 4), Size = new Size(150, 30) };
             _cboWalkinGender.Items.AddRange(new object[] { "Nam", "Nữ", "Khác" });
             _cboWalkinGender.SelectedIndex = 0;
 
@@ -778,7 +837,7 @@ namespace DTT.Doctor.UI.Forms
             pnlForm.Controls.Add(lblTitle);
             pnlForm.Controls.Add(lblName); pnlForm.Controls.Add(_txtWalkinName);
             pnlForm.Controls.Add(lblPhone); pnlForm.Controls.Add(_txtWalkinPhone);
-            pnlForm.Controls.Add(lblDob); pnlForm.Controls.Add(_dtpWalkinDob);
+            pnlForm.Controls.Add(lblDob); pnlForm.Controls.Add(_dtpWalkinDob); pnlForm.Controls.Add(_chkWalkinDobUnknown);
             pnlForm.Controls.Add(lblGender); pnlForm.Controls.Add(_cboWalkinGender);
             pnlForm.Controls.Add(lblCccd); pnlForm.Controls.Add(_txtWalkinCccd);
             pnlForm.Controls.Add(lblBhyt); pnlForm.Controls.Add(_txtWalkinBhyt);
@@ -958,6 +1017,351 @@ namespace DTT.Doctor.UI.Forms
             pnlForm.Controls.Add(_pnlDirectBookingBox);
 
             tab.Controls.Add(pnlForm);
+        }
+
+        // ── Tab 6: Chat Hỗ Trợ (AI Symptom Checker + Escalate to Staff) ─────────
+        // Hàng chờ = phiên đã Escalated nhưng chưa ai tiếp nhận. Bấm 1 dòng để mở
+        // ChatSessionDialogForm — tự động Claim rồi trả lời trực tiếp trong cửa sổ riêng
+        // (cùng pattern với ClinicalResultDialogForm của Kỹ thuật viên CLS).
+        // ── Tab 6: Chat Hỗ Trợ (AI Symptom Checker + Escalate to Staff) ─────────
+        // Hàng chờ = phiên đã Escalated nhưng chưa ai tiếp nhận. Bấm 1 dòng để mở
+        // ChatSessionDialogForm — tự động Claim rồi trả lời trực tiếp trong cửa sổ riêng
+        // (cùng pattern với ClinicalResultDialogForm của Kỹ thuật viên CLS).
+        private void BuildChatSupportTab(TabPage tab)
+        {
+            // --- 1. Top KPI Summary Cards Panel (3 Balanced Cards) ---
+            Panel pnlKpi = new Panel { Dock = DockStyle.Top, Height = 74, BackColor = ClinicalColors.GhostWhite, Padding = new Padding(15, 8, 15, 8) };
+
+            Panel cardWaiting = CreateKpiCard("HÀNG CHỜ TIẾP NHẬN", "0", Color.FromArgb(220, 38, 38), out _lblKpiChatWaiting);
+            cardWaiting.Location = new Point(15, 8);
+            cardWaiting.Size = new Size(270, 56);
+
+            Panel cardMine = CreateKpiCard("ĐANG TƯ VẤN CỦA BẠN", "0", Color.FromArgb(16, 185, 129), out _lblKpiChatMine);
+            cardMine.Location = new Point(300, 8);
+            cardMine.Size = new Size(270, 56);
+
+            Panel cardAi = CreateKpiCard("HỆ THỐNG TRỢ LÝ AI", "Gemini Active", Color.FromArgb(79, 70, 229), out _lblKpiAiStatus);
+            cardAi.Location = new Point(585, 8);
+            cardAi.Size = new Size(270, 56);
+
+            pnlKpi.Controls.Add(cardWaiting);
+            pnlKpi.Controls.Add(cardMine);
+            pnlKpi.Controls.Add(cardAi);
+
+            // --- 2. Action Toolbar & Subtitle Header Panel ---
+            Panel pnlToolbar = new Panel { Dock = DockStyle.Top, Height = 60, BackColor = Color.White, Padding = new Padding(15, 10, 15, 10) };
+            Panel pnlToolbarBorder = new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = ClinicalColors.BorderGray };
+            pnlToolbar.Controls.Add(pnlToolbarBorder);
+
+            Label lblTitle = new Label
+            {
+                Text = "📋 DANH SÁCH BỆNH NHÂN ĐANG CHỜ LỄ TÂN HỖ TRỢ TRỰC TIẾP",
+                Font = ClinicalColors.GetMainFont(10.5f, FontStyle.Bold),
+                ForeColor = ClinicalColors.TextDark,
+                Location = new Point(15, 10),
+                AutoSize = true,
+                UseMnemonic = false
+            };
+
+            Label lblHint = new Label
+            {
+                Text = "Bệnh nhân bấm \"Cần tư vấn thêm\" trên App Mobile sẽ tự động xuất hiện tại đây. Nhấp vào 1 dòng để tiếp nhận & hỗ trợ.",
+                Font = ClinicalColors.GetMainFont(9f, FontStyle.Regular),
+                ForeColor = ClinicalColors.TextMuted,
+                Location = new Point(15, 32),
+                AutoSize = true,
+                UseMnemonic = false
+            };
+
+            Button btnReloadChat = new Button
+            {
+                Text = "🔄  Tải lại danh sách",
+                Font = ClinicalColors.GetMainFont(9.5f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(30, 41, 59),
+                BackColor = Color.FromArgb(241, 245, 249),
+                FlatStyle = FlatStyle.Flat,
+                Size = new Size(150, 36),
+                Location = new Point(980, 11),
+                Anchor = AnchorStyles.Top | AnchorStyles.Right,
+                Cursor = Cursors.Hand,
+                UseMnemonic = false
+            };
+            btnReloadChat.FlatAppearance.BorderSize = 1;
+            btnReloadChat.FlatAppearance.BorderColor = Color.FromArgb(203, 213, 225);
+            btnReloadChat.Click += async (s, e) => await RefreshChatQueueAsync();
+
+            pnlToolbar.Controls.Add(lblTitle);
+            pnlToolbar.Controls.Add(lblHint);
+            pnlToolbar.Controls.Add(btnReloadChat);
+
+            // --- 3. Upper Grid: Chat Waiting Queue ---
+            _gridChatQueue = new AntiFlickerDataGridView { Dock = DockStyle.Fill };
+            _gridChatQueue.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "STT", FillWeight = 20 });
+            _gridChatQueue.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "BỆNH NHÂN", FillWeight = 90 });
+            _gridChatQueue.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "CHUYÊN KHOA AI GỢI Ý", FillWeight = 80 });
+            _gridChatQueue.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "TIN NHẮN GẦN NHẤT", FillWeight = 160 });
+            _gridChatQueue.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "THỜI GIAN YÊU CẦU", FillWeight = 55 });
+            _gridChatQueue.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "THAO TÁC", FillWeight = 65 });
+
+            _gridChatQueue.CellClick += (s, e) =>
+            {
+                if (e.RowIndex < 0 || e.RowIndex >= _gridChatQueue.Rows.Count) return;
+                if (e.RowIndex >= _chatQueueList.Count) return;
+                OpenChatSessionDialog(_chatQueueList[e.RowIndex]);
+            };
+
+            // --- 4. Lower Panel: My Active Chat Sessions ---
+            Panel pnlMySessions = new Panel { Dock = DockStyle.Bottom, Height = 240, BackColor = Color.White, Padding = new Padding(15, 8, 15, 8) };
+            Panel pnlMySessionsBorder = new Panel { Dock = DockStyle.Top, Height = 1, BackColor = ClinicalColors.BorderGray };
+
+            Panel pnlMyHeader = new Panel { Dock = DockStyle.Top, Height = 32, BackColor = Color.White };
+            _lblMySessionsTitle = new Label
+            {
+                Text = "💬 PHIÊN TƯ VẤN DỞ DÀNG CỦA BẠN — bấm vào 1 dòng để mở lại hội thoại",
+                Font = ClinicalColors.GetMainFont(10f, FontStyle.Bold),
+                ForeColor = ClinicalColors.TextDark,
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleLeft,
+                UseMnemonic = false
+            };
+            pnlMyHeader.Controls.Add(_lblMySessionsTitle);
+
+            _gridMyChatSessions = new AntiFlickerDataGridView { Dock = DockStyle.Fill };
+            _gridMyChatSessions.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "STT", FillWeight = 20 });
+            _gridMyChatSessions.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "BỆNH NHÂN", FillWeight = 90 });
+            _gridMyChatSessions.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "CHUYÊN KHOA AI GỢI Ý", FillWeight = 80 });
+            _gridMyChatSessions.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "TIN NHẮN GẦN NHẤT", FillWeight = 160 });
+            _gridMyChatSessions.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "CẬP NHẬT LÚC", FillWeight = 55 });
+            _gridMyChatSessions.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "THAO TÁC", FillWeight = 65 });
+            _gridMyChatSessions.CellClick += (s, e) =>
+            {
+                if (e.RowIndex < 0 || e.RowIndex >= _gridMyChatSessions.Rows.Count) return;
+                if (e.RowIndex >= _myChatSessionsList.Count) return;
+                OpenChatSessionDialog(_myChatSessionsList[e.RowIndex]);
+            };
+
+            pnlMySessions.Controls.Add(_gridMyChatSessions);
+            pnlMySessions.Controls.Add(pnlMyHeader);
+            pnlMySessions.Controls.Add(pnlMySessionsBorder);
+
+            tab.Controls.Add(_gridChatQueue);
+            tab.Controls.Add(pnlMySessions);
+            tab.Controls.Add(pnlToolbar);
+            tab.Controls.Add(pnlKpi);
+        }
+
+        private async Task RefreshChatQueueAsync()
+        {
+            try
+            {
+                if (_gridChatQueue == null || _gridChatQueue.IsDisposed) return;
+                var api = new ApiService();
+                _chatQueueList = await api.GetChatQueueAsync();
+
+                // Phát hiện phiên Escalated MỚI (chưa từng thấy) để báo toast — bỏ qua ở lần tải đầu
+                // tiên (mở app đã có sẵn hàng chờ từ trước, không phải "vừa mới" escalate).
+                var currentIds = _chatQueueList.Select(c => c.SessionId).ToHashSet();
+                if (_chatQueueInitialized)
+                {
+                    foreach (var item in _chatQueueList)
+                    {
+                        if (!_knownChatSessionIds.Contains(item.SessionId))
+                        {
+                            ShowChatToast("💬 BỆNH NHÂN CẦN TƯ VẤN",
+                                $"{item.PatientName} vừa yêu cầu chuyển tư vấn trực tiếp.\nVào tab \"Chat Hỗ Trợ\" để tiếp nhận.",
+                                Color.FromArgb(79, 70, 229));
+                        }
+                    }
+                }
+                _knownChatSessionIds = currentIds;
+                _chatQueueInitialized = true;
+
+                _gridChatQueue.Rows.Clear();
+                for (int i = 0; i < _chatQueueList.Count; i++)
+                {
+                    var item = _chatQueueList[i];
+                    string spec = string.IsNullOrWhiteSpace(item.SuggestedSpecialtyName) ? "—" : item.SuggestedSpecialtyName;
+                    string preview = string.IsNullOrWhiteSpace(item.LastMessagePreview) ? "" : item.LastMessagePreview;
+                    if (preview.Length > 60) preview = preview.Substring(0, 57) + "...";
+                    string time = item.UpdatedAt.ToLocalTime().ToString("HH:mm dd/MM");
+
+                    _gridChatQueue.Rows.Add(i + 1, item.PatientName, spec, preview, time, "▶ Tiếp nhận");
+                }
+
+                if (_lblKpiChatWaiting != null) _lblKpiChatWaiting.Text = _chatQueueList.Count.ToString();
+                if (_tabChat != null)
+                {
+                    _tabChat.Text = _chatQueueList.Count > 0
+                        ? $"💬 6. CHAT HỖ TRỢ ({_chatQueueList.Count})"
+                        : "💬 6. CHAT HỖ TRỢ";
+                }
+
+                // Phiên CHÍNH lễ tân này đã claim nhưng chưa đóng — để họ tìm lại được sau khi
+                // tắt/mở lại app (không còn hiện trong hàng chờ chung ở trên vì đã có người nhận).
+                if (_gridMyChatSessions != null && !_gridMyChatSessions.IsDisposed)
+                {
+                    _myChatSessionsList = await api.GetMyChatSessionsAsync();
+                    _gridMyChatSessions.Rows.Clear();
+                    for (int i = 0; i < _myChatSessionsList.Count; i++)
+                    {
+                        var item = _myChatSessionsList[i];
+                        string spec = string.IsNullOrWhiteSpace(item.SuggestedSpecialtyName) ? "—" : item.SuggestedSpecialtyName;
+                        string preview = string.IsNullOrWhiteSpace(item.LastMessagePreview) ? "" : item.LastMessagePreview;
+                        if (preview.Length > 60) preview = preview.Substring(0, 57) + "...";
+                        string time = item.UpdatedAt.ToLocalTime().ToString("HH:mm dd/MM");
+                        _gridMyChatSessions.Rows.Add(i + 1, item.PatientName, spec, preview, time, "▶ Mở lại");
+                    }
+                    if (_lblKpiChatMine != null) _lblKpiChatMine.Text = _myChatSessionsList.Count.ToString();
+                    if (_lblMySessionsTitle != null)
+                    {
+                        _lblMySessionsTitle.Text = _myChatSessionsList.Count > 0
+                            ? $"💬 PHIÊN TƯ VẤN DỞ DÀNG CỦA BẠN ({_myChatSessionsList.Count}) — bấm vào 1 dòng để mở lại"
+                            : "💬 PHIÊN TƯ VẤN DỞ DÀNG CỦA BẠN — bấm vào 1 dòng để mở lại (vd: sau khi tắt/mở lại app)";
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("RefreshChatQueueAsync error: " + ex.Message);
+            }
+        }
+
+        // Toast góc dưới-phải khi có phiên chat Escalated mới — phỏng theo mẫu ShowNurseToast/
+        // ShowCornerToast của các phân hệ khác, tự biến mất sau 5s hoặc bấm để tắt sớm.
+        private void ShowChatToast(string title, string message, Color accentColor)
+        {
+            if (this.IsDisposed || !this.Visible) return;
+
+            AntiFlickerPanel toast = new AntiFlickerPanel
+            {
+                Size = new Size(360, 84),
+                BackColor = Color.FromArgb(15, 23, 42),
+                BorderColor = accentColor,
+                BorderRadius = 10,
+                Padding = new Padding(12, 10, 12, 10),
+                Anchor = AnchorStyles.Bottom | AnchorStyles.Right,
+                Location = new Point(this.ClientSize.Width - 380, this.ClientSize.Height - 100),
+                Cursor = Cursors.Hand
+            };
+
+            Action dismiss = () => { if (!toast.IsDisposed && this.Controls.Contains(toast)) { this.Controls.Remove(toast); toast.Dispose(); } };
+            toast.Click += (s, e) => dismiss();
+
+            Panel strip = new Panel { Location = new Point(0, 0), Size = new Size(6, 84), BackColor = accentColor };
+
+            Label lblClose = new Label
+            {
+                Text = "✕",
+                Font = ClinicalColors.GetMainFont(9.5f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(148, 163, 184),
+                Location = new Point(332, 6),
+                Size = new Size(20, 20),
+                TextAlign = ContentAlignment.MiddleCenter,
+                Cursor = Cursors.Hand
+            };
+            lblClose.Click += (s, e) => dismiss();
+
+            Label lblTitle = new Label
+            {
+                Text = title,
+                Font = ClinicalColors.GetMainFont(10f, FontStyle.Bold),
+                ForeColor = accentColor,
+                Location = new Point(18, 10),
+                Size = new Size(310, 22),
+                TextAlign = ContentAlignment.MiddleLeft,
+                UseMnemonic = false
+            };
+            lblTitle.Click += (s, e) => dismiss();
+
+            Label lblMsg = new Label
+            {
+                Text = message,
+                Font = ClinicalColors.GetMainFont(9f, FontStyle.Regular),
+                ForeColor = Color.FromArgb(226, 232, 240),
+                Location = new Point(18, 32),
+                Size = new Size(330, 46),
+                TextAlign = ContentAlignment.TopLeft,
+                UseMnemonic = false
+            };
+            lblMsg.Click += (s, e) => dismiss();
+
+            toast.Controls.Add(strip);
+            toast.Controls.Add(lblClose);
+            toast.Controls.Add(lblTitle);
+            toast.Controls.Add(lblMsg);
+
+            this.Controls.Add(toast);
+            toast.BringToFront();
+
+            try { System.Media.SystemSounds.Asterisk.Play(); } catch { }
+
+            System.Windows.Forms.Timer toastTimer = new System.Windows.Forms.Timer { Interval = 6000 };
+            toastTimer.Tick += (s, e) =>
+            {
+                toastTimer.Stop();
+                toastTimer.Dispose();
+                dismiss();
+            };
+            toastTimer.Start();
+        }
+
+        private void OpenChatSessionDialog(ChatQueueItem item)
+        {
+            // Đã mở sẵn cho đúng phiên này (vd: lễ tân bấm lại dòng cũ) — đưa cửa sổ lên trước thay vì
+            // mở thêm 1 dialog nữa cho cùng 1 session_id.
+            if (_openChatDialogs.TryGetValue(item.SessionId, out var existing) && !existing.IsDisposed)
+            {
+                if (existing.WindowState == FormWindowState.Minimized) existing.WindowState = FormWindowState.Normal;
+                existing.Activate();
+                existing.BringToFront();
+                return;
+            }
+
+            var dialog = new ChatSessionDialogForm(item, chatItem => _ = PrefillDirectExamAsync(chatItem.PatientId, chatItem.SuggestedSpecialtyName));
+            _openChatDialogs[item.SessionId] = dialog;
+            dialog.FormClosed += (s, e) =>
+            {
+                _openChatDialogs.Remove(item.SessionId);
+                if (dialog.WasModified) _ = RefreshChatQueueAsync();
+            };
+            dialog.Show(this);
+        }
+
+        // Được gọi từ nút "📅 Đặt Lịch Cho BN Này" trong ChatSessionDialogForm — chuyển sang tab
+        // "Khám Trực Tiếp", tìm đúng bệnh nhân theo patient_id rồi điền sẵn chuyên khoa AI đã gợi ý
+        // (nếu khớp được với 1 bác sĩ đang trực hôm nay), để lễ tân không phải gõ/tìm lại từ đầu.
+        private async Task PrefillDirectExamAsync(int patientId, string? suggestedSpecialtyName)
+        {
+            SelectTab(4);
+
+            if (_allDirectPatients == null || _allDirectPatients.Count == 0)
+                await LoadDirectPatientsListAsync();
+
+            var found = _allDirectPatients.FirstOrDefault(p => p.Id == patientId);
+            if (found == null)
+            {
+                MessageBox.Show(
+                    "Không tìm thấy hồ sơ bệnh nhân này trong danh sách (có thể dữ liệu chưa đồng bộ). Vui lòng tìm thủ công theo Tên/SĐT ở tab này.",
+                    "Không tìm thấy hồ sơ", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            _txtDirectSearchPhone.Text = found.Phone;
+            await ShowDirectPatientDetailsAsync(found);
+
+            if (!string.IsNullOrWhiteSpace(suggestedSpecialtyName) && _pnlDirectBookingBox.Visible)
+            {
+                foreach (var kv in _directSpecialtyMap)
+                {
+                    if (string.Equals(kv.Value.SpecialtyName, suggestedSpecialtyName, StringComparison.OrdinalIgnoreCase) ||
+                        kv.Value.SpecialtyName.Contains(suggestedSpecialtyName, StringComparison.OrdinalIgnoreCase) ||
+                        suggestedSpecialtyName.Contains(kv.Value.SpecialtyName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        _cboDirectSpecialty.SelectedIndex = kv.Key;
+                        break;
+                    }
+                }
+            }
         }
 
         // Tải toàn bộ danh sách bệnh nhân (hồ sơ chính) vào lưới để Lễ Tân xem/chọn nhanh,
@@ -1177,8 +1581,10 @@ namespace DTT.Doctor.UI.Forms
                         string spec = appointmentsWithSpec[i].Spec;
                         // isCompleted = Bac si da hoan tat kham, cho le tan thu tien
                         bool isCompleted = appt.Status == "Completed" || appt.Status == "Da xong";
-                        // isCheckedIn = da check-in tai quay le tan (chua kham xong)
-                        bool isCheckedIn = appt.Status == "CheckedIn" || appt.Status == "InProgress" || isCompleted;
+                        // isCheckedIn = da check-in tai quay le tan (chua kham xong) — bao gom ca cac
+                        // trang thai sau check-in (dieu duong da do sinh hieu, dang cho ket qua CLS)
+                        // ma truoc day bi bo sot khien man Le Tan hien nham "Cho Check-in"
+                        bool isCheckedIn = appt.Status == "CheckedIn" || appt.Status == "WaitingForDoctor" || appt.Status == "AwaitingTestResults" || appt.Status == "InProgress" || isCompleted;
 
                         string checkInStatus = isCheckedIn
                             ? string.Format("Đã Check-in (STT {0:D2})", appt.QueueNumber)
@@ -1480,22 +1886,31 @@ namespace DTT.Doctor.UI.Forms
             }
             catch { }
 
+            // KHÔNG đánh dấu "Đã Check-in" trên giao diện nếu server thực sự chưa nhận được yêu cầu
+            // (vd: hết hạn đăng nhập, mất mạng) — trước đây dòng này luôn báo thành công dù apiSuccess
+            // = false, khiến Lễ Tân tưởng đã check-in trong khi appointment vẫn ở trạng thái cũ trên DB.
+            if (!apiSuccess)
+            {
+                ShowReceptionNotification(
+                    "CHECK-IN THẤT BẠI",
+                    $"Bệnh nhân: {pName}\nMã lịch hẹn: {code}\n\n" +
+                    "Không kết nối được máy chủ (phiên đăng nhập có thể đã hết hạn). Vui lòng đăng nhập lại và thử lại.",
+                    false);
+                return;
+            }
+
             row.Cells[6].Value = string.Format("Da Check-in (STT {0:D2})", rowIndex + 1);
             if (row.Cells.Count > 7) row.Cells[7].Value = "[In Phieu STT]";
             row.DefaultCellStyle.BackColor = Color.FromArgb(236, 253, 245);
 
             UpdateKpiSummaryCards();
 
-            string syncMsg = apiSuccess
-                ? "Da dong bo len Server - Benh nhan da xuat hien trong Hang cho lam sang cua Bac si!"
-                : "Da cap nhat giao dien. (Se dong bo khi ket noi server)";
-
             ShowReceptionNotification(
                 "XAC NHAN CHECK-IN STT THANH CONG",
                 $"Benh nhan: {pName}\n" +
                 $"Ma lich hen: {code}\n" +
                 $"Da cap So Thu Tu: STT-{rowIndex + 1:D2}\n\n" +
-                $"{syncMsg}",
+                "Da dong bo len Server - Benh nhan da xuat hien trong Hang cho lam sang cua Bac si!",
                 true);
         }
 
@@ -1886,19 +2301,27 @@ namespace DTT.Doctor.UI.Forms
             }
             catch { }
 
+            // KHÔNG đánh dấu "Đã thanh toán" nếu server chưa thực sự ghi nhận giao dịch — trước đây
+            // dòng này luôn báo thành công dù apiSuccess = false, khiến hóa đơn tưởng đã thu tiền
+            // trong khi payment_status trên DB vẫn "unpaid".
+            if (!apiSuccess)
+            {
+                ShowReceptionNotification(
+                    "XÁC NHẬN THU TIỀN THẤT BẠI",
+                    $"Bệnh nhân: {pName}\n\nKhông kết nối được máy chủ (phiên đăng nhập có thể đã hết hạn). Hóa đơn CHƯA được ghi nhận — vui lòng đăng nhập lại và thử lại.",
+                    false);
+                return;
+            }
+
             row.Cells[4].Value = "Da thanh toan";
             row.DefaultCellStyle.BackColor = Color.FromArgb(236, 253, 245);
             OnBillingRowSelected();
             // Cap nhat badge tren tab
             UpdateKpiSummaryCards();
 
-            string syncLine = apiSuccess
-                ? string.Format(" Hoa don #HD-{0} da duoc tao trong CSDL va day len App Mobile cua benh nhan!", invoiceId)
-                : " Da cap nhat giao dien. Hoa don se dong bo khi ket noi server.";
-
             ShowReceptionNotification(
                 "[OK] XAC NHAN THU TIEN THANH CONG",
-                string.Format("Benh nhan: {0}\nVien phi: {1:N0}d\nTrang thai: DA THANH TOAN TAI BENH VIEN\n\n{2}", pName, totalCharged, syncLine),
+                string.Format("Benh nhan: {0}\nVien phi: {1:N0}d\nTrang thai: DA THANH TOAN TAI BENH VIEN\n\n Hoa don #HD-{2} da duoc tao trong CSDL va day len App Mobile cua benh nhan!", pName, totalCharged, invoiceId),
                 true);
         }
 
@@ -2182,7 +2605,10 @@ namespace DTT.Doctor.UI.Forms
                 specName = specData.SpecialtyName;
             }
 
-            string dob = _dtpWalkinDob.Value.ToString("yyyy-MM-dd");
+            // Chỉ gửi ngày sinh khi lễ tân THẬT SỰ chọn (chưa tick "Chưa rõ ngày sinh") — DateTimePicker
+            // luôn có sẵn 1 giá trị (mặc định hôm nay) kể cả khi chưa đụng vào, nên trước đây hồ sơ
+            // vãng lai không hỏi ngày sinh sẽ âm thầm lưu "hôm nay" làm ngày sinh thật của bệnh nhân.
+            string? dob = _chkWalkinDobUnknown.Checked ? null : _dtpWalkinDob.Value.ToString("yyyy-MM-dd");
             string gender = _cboWalkinGender.SelectedItem?.ToString() ?? "Nam";
             string bhyt = _txtWalkinBhyt.Text.Trim();
             string address = _txtWalkinAddress.Text.Trim();
@@ -2228,6 +2654,7 @@ namespace DTT.Doctor.UI.Forms
             _txtWalkinCccd.Text = "";
             _txtWalkinBhyt.Text = "";
             _txtWalkinAddress.Text = "";
+            _chkWalkinDobUnknown.Checked = false;
             await LoadDataPublicAsync();
             _tabControl.SelectedIndex = 0;
         }

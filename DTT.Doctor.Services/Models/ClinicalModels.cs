@@ -15,7 +15,7 @@ namespace DTT.Doctor.Services.Models
         public string Date { get; set; } = string.Empty;
         public string TimeSlot { get; set; } = string.Empty;
         public string Status { get; set; } = "Confirmed"; // Confirmed -> Đang chờ, InProgress -> Đang khám, Completed -> Đã xong
-        /// <summary>Trạng thái thanh toán THẬT từ invoices.payment_status ("paid" | "pending" | "unpaid") — dùng để hiển thị đúng trên màn Thanh Toán, không suy ra từ Status.</summary>
+        /// <summary>Trạng thái thanh toán THẬT từ invoices.payment_status ("unpaid" | "partial" | "paid" — đúng theo DB constraint chk_payment_status) — dùng để hiển thị đúng trên màn Thanh Toán, không suy ra từ Status.</summary>
         public string PaymentStatus { get; set; } = "unpaid";
         public int QueueNumber { get; set; }
         public string ClinicRoom { get; set; } = string.Empty;
