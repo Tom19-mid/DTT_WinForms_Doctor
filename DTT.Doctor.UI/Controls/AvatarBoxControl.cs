@@ -70,32 +70,12 @@ namespace DTT.Doctor.UI.Controls
             }
             _lblInitials.Text = initials;
 
+            // Trước đây có thêm 1 bước "tra cứu" avatar từ đường dẫn tuyệt đối hardcode trên máy dev
+            // (D:\DoAnTotNghiep\...\doctors.csv), đọc + quét toàn bộ file này mỗi lần control được
+            // tạo (đồng bộ, chặn UI thread) — trên bất kỳ máy triển khai thật nào file này không tồn
+            // tại nên bước này luôn no-op, chỉ tốn I/O vô ích. TokenVault.AvatarUrl (lấy từ API) đã là
+            // nguồn dữ liệu thật duy nhất cần dùng.
             string avatarUrl = TokenVault.AvatarUrl;
-            // Lookup avatar from database doctors.csv if available
-            string dbPath = @"D:\DoAnTotNghiep\Chức năng của app bệnh nhân\db\doctors.csv";
-            if (File.Exists(dbPath))
-            {
-                try
-                {
-                    var lines = File.ReadAllLines(dbPath);
-                    foreach (var line in lines)
-                    {
-                        if (line.StartsWith(TokenVault.DoctorId.ToString() + ",") || line.StartsWith("\"" + TokenVault.DoctorId.ToString() + "\""))
-                        {
-                            var tokens = line.Split(',');
-                            if (tokens.Length >= 13)
-                            {
-                                string url = tokens[12].Trim('\"', ' ');
-                                if (!string.IsNullOrEmpty(url) && url != "NULL" && url != "null")
-                                {
-                                    avatarUrl = url;
-                                }
-                            }
-                        }
-                    }
-                }
-                catch { }
-            }
 
             if (!string.IsNullOrEmpty(avatarUrl) && File.Exists(avatarUrl))
             {
