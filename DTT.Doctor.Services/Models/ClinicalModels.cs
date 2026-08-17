@@ -98,13 +98,16 @@ namespace DTT.Doctor.Services.Models
         public override string ToString() => $"{IcdCode} - {DiseaseName}";
     }
 
-    // Dịch vụ Xét nghiệm/Siêu âm từ danh mục medical_services — dùng khi Bác sĩ chỉ định CLS
+    // Dịch vụ Xét nghiệm/Siêu âm từ danh mục clinical_services — dùng khi Bác sĩ chỉ định CLS
     public class ClinicalOrderServiceItem
     {
         [Newtonsoft.Json.JsonProperty("serviceId")]
         public int ServiceId { get; set; }
         [Newtonsoft.Json.JsonProperty("serviceName")]
         public string ServiceName { get; set; } = string.Empty;
+        // Backend (ClinicalOrdersController.DisplayCategory) dịch clinical_services.service_type
+        // ('Laboratory'/'Imaging'/'Functional') sang 'Test'/'Ultrasound' trên wire — categoryType
+        // ở đây nhận đúng 2 giá trị đó, không phải service_type gốc.
         [Newtonsoft.Json.JsonProperty("categoryType")]
         public string CategoryType { get; set; } = string.Empty; // 'Test' | 'Ultrasound'
         [Newtonsoft.Json.JsonProperty("price")]
