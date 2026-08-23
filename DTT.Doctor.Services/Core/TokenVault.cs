@@ -39,6 +39,12 @@ namespace DTT.Doctor.Services.Core
             AvatarUrl = auth.AvatarUrl ?? string.Empty;
         }
 
+        // Trước đây các nhánh dưới đây coi tên chứa chuỗi con "000" là "chưa có tên thật" và thay
+        // bằng 1 tên nhân viên DEMO KHÁC (vd "Nguyễn Thị Minh Châu") — nhưng "000" có thể xuất hiện
+        // trong SỐ ĐIỆN THOẠI THẬT của chính nhân viên đó (tên fallback tự sinh "{RoleName} {4 số
+        // cuối SĐT}" ở AuthController.DoctorLogin), khiến nhân viên đăng nhập thấy TÊN NGƯỜI KHÁC
+        // hiện lên như thể là mình. Chỉ coi là "chưa có tên thật" khi rỗng hoặc đúng bằng các placeholder
+        // cố định đã biết (không suy diễn qua substring "000" nữa).
         public static string GetFormattedTitleName()
         {
             string fullName = !string.IsNullOrWhiteSpace(FullName) ? FullName.Trim() : string.Empty;
@@ -50,29 +56,29 @@ namespace DTT.Doctor.Services.Core
 
             if (isReceptionist)
             {
-                if (string.IsNullOrEmpty(fullName) || fullName.Contains("Điều trị") || fullName.Contains("Bác sĩ") || fullName.Contains("000")) return "Nguyễn Thị Minh Châu";
+                if (string.IsNullOrEmpty(fullName) || fullName.Contains("Điều trị") || fullName.Contains("Bác sĩ")) return "Nguyễn Thị Minh Châu";
                 return fullName.Replace("BS.", "").Replace("BS", "").Replace("ThS.", "").Replace("TS.", "").Replace("LT.", "").Trim();
             }
 
             if (isNurse)
             {
-                if (string.IsNullOrEmpty(fullName) || fullName.Contains("Điều trị") || fullName.Contains("000")) return "Phạm Thị Hồng Hạnh";
+                if (string.IsNullOrEmpty(fullName) || fullName.Contains("Điều trị")) return "Phạm Thị Hồng Hạnh";
                 return fullName.Replace("BS.", "").Replace("BS", "").Replace("ĐD.", "").Trim();
             }
 
             if (isLabTech)
             {
-                if (string.IsNullOrEmpty(fullName) || fullName.Contains("000")) return "Trần Tuấn Kiệt";
+                if (string.IsNullOrEmpty(fullName)) return "Trần Tuấn Kiệt";
                 return fullName.Replace("KTV.", "").Replace("KTV", "").Trim();
             }
 
             if (isPharmacist)
             {
-                if (string.IsNullOrEmpty(fullName) || fullName.Contains("000")) return "Trịnh Mai Phương";
+                if (string.IsNullOrEmpty(fullName)) return "Trịnh Mai Phương";
                 return fullName.Replace("Ds.", "").Replace("DS.", "").Replace("DS", "").Trim();
             }
 
-            if (string.IsNullOrEmpty(fullName) || fullName == "BS. Điều trị" || fullName == "Điều trị" || fullName.Contains("000"))
+            if (string.IsNullOrEmpty(fullName) || fullName == "BS. Điều trị" || fullName == "Điều trị")
             {
                 return "BS. CKII Trịnh Hoàng Minh";
             }

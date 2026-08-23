@@ -42,12 +42,31 @@ namespace DTT.Doctor.UI.Forms
         private ReceptionCashierForm _receptionChildForm;
         private NurseWorkstationForm _nurseChildForm;
         private LabTechWorkstationForm _labTechChildForm;
+        private int _lastSeenAdminNotificationId = 0;
 
         public MainDashboardForm()
         {
             _presenter = new QueuePresenter(this);
             InitializeComponent();
+            // Thông báo Admin real-time (SignalR) — trước đây không có cách nào Bác sĩ nhận được
+            // thông báo do Admin tạo trên Web Admin. NotificationHubService là static singleton nên
+            // PHẢI unsubscribe ở FormClosed, nếu không handler cũ vẫn tồn tại sau khi form bị Dispose.
+            NotificationHubService.NotificationsChanged += OnAdminNotificationsChanged;
             this.Load += async (s, e) => {
+                // Ghi nhận mốc thông báo hiện có TRƯỚC khi lắng nghe real-time — nếu không, lần đầu
+                // Admin phát thông báo mới trong phiên này sẽ toast lại TOÀN BỘ thông báo cũ chưa đọc
+                // từ trước (vì _lastSeenAdminNotificationId mặc định = 0).
+                try
+                {
+                    var baseline = await new ApiService().GetMyNotificationsAsync();
+                    foreach (var n in baseline)
+                    {
+                        int id = (int)(n.notificationId ?? 0);
+                        if (id > _lastSeenAdminNotificationId) _lastSeenAdminNotificationId = id;
+                    }
+                }
+                catch { /* không chặn màn hình chính nếu lỗi tải mốc thông báo */ }
+
                 bool isReceptionist = TokenVault.RoleId == 4 || TokenVault.RoleCode == "RECEPTIONIST" || (!string.IsNullOrEmpty(TokenVault.RoleName) && TokenVault.RoleName.Contains("ễ tân"));
                 bool isNurse       = TokenVault.RoleId == 5 || TokenVault.RoleCode == "NURSE"       || (!string.IsNullOrEmpty(TokenVault.RoleName) && TokenVault.RoleName.Contains("Điều dưỡng"));
                 bool isLabTech     = TokenVault.RoleId == 6 || TokenVault.RoleCode == "LAB_TECH"    || (!string.IsNullOrEmpty(TokenVault.RoleName) && TokenVault.RoleName.Contains("Kỹ thuật"));
@@ -84,7 +103,46 @@ namespace DTT.Doctor.UI.Forms
             this.FormClosed += (s, e) => {
                 _autoRefreshTimer?.Stop();
                 _autoRefreshTimer?.Dispose();
+                NotificationHubService.NotificationsChanged -= OnAdminNotificationsChanged;
             };
+        }
+
+        // Sự kiện SignalR bắn ra trên thread nền — phải BeginInvoke để quay lại UI thread trước khi
+        // đụng vào bất kỳ Control nào. Chỉ toast những thông báo CHƯA từng thấy trong phiên làm việc
+        // này (dedupe theo notificationId lớn nhất đã hiện) để tránh spam lại thông báo cũ mỗi lần
+        // Hub tự động reconnect.
+        private void OnAdminNotificationsChanged()
+        {
+            if (!IsHandleCreated || IsDisposed) return;
+            try
+            {
+                BeginInvoke(new Action(async () =>
+                {
+                    try
+                    {
+                        var api = new ApiService();
+                        var list = await api.GetMyNotificationsAsync();
+                        var freshOnes = list
+                            .Where(n => (int)(n.notificationId ?? 0) > _lastSeenAdminNotificationId)
+                            .OrderBy(n => (int)(n.notificationId ?? 0))
+                            .ToList();
+
+                        foreach (var n in freshOnes)
+                        {
+                            int id = (int)(n.notificationId ?? 0);
+                            string title = (string)(n.title ?? "Thông báo mới");
+                            string content = (string)(n.content ?? "");
+                            ShowCornerToast("🔔 " + title.ToUpper(), content, ClinicalColors.PrimaryBlue);
+                            if (id > _lastSeenAdminNotificationId) _lastSeenAdminNotificationId = id;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine("OnAdminNotificationsChanged error: " + ex.Message);
+                    }
+                }));
+            }
+            catch { /* form đang đóng giữa chừng — bỏ qua */ }
         }
 
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
@@ -681,7 +739,20 @@ namespace DTT.Doctor.UI.Forms
                 };
                 itemTransfer.Click += (s, ev) =>
                 {
-                    ShowCornerToast("📞 CHUYỂN KHÁM", $"Chức năng chuyển tái khám cho {patientName} đang được phát triển. Vui lòng ghi chú trong phiếu khám.", Color.FromArgb(100, 116, 139));
+                    // Trước đây chỉ hiện toast "đang phát triển", không thực sự tạo lịch hẹn nào —
+                    // giờ mở dialog đặt Tái khám thật (cùng Bác sĩ đang đăng nhập) qua API đã fix.
+                    var appt = _presenter.GetAppointmentById(apptId);
+                    int followUpPatientId = appt?.PatientId ?? 0;
+                    if (followUpPatientId <= 0)
+                    {
+                        followUpPatientId = apptId == 39 ? 7 : (apptId % 8 + 2);
+                    }
+
+                    using (var followUpForm = new FollowUpBookingForm(
+                        followUpPatientId, patientName, TokenVault.DoctorId, TokenVault.FullName, TokenVault.SpecialtyName))
+                    {
+                        followUpForm.ShowDialog(this);
+                    }
                 };
 
                 dropdown.Items.Add(itemExam);

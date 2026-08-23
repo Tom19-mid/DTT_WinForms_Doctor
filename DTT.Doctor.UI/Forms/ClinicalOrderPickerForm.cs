@@ -178,7 +178,9 @@ namespace DTT.Doctor.UI.Forms
 
             if (_allServices.Count == 0)
             {
-                // Fallback tối thiểu nếu API lỗi — khớp với update_hospital_services_and_prices.sql
+                // Fallback tối thiểu nếu API lỗi/mất kết nối — khớp với update_hospital_services_and_prices.sql.
+                // Giá tiền ở đây có thể LỆCH so với DB thật nếu đã thay đổi từ lúc migration này chạy — báo rõ
+                // cho Bác sĩ biết đây là danh sách rút gọn dự phòng, không phải danh mục đầy đủ/giá mới nhất.
                 _allServices = new List<ClinicalOrderServiceItem>
                 {
                     new ClinicalOrderServiceItem { ServiceId = 4, ServiceName = "Xét nghiệm Công thức máu toàn bộ (CBC)", CategoryType = "Test", Price = 120000 },
@@ -186,6 +188,9 @@ namespace DTT.Doctor.UI.Forms
                     new ClinicalOrderServiceItem { ServiceId = 10, ServiceName = "Siêu âm Bụng tổng quát", CategoryType = "Ultrasound", Price = 180000 },
                     new ClinicalOrderServiceItem { ServiceId = 13, ServiceName = "Siêu âm Tuyến giáp", CategoryType = "Ultrasound", Price = 150000 },
                 };
+                MessageBox.Show(
+                    "Không tải được danh mục Xét nghiệm/Siêu âm đầy đủ từ máy chủ. Đang hiện danh sách rút gọn dự phòng (giá có thể không phải giá mới nhất). Vui lòng kiểm tra kết nối mạng và thử lại nếu cần đầy đủ danh mục.",
+                    "Không tải được danh mục đầy đủ", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
 
             _clbTests.Items.Clear();

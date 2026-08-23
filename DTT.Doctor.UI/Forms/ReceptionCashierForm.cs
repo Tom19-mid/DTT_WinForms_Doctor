@@ -808,14 +808,14 @@ namespace DTT.Doctor.UI.Forms
 
             Label lblExamDate = new Label { Text = "Ngày đăng ký khám (*):", Font = ClinicalColors.GetMainFont(10f, FontStyle.Bold), Location = new Point(30, y), AutoSize = true, UseMnemonic = false };
             _dtpWalkinExamDate = new DateTimePicker { Format = DateTimePickerFormat.Custom, CustomFormat = "dd/MM/yyyy", Font = ClinicalColors.GetMainFont(10.5f, FontStyle.Regular), Location = new Point(230, y - 4), Size = new Size(200, 30), Value = DateTime.Today };
-            _dtpWalkinExamDate.ValueChanged += (s, e) => FilterDoctorsByExamDate();
+            _dtpWalkinExamDate.ValueChanged += async (s, e) => await FilterDoctorsByExamDateAsync();
 
             y += 50;
 
             Label lblSpec = new Label { Text = "Đăng ký Chuyên khoa (*):", Font = ClinicalColors.GetMainFont(10f, FontStyle.Bold), Location = new Point(30, y), AutoSize = true, UseMnemonic = false };
             _cboWalkinSpecialty = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Font = ClinicalColors.GetMainFont(10.5f, FontStyle.Regular), Location = new Point(230, y - 4), Size = new Size(600, 30), DropDownWidth = 650, IntegralHeight = false, MaxDropDownItems = 10 };
 
-            FilterDoctorsByExamDate();
+            _ = FilterDoctorsByExamDateAsync();
 
             y += 65;
 
@@ -1468,7 +1468,7 @@ namespace DTT.Doctor.UI.Forms
             }
 
             _txtDirectCccd.Text = found.Cccd ?? "";
-            PopulateSpecialtyComboForDate(_cboDirectSpecialty, _directSpecialtyMap, DateTime.Today);
+            await PopulateSpecialtyComboForDateAsync(_cboDirectSpecialty, _directSpecialtyMap, DateTime.Today);
             _pnlDirectBookingBox.Visible = true;
         }
 
@@ -1567,13 +1567,15 @@ namespace DTT.Doctor.UI.Forms
                         .ToList();
 
                     // Cập nhật danh sách chuyên khoa trong ComboBox lọc — liệt kê TOÀN BỘ chuyên khoa của
-                    // bệnh viện (nguồn: _allDoctorSchedules), không chỉ những khoa đang có bệnh nhân hôm nay,
-                    // để lễ tân luôn thấy đủ danh sách kể cả khi khoa đó chưa có ai check-in.
+                    // bệnh viện (nguồn: API /api/Specialties/with-doctors thật, trước đây là
+                    // _allDoctorSchedules bịa cứng chỉ 8 khoa), không chỉ những khoa đang có bệnh nhân
+                    // hôm nay, để lễ tân luôn thấy đủ danh sách kể cả khi khoa đó chưa có ai check-in.
                     if (_cboSpecialtyFilter != null)
                     {
                         string previousSelection = _cboSpecialtyFilter.SelectedItem?.ToString() ?? SpecialtyFilterAll;
-                        var allSpecs = _allDoctorSchedules.Select(d => d.SpecialtyName).Distinct().OrderBy(s => s, StringComparer.CurrentCultureIgnoreCase).ToList();
-                        // Phòng trường hợp có bệnh nhân thuộc chuyên khoa lạ không nằm trong danh sách bác sĩ mẫu
+                        var allDoctorsWithSpec = await api.GetSpecialtiesWithDoctorsAsync();
+                        var allSpecs = allDoctorsWithSpec.Select(d => d.SpecialtyName).Distinct().OrderBy(s => s, StringComparer.CurrentCultureIgnoreCase).ToList();
+                        // Phòng trường hợp có bệnh nhân thuộc chuyên khoa lạ không nằm trong danh sách bác sĩ đang hoạt động
                         var extraSpecs = appointmentsWithSpec.Select(x => x.Spec).Distinct().Except(allSpecs, StringComparer.CurrentCultureIgnoreCase);
                         var allSpecsFull = allSpecs.Concat(extraSpecs).OrderBy(s => s, StringComparer.CurrentCultureIgnoreCase).ToList();
 
@@ -1699,99 +1701,86 @@ namespace DTT.Doctor.UI.Forms
             // --- Tab 4: Filter specialties + doctors theo Ngày đăng ký khám ---
             try
             {
-                FilterDoctorsByExamDate();
+                await FilterDoctorsByExamDateAsync();
             }
             catch { }
         }
 
-        private class WalkInDoctorSchedule
-        {
-            public int DoctorId { get; set; }
-            public string DoctorName { get; set; }
-            public string SpecialtyName { get; set; }
-            public string WorkingDays { get; set; }
-            public string Room { get; set; }
-        }
-
-        private List<WalkInDoctorSchedule> _allDoctorSchedules = new List<WalkInDoctorSchedule>
-        {
-            new WalkInDoctorSchedule { DoctorId = 5, DoctorName = "BS. CKII Nguyễn Văn A", SpecialtyName = "Nội tổng quát", WorkingDays = "Thứ Hai, Tư, Sáu & Chủ Nhật", Room = "Phòng 101" },
-            new WalkInDoctorSchedule { DoctorId = 12, DoctorName = "BS. CKII Trịnh Hoàng Minh", SpecialtyName = "Nội tổng quát", WorkingDays = "Thứ Ba, Năm, Bảy & Chủ Nhật", Room = "Phòng 103" },
-            new WalkInDoctorSchedule { DoctorId = 2, DoctorName = "BS. CKI Lê Thị B", SpecialtyName = "Nhi khoa", WorkingDays = "Thứ Ba, Năm, Bảy", Room = "Phòng 102" },
-            new WalkInDoctorSchedule { DoctorId = 13, DoctorName = "ThS. BS Nguyễn Mai Chi", SpecialtyName = "Nhi khoa", WorkingDays = "Thứ Hai, Tư, Sáu, Bảy", Room = "Phòng 104" },
-            new WalkInDoctorSchedule { DoctorId = 3, DoctorName = "ThS. BS Trần Văn C", SpecialtyName = "Tim mạch", WorkingDays = "Thứ Hai, Ba, Năm, Sáu", Room = "Phòng 201" },
-            new WalkInDoctorSchedule { DoctorId = 6, DoctorName = "BS. CKI Phạm Thị D", SpecialtyName = "Da liễu", WorkingDays = "Thứ Tư, Sáu, Bảy & Chủ Nhật", Room = "Phòng 202" },
-            new WalkInDoctorSchedule { DoctorId = 8, DoctorName = "TS. BS Đỗ Phương Hạnh", SpecialtyName = "Phụ & Sản khoa", WorkingDays = "Thứ Hai, Tư, Năm, Bảy", Room = "Phòng 301" },
-            new WalkInDoctorSchedule { DoctorId = 9, DoctorName = "BS. CKII Phạm Tuấn Kiệt", SpecialtyName = "Cơ xương khớp", WorkingDays = "Thứ Ba, Tư, Sáu, Chủ Nhật", Room = "Phòng 302" },
-            new WalkInDoctorSchedule { DoctorId = 10, DoctorName = "ThS. BS Vũ Bích Ngọc", SpecialtyName = "Thần kinh", WorkingDays = "Thứ Hai, Ba, Sáu, Bảy", Room = "Phòng 401" },
-            new WalkInDoctorSchedule { DoctorId = 11, DoctorName = "BS. CKI Hoàng Văn Long", SpecialtyName = "Chẩn đoán hình ảnh", WorkingDays = "Thứ Hai đến Thứ Sáu", Room = "Phòng 402" }
-        };
-
-        private void FilterDoctorsByExamDate()
+        private async Task FilterDoctorsByExamDateAsync()
         {
             if (_cboWalkinSpecialty == null || _dtpWalkinExamDate == null) return;
-            PopulateSpecialtyComboForDate(_cboWalkinSpecialty, _walkinSpecialtyMap, _dtpWalkinExamDate.Value.Date);
+            await PopulateSpecialtyComboForDateAsync(_cboWalkinSpecialty, _walkinSpecialtyMap, _dtpWalkinExamDate.Value.Date);
         }
 
         // Dùng chung cho cả tab "Đăng Ký Hồ Sơ" (chọn ngày bất kỳ) và tab "Khám Trực Tiếp"
         // (luôn dùng ngày hôm nay) — liệt kê bác sĩ có lịch trực đúng ngày được chọn.
-        private void PopulateSpecialtyComboForDate(ComboBox combo, Dictionary<int, (int DoctorId, string SpecialtyName)> map, DateTime selectedDate)
+        //
+        // Trước đây danh sách này lấy từ _allDoctorSchedules — 10 bác sĩ BỊA CỨNG trong code, hoàn
+        // toàn không liên quan tới DB thật (thiếu hẳn Răng hàm mặt/Tai-Mũi-Họng/Mắt, tên chuyên khoa
+        // "Phụ & Sản khoa" cũng không khớp tên thật "Sản phụ khoa" trong DB), và "ngày trực" chỉ đoán
+        // theo 1 chuỗi text tĩnh, không phải lịch làm việc thật. Giờ lấy đúng lịch làm việc THẬT theo
+        // ngày được chọn (GET /api/Doctors/schedules, cùng API dùng cho Mobile/lịch bác sĩ) kết hợp
+        // tên chuyên khoa thật (GET /api/Specialties/with-doctors) — bao phủ đủ 11 chuyên khoa.
+        private async Task PopulateSpecialtyComboForDateAsync(ComboBox combo, Dictionary<int, (int DoctorId, string SpecialtyName)> map, DateTime selectedDate)
         {
-            DayOfWeek dow = selectedDate.DayOfWeek;
-
-            List<string> matchingKeywords = new List<string>();
-            switch (dow)
-            {
-                case DayOfWeek.Monday: matchingKeywords.Add("Hai"); matchingKeywords.Add("Thứ Hai"); break;
-                case DayOfWeek.Tuesday: matchingKeywords.Add("Ba"); matchingKeywords.Add("Thứ Ba"); break;
-                case DayOfWeek.Wednesday: matchingKeywords.Add("Tư"); matchingKeywords.Add("Thứ Tư"); break;
-                case DayOfWeek.Thursday: matchingKeywords.Add("Năm"); matchingKeywords.Add("Thứ Năm"); break;
-                case DayOfWeek.Friday: matchingKeywords.Add("Sáu"); matchingKeywords.Add("Thứ Sáu"); break;
-                case DayOfWeek.Saturday: matchingKeywords.Add("Bảy"); matchingKeywords.Add("Thứ Bảy"); break;
-                case DayOfWeek.Sunday: matchingKeywords.Add("Chủ Nhật"); break;
-            }
-
             combo.Items.Clear();
             map.Clear();
+            combo.Items.Add(" Đang tải danh sách bác sĩ...");
+            combo.SelectedIndex = 0;
 
-            int itemIdx = 0;
-            foreach (var doc in _allDoctorSchedules)
+            try
             {
-                bool isWorkingToday = false;
-                if (doc.WorkingDays.Contains("Thứ Hai đến Thứ Sáu"))
+                var api = new ApiService();
+                string dateStr = selectedDate.ToString("yyyy-MM-dd");
+
+                // doctorId=0 => GetDoctorSchedules không lọc theo bác sĩ/chuyên khoa cụ thể, trả về TẤT
+                // CẢ bác sĩ cho đúng ngày được chọn.
+                var schedules = await api.GetDoctorSchedulesAsync(0, dateStr);
+                var specialtyInfo = await api.GetSpecialtiesWithDoctorsAsync();
+                var specByDoctorId = specialtyInfo
+                    .GroupBy(s => s.DoctorId)
+                    .ToDictionary(g => g.Key, g => g.First());
+
+                combo.Items.Clear();
+                map.Clear();
+
+                if (schedules != null)
                 {
-                    if (dow >= DayOfWeek.Monday && dow <= DayOfWeek.Friday) isWorkingToday = true;
-                }
-                else
-                {
-                    foreach (var kw in matchingKeywords)
+                    string dayText = selectedDate.ToString("dd/MM/yyyy");
+                    int itemIdx = 0;
+                    foreach (var sch in schedules)
                     {
-                        if (doc.WorkingDays.Contains(kw))
-                        {
-                            isWorkingToday = true;
-                            break;
-                        }
+                        bool isWorking = (bool)(sch.isWorking ?? false);
+                        if (!isWorking) continue;
+
+                        int docId = (int)(sch.doctorId ?? 0);
+                        // Chỉ hiện bác sĩ có chuyên khoa đang hoạt động (specByDoctorId chỉ chứa bác sĩ
+                        // thuộc specialties.status = true) — loại tự nhiên các hồ sơ rác/chuyên khoa đã ẩn.
+                        if (docId <= 0 || !specByDoctorId.TryGetValue(docId, out var specInfo)) continue;
+
+                        string fullName = (string)(sch.fullName ?? specInfo.DisplayName);
+                        string room = (string)(sch.clinicRoom ?? "");
+                        string displayText = $"{specInfo.SpecialtyName} — {fullName} [{room}] (Lịch trực ngày {dayText})";
+
+                        combo.Items.Add(displayText);
+                        map[itemIdx] = (docId, specInfo.SpecialtyName);
+                        itemIdx++;
                     }
                 }
 
-                if (isWorkingToday)
+                if (combo.Items.Count == 0)
                 {
-                    string dayText = selectedDate.ToString("dd/MM/yyyy");
-                    string displayText = $"{doc.SpecialtyName} — {doc.DoctorName} [{doc.Room}] (Lịch trực ngày {dayText})";
-                    combo.Items.Add(displayText);
-                    map[itemIdx] = (doc.DoctorId, doc.SpecialtyName);
-                    itemIdx++;
+                    combo.Items.Add(" Không có Bác sĩ trực vào ngày này");
                 }
-            }
-
-            if (combo.Items.Count > 0)
-            {
                 combo.SelectedIndex = 0;
             }
-            else
+            catch (Exception ex)
             {
-                combo.Items.Add(" Không có Bác sĩ trực vào ngày này");
+                combo.Items.Clear();
+                map.Clear();
+                combo.Items.Add(" Lỗi tải danh sách bác sĩ. Vui lòng thử lại.");
                 combo.SelectedIndex = 0;
+                System.Diagnostics.Debug.WriteLine("PopulateSpecialtyComboForDateAsync error: " + ex.Message);
             }
         }
 

@@ -241,10 +241,13 @@ namespace DTT.Doctor.UI.Forms
                             _gridSchedule.Rows.Add(stt++, time, shiftName, "Trống (Khả dụng)", "Sẵn sàng tiếp nhận bệnh nhân");
                         }
                     }
+                    // Bác sĩ CÓ làm việc ngày này nhưng đã hết slot trống (đã kín lịch khám) — dữ liệu
+                    // thật giờ có thể trả về timeSlots rỗng trong trường hợp này (trước đây generator giả
+                    // luôn trả đúng 4 slot nên nhánh này chưa từng chạy tới). Không được hiện lại 2 dòng
+                    // "08:00-12:00 / 13:30-17:30 Trống (Khả dụng)" giả — sẽ báo NHẦM là còn chỗ trống.
                     if (_gridSchedule.Rows.Count == 0)
                     {
-                        _gridSchedule.Rows.Add(1, "08:00 - 12:00", "Ca Sáng", "Trống (Khả dụng)", "Sẵn sàng tiếp nhận bệnh nhân");
-                        _gridSchedule.Rows.Add(2, "13:30 - 17:30", "Ca Chiều", "Trống (Khả dụng)", "Sẵn sàng tiếp nhận bệnh nhân");
+                        _gridSchedule.Rows.Add(1, "—", "—", "Đã kín lịch", "Bác sĩ đã hết khung giờ trống trong ngày này.");
                     }
                     return;
                 }

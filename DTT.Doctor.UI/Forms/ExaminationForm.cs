@@ -45,6 +45,13 @@ namespace DTT.Doctor.UI.Forms
             PreFillNurseVitals(); // Auto-fill từ bộ sinh hiệu điều dưỡng đã đo
             _ = LoadIcdSuggestionsAsync();
             _ = LoadClsStatusAsync();
+
+            // Panel 2 cột trái/phải (AntiFlickerPanel) bật cờ Windows WS_EX_COMPOSITED để chống nhấp
+            // nháy — cờ này có thể khiến panel Footer (Hoàn tất & Lưu bệnh án/In đơn/Đóng), là control
+            // anh em KHÔNG composited, không được vẽ ngay lần hiện đầu tiên cho tới khi có sự kiện vẽ
+            // lại (kéo/resize cửa sổ...). Ép vẽ lại toàn bộ form ngay sau khi hiện xong để đảm bảo
+            // Footer luôn hiển thị đúng ngay từ đầu.
+            this.Shown += (s, e) => { this.Invalidate(true); this.Update(); };
         }
 
         // Tải trạng thái CLS THẬT từ server (không chỉ đếm trong phiên làm việc hiện tại) —
@@ -611,7 +618,7 @@ namespace DTT.Doctor.UI.Forms
                 _cboDrugSelect.Items.Clear();
                 foreach (var m in _availableMedicines)
                 {
-                    _cboDrugSelect.Items.Add($"{m.MedicineName} ({m.Unit})");
+                    _cboDrugSelect.Items.Add(FormatDrugComboText(m));
                 }
 
                 _cboDrugSelect.SelectedIndexChanged -= OnDrugSelectedIndexChanged;
@@ -628,7 +635,7 @@ namespace DTT.Doctor.UI.Forms
                 _cboDrugSelect.Items.Clear();
                 foreach (var m in _availableMedicines)
                 {
-                    _cboDrugSelect.Items.Add($"{m.MedicineName} ({m.Unit})");
+                    _cboDrugSelect.Items.Add(FormatDrugComboText(m));
                 }
 
                 _cboDrugSelect.SelectedIndexChanged -= OnDrugSelectedIndexChanged;
@@ -656,14 +663,27 @@ namespace DTT.Doctor.UI.Forms
 
         private List<MedicineModel> GetFallbackMedicines()
         {
+            // StockQuantity = -1 nghĩa là "không rõ tồn kho" (danh sách dự phòng khi API lỗi, không
+            // phải dữ liệu tồn kho thật) — KHÔNG được hiện "HẾT HÀNG"/chặn thêm thuốc dựa trên giá trị
+            // mặc định 0 của các mục dự phòng này.
             return new List<MedicineModel>
             {
-                new MedicineModel { MedicineId = 1, MedicineName = "Amoxicillin 500mg", Unit = "Viên", DefaultUsage = "Uống 1 viên/lần, 2 lần/ngày sau ăn sáng, tối" },
-                new MedicineModel { MedicineId = 2, MedicineName = "Augmentin 1g", Unit = "Viên", DefaultUsage = "Uống 1 viên/lần, 2 lần/ngày sau ăn" },
-                new MedicineModel { MedicineId = 6, MedicineName = "Paracetamol 500mg (Panadol Extra)", Unit = "Viên", DefaultUsage = "Uống 1-2 viên/lần khi sốt >38.5°C (cách 4-6h)" },
-                new MedicineModel { MedicineId = 15, MedicineName = "Nexium mups 40mg", Unit = "Viên", DefaultUsage = "Uống 1 viên/lần/ngày trước ăn sáng 30 phút" },
-                new MedicineModel { MedicineId = 25, MedicineName = "Vitamin C 1000mg", Unit = "Hộp", DefaultUsage = "Hòa 1 viên sủi vào 200ml nước uống mỗi sáng" }
+                new MedicineModel { MedicineId = 1, MedicineName = "Amoxicillin 500mg", Unit = "Viên", StockQuantity = -1, DefaultUsage = "Uống 1 viên/lần, 2 lần/ngày sau ăn sáng, tối" },
+                new MedicineModel { MedicineId = 2, MedicineName = "Augmentin 1g", Unit = "Viên", StockQuantity = -1, DefaultUsage = "Uống 1 viên/lần, 2 lần/ngày sau ăn" },
+                new MedicineModel { MedicineId = 6, MedicineName = "Paracetamol 500mg (Panadol Extra)", Unit = "Viên", StockQuantity = -1, DefaultUsage = "Uống 1-2 viên/lần khi sốt >38.5°C (cách 4-6h)" },
+                new MedicineModel { MedicineId = 15, MedicineName = "Nexium mups 40mg", Unit = "Viên", StockQuantity = -1, DefaultUsage = "Uống 1 viên/lần/ngày trước ăn sáng 30 phút" },
+                new MedicineModel { MedicineId = 25, MedicineName = "Vitamin C 1000mg", Unit = "Hộp", StockQuantity = -1, DefaultUsage = "Hòa 1 viên sủi vào 200ml nước uống mỗi sáng" }
             };
+        }
+
+        // "(Chai)" hoặc "(Chai) — CÒN 5" hoặc "(Chai) — HẾT HÀNG" tùy tồn kho thật từ API — trước đây
+        // combo chỉ hiện tên/đơn vị, Bác sĩ không biết thuốc đã hết hàng cho tới lúc bấm Lưu bệnh án
+        // (lúc đó tồn kho đã bị trừ về 0 một cách âm thầm ở phía Dược).
+        private string FormatDrugComboText(MedicineModel m)
+        {
+            if (m.StockQuantity < 0) return $"{m.MedicineName} ({m.Unit})";
+            if (m.StockQuantity <= 0) return $"{m.MedicineName} ({m.Unit}) — HẾT HÀNG";
+            return $"{m.MedicineName} ({m.Unit}) — Còn {m.StockQuantity}";
         }
 
         private void OnAddDrugClick(object sender, EventArgs e)
@@ -677,6 +697,24 @@ namespace DTT.Doctor.UI.Forms
 
             int.TryParse(_txtQuantity.Text, out int qty);
             if (qty <= 0) qty = 10;
+
+            // Chặn kê thuốc đã hết hàng (StockQuantity == 0, đọc thật từ API) — trước đây không kiểm
+            // tra gì ở bước này, Bác sĩ chỉ biết thuốc hết hàng sau khi bấm "Hoàn tất & Lưu bệnh án".
+            if (selectedMed != null && selectedMed.StockQuantity == 0)
+            {
+                MessageBox.Show(
+                    $"Thuốc \"{drugName}\" hiện đã HẾT HÀNG tại Kho Dược. Vui lòng chọn thuốc thay thế hoặc liên hệ Dược sĩ để nhập thêm hàng trước khi kê đơn.",
+                    "Thuốc hết hàng", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            if (selectedMed != null && selectedMed.StockQuantity > 0 && qty > selectedMed.StockQuantity)
+            {
+                var proceed = MessageBox.Show(
+                    $"Kho Dược chỉ còn {selectedMed.StockQuantity} {unit} \"{drugName}\", trong khi bạn đang kê {qty} {unit}.\n\nBạn có muốn tiếp tục kê số lượng này không? (Dược sĩ có thể không đủ hàng để cấp phát)",
+                    "Số lượng vượt tồn kho", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+                if (proceed != DialogResult.Yes) return;
+            }
+
             string instruction = string.IsNullOrWhiteSpace(_txtDosageInstruction.Text) ? "Uống theo chỉ dẫn bác sĩ" : _txtDosageInstruction.Text;
 
             _prescriptions.Add(new PrescribedDrugItem

@@ -451,11 +451,14 @@ namespace DTT.Doctor.Services.Core
             catch { }
 
             // Match exact CSDL PostgreSQL (medicines table: 3 items)
+            // StockQuantity = -1 nghĩa là "không rõ tồn kho" (danh sách dự phòng khi API lỗi/rỗng) —
+            // ExaminationForm dựa vào StockQuantity == 0 để chặn kê thuốc hết hàng, không được để mặc
+            // định 0 của các mục dự phòng này bị hiểu nhầm thành "hết hàng thật".
             return new List<MedicineModel>
             {
-                new MedicineModel { MedicineId = 1, MedicineName = "Amoxicillin 500mg", Unit = "Viên", DefaultUsage = "Uống 1 viên sau ăn 30 phút" },
-                new MedicineModel { MedicineId = 2, MedicineName = "Paracetamol 500mg", Unit = "Viên", DefaultUsage = "Uống 1 viên khi sốt > 38.5°C" },
-                new MedicineModel { MedicineId = 3, MedicineName = "Vitamin C 1000mg", Unit = "Hộp", DefaultUsage = "Pha 1 viên với 200ml nước ấm" }
+                new MedicineModel { MedicineId = 1, MedicineName = "Amoxicillin 500mg", Unit = "Viên", StockQuantity = -1, DefaultUsage = "Uống 1 viên sau ăn 30 phút" },
+                new MedicineModel { MedicineId = 2, MedicineName = "Paracetamol 500mg", Unit = "Viên", StockQuantity = -1, DefaultUsage = "Uống 1 viên khi sốt > 38.5°C" },
+                new MedicineModel { MedicineId = 3, MedicineName = "Vitamin C 1000mg", Unit = "Hộp", StockQuantity = -1, DefaultUsage = "Pha 1 viên với 200ml nước ấm" }
             };
         }
 
@@ -482,6 +485,65 @@ namespace DTT.Doctor.Services.Core
             }
             catch { }
             return new List<Icd10Item>();
+        }
+
+        // Đặt lịch hẹn mới qua API — dùng cho chức năng "Chuyển / Tái khám" của Bác sĩ (trước đây chỉ
+        // hiện toast "đang phát triển", chưa thực sự tạo lịch hẹn nào).
+        public async Task<(bool Success, string Message)> CreateAppointmentAsync(int patientId, int doctorId, string doctorName, string specialtyName, string date, string timeSlot, string reason)
+        {
+            AttachBearerToken();
+            try
+            {
+                var payload = new
+                {
+                    PatientId = patientId,
+                    DoctorId = doctorId,
+                    DoctorName = doctorName,
+                    SpecialtyName = specialtyName,
+                    Date = date,
+                    TimeSlot = timeSlot,
+                    Reason = reason
+                };
+                var content = new StringContent(JsonConvert.SerializeObject(payload), Encoding.UTF8, "application/json");
+                var res = await _httpClient.PostAsync("/api/Appointments", content);
+                var json = await res.Content.ReadAsStringAsync();
+                if (res.IsSuccessStatusCode) return (true, "Đặt lịch tái khám thành công.");
+
+                try
+                {
+                    dynamic? obj = JsonConvert.DeserializeObject<dynamic>(json);
+                    string msg = obj?.message != null ? (string)obj.message : "Không thể đặt lịch tái khám. Vui lòng thử lại.";
+                    return (false, msg);
+                }
+                catch
+                {
+                    return (false, "Không thể đặt lịch tái khám. Vui lòng thử lại.");
+                }
+            }
+            catch (Exception ex)
+            {
+                return (false, "Lỗi kết nối: " + ex.Message);
+            }
+        }
+
+        // Danh sách thông báo của CHÍNH tài khoản đang đăng nhập — backend tự lọc theo claim JWT khi
+        // không truyền userId (xem NotificationsController.GetAllNotifications). Dùng cho toast khi
+        // NotificationHubService báo "NotificationsChanged" (Admin vừa phát thông báo tới Bác sĩ).
+        public async Task<List<dynamic>> GetMyNotificationsAsync()
+        {
+            AttachBearerToken();
+            try
+            {
+                var res = await _httpClient.GetAsync("/api/Notifications");
+                if (res.IsSuccessStatusCode)
+                {
+                    var json = await res.Content.ReadAsStringAsync();
+                    var list = JsonConvert.DeserializeObject<List<dynamic>>(json);
+                    if (list != null) return list;
+                }
+            }
+            catch { }
+            return new List<dynamic>();
         }
 
         public async Task<dynamic> GetDoctorSchedulesAsync(int doctorId, string dateStr)

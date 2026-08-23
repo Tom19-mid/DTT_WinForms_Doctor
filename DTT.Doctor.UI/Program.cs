@@ -32,10 +32,17 @@ namespace DTT.Doctor.UI
                 {
                     if (loginForm.ShowDialog() == DialogResult.OK)
                     {
+                        // Kết nối kênh real-time (SignalR) nhận thông báo Admin — fire-and-forget để
+                        // không chặn mở Dashboard nếu mạng chậm/server chưa sẵn sàng (real-time là
+                        // tính năng tăng cường, không phải điều kiện bắt buộc để làm việc).
+                        _ = NotificationHubService.ConnectAsync(new ApiService().BaseUrl);
+
                         using (var dashboard = new MainDashboardForm())
                         {
                             Application.Run(dashboard);
                         }
+
+                        _ = NotificationHubService.DisconnectAsync();
 
                         // If TokenVault was cleared (logout), loop back to show LoginForm again
                         keepRunning = !TokenVault.IsAuthenticated;
