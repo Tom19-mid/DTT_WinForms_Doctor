@@ -158,9 +158,11 @@ namespace DTT.Doctor.Services.Core
                                 list[i].PatientAge = 0;
                             }
                         }
-
                         // Lễ Tân xem toàn bộ ca khám; Bác sĩ nếu chưa có DoctorId thì mới lọc theo specialty
-                        if (TokenVault.DoctorId <= 0 && TokenVault.RoleCode != "RECEPTIONIST" && !string.IsNullOrEmpty(TokenVault.SpecialtyName))
+                        // if (TokenVault.DoctorId <= 0 && TokenVault.RoleCode != "RECEPTIONIST" && !string.IsNullOrEmpty(TokenVault.SpecialtyName))
+                        // Nhân viên toàn viện (Lễ tân, Điều dưỡng, Kỹ thuật viên, Dược sĩ) xem toàn bộ ca khám;
+                        // Bác sĩ nếu chưa có DoctorId thì mới lọc theo chuyên khoa của mình
+                        if (TokenVault.DoctorId <= 0 && !isStaffViewAll && !string.IsNullOrEmpty(TokenVault.SpecialtyName))
                         {
                             list = list.Where(a => !string.IsNullOrEmpty(a.SpecialtyName) &&
                                                    a.SpecialtyName.Trim().Equals(TokenVault.SpecialtyName.Trim(), StringComparison.OrdinalIgnoreCase))
@@ -994,6 +996,119 @@ namespace DTT.Doctor.Services.Core
             }
             catch { }
             return false;
+        }
+
+        // ══════════════════════════════════════════════════════════════════════
+        // ── PHÂN HỆ DƯỢC SĨ (PHARMACY API) ────────────────────────────────────
+        // ══════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Lấy danh sách các đơn thuốc đang chờ Dược sĩ phát (StatusId = 10 / PendingDispensing).
+        /// </summary>
+        // [Old code]: public async Task<List<PharmacyQueueItem>> GetPharmacyQueueAsync() { var response = await _httpClient.GetAsync("/api/MedicalRecords/pharmacy-queue"); ... }
+        public async Task<List<PharmacyQueueItem>> GetPharmacyQueueAsync(bool todayOnly = true)
+        {
+            AttachBearerToken();
+            try
+            {
+                // [New code]: Truyền todayOnly=true để lọc theo ngày hôm nay giống như Lễ Tân
+                string url = todayOnly ? "/api/MedicalRecords/pharmacy-queue?todayOnly=true" : "/api/MedicalRecords/pharmacy-queue?todayOnly=false";
+                var response = await _httpClient.GetAsync(url);
+                if (response.IsSuccessStatusCode)
+                {
+                    var content = await response.Content.ReadAsStringAsync();
+                    var list = JsonConvert.DeserializeObject<List<PharmacyQueueItem>>(content);
+                    return list ?? new List<PharmacyQueueItem>();
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[GetPharmacyQueueAsync] Error: {ex.Message}");
+            }
+            return new List<PharmacyQueueItem>();
+        }
+
+        /// <summary>
+        /// Lấy danh sách lịch sử các đơn thuốc Dược sĩ đã phát (theo ngày và/hoặc tìm kiếm).
+        /// </summary>
+        // [Old code]: public async Task<List<PharmacyHistoryItem>> GetPharmacyHistoryAsync(DateTime? date = null) { ... }
+        public async Task<List<PharmacyHistoryItem>> GetPharmacyHistoryAsync(DateTime? date = null, string search = "")
+        {
+            AttachBearerToken();
+            try
+            {
+                string dateParam = date.HasValue ? date.Value.ToString("yyyy-MM-dd") : "all";
+                string url = $"/api/MedicalRecords/pharmacy-history?date={dateParam}";
+                if (!string.IsNullOrWhiteSpace(search))
+                {
+                    url += $"&search={Uri.EscapeDataString(search.Trim())}";
+                }
+
+                var response = await _httpClient.GetAsync(url);
+                if (response.IsSuccessStatusCode)
+                {
+                    var content = await response.Content.ReadAsStringAsync();
+                    var list = JsonConvert.DeserializeObject<List<PharmacyHistoryItem>>(content);
+                    return list ?? new List<PharmacyHistoryItem>();
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[GetPharmacyHistoryAsync] Error: {ex.Message}");
+            }
+            return new List<PharmacyHistoryItem>();
+        }
+
+        /// <summary>
+        /// Dược sĩ xác nhận phát thuốc cho bệnh nhân (chuyển StatusId -> 4 / Completed).
+        /// </summary>
+        public async Task<(bool success, string message)> DispensePrescriptionAsync(int appointmentId, string pharmacistNote = "")
+        {
+            AttachBearerToken();
+            try
+            {
+                string pharmName = !string.IsNullOrWhiteSpace(TokenVault.FullName) ? TokenVault.FullName.Trim() : TokenVault.GetFormattedTitleName();
+                if (!string.IsNullOrWhiteSpace(pharmName) && !pharmName.StartsWith("DS") && !pharmName.StartsWith("Ds") && !pharmName.StartsWith("Dược sĩ"))
+                {
+                    pharmName = "DS. " + pharmName;
+                }
+
+                var payload = new DispenseRequestModel
+                {
+                    PharmacistUserId = TokenVault.UserId != Guid.Empty ? TokenVault.UserId : (Guid?)null,
+                    PharmacistName = pharmName,
+                    PharmacistNote = pharmacistNote
+                };
+                var json = JsonConvert.SerializeObject(payload);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+                var response = await _httpClient.PostAsync($"/api/MedicalRecords/{appointmentId}/dispense", content);
+                var resContent = await response.Content.ReadAsStringAsync();
+
+                if (response.IsSuccessStatusCode)
+                {
+                    dynamic resObj = JsonConvert.DeserializeObject(resContent);
+                    string msg = resObj?.message != null ? (string)resObj.message : "Xác nhận phát thuốc thành công!";
+                    return (true, msg);
+                }
+                else
+                {
+                    try
+                    {
+                        dynamic errObj = JsonConvert.DeserializeObject(resContent);
+                        string errMsg = errObj?.message != null ? (string)errObj.message : $"Lỗi ({response.StatusCode})";
+                        return (false, errMsg);
+                    }
+                    catch
+                    {
+                        return (false, $"Lỗi server: {response.StatusCode}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                return (false, $"Lỗi kết nối: {ex.Message}");
+            }
         }
     }
 }

@@ -42,6 +42,7 @@ namespace DTT.Doctor.UI.Forms
         private ReceptionCashierForm _receptionChildForm;
         private NurseWorkstationForm _nurseChildForm;
         private LabTechWorkstationForm _labTechChildForm;
+        private PharmacistWorkstationForm _pharmacistChildForm;
         private int _lastSeenAdminNotificationId = 0;
 
         public MainDashboardForm()
@@ -68,8 +69,9 @@ namespace DTT.Doctor.UI.Forms
                 catch { /* không chặn màn hình chính nếu lỗi tải mốc thông báo */ }
 
                 bool isReceptionist = TokenVault.RoleId == 4 || TokenVault.RoleCode == "RECEPTIONIST" || (!string.IsNullOrEmpty(TokenVault.RoleName) && TokenVault.RoleName.Contains("ễ tân"));
-                bool isNurse       = TokenVault.RoleId == 5 || TokenVault.RoleCode == "NURSE"       || (!string.IsNullOrEmpty(TokenVault.RoleName) && TokenVault.RoleName.Contains("Điều dưỡng"));
-                bool isLabTech     = TokenVault.RoleId == 6 || TokenVault.RoleCode == "LAB_TECH"    || (!string.IsNullOrEmpty(TokenVault.RoleName) && TokenVault.RoleName.Contains("Kỹ thuật"));
+                bool isNurse        = TokenVault.RoleId == 5 || TokenVault.RoleCode == "NURSE"          || (!string.IsNullOrEmpty(TokenVault.RoleName) && TokenVault.RoleName.Contains("Điều dưỡng"));
+                bool isLabTech      = TokenVault.RoleId == 6 || TokenVault.RoleCode == "LAB_TECH"       || (!string.IsNullOrEmpty(TokenVault.RoleName) && TokenVault.RoleName.Contains("Kỹ thuật"));
+                bool isPharmacist   = TokenVault.RoleId == 7 || TokenVault.RoleCode == "PHARMACIST"     || (!string.IsNullOrEmpty(TokenVault.RoleName) && TokenVault.RoleName.Contains("Dược sĩ"));
                 try
                 {
                     if (isReceptionist)
@@ -86,6 +88,11 @@ namespace DTT.Doctor.UI.Forms
                     {
                         if (_labTechChildForm != null)
                             await _labTechChildForm.LoadDataAsync();
+                    }
+                    else if (isPharmacist)
+                    {
+                        if (_pharmacistChildForm != null)
+                            await _pharmacistChildForm.LoadDataAsync();
                     }
                     else
                     {
@@ -239,6 +246,7 @@ namespace DTT.Doctor.UI.Forms
             bool isReceptionist = TokenVault.RoleId == 4 || TokenVault.RoleCode == "RECEPTIONIST" || (!string.IsNullOrEmpty(TokenVault.RoleName) && TokenVault.RoleName.Contains("ễ tân"));
             bool isNurse        = TokenVault.RoleId == 5 || TokenVault.RoleCode == "NURSE"          || (!string.IsNullOrEmpty(TokenVault.RoleName) && TokenVault.RoleName.Contains("Điều dưỡng"));
             bool isLabTech      = TokenVault.RoleId == 6 || TokenVault.RoleCode == "LAB_TECH"       || (!string.IsNullOrEmpty(TokenVault.RoleName) && TokenVault.RoleName.Contains("Kỹ thuật"));
+            bool isPharmacist   = TokenVault.RoleId == 7 || TokenVault.RoleCode == "PHARMACIST"     || (!string.IsNullOrEmpty(TokenVault.RoleName) && TokenVault.RoleName.Contains("Dược sĩ"));
 
             int navY = 200;
             List<Button> sidebarNavButtons = new List<Button>();
@@ -308,6 +316,24 @@ namespace DTT.Doctor.UI.Forms
 
                 pnlSidebar.Controls.Add(btnNavClsWaiting);
                 pnlSidebar.Controls.Add(btnNavClsDone);
+            }
+            else if (isPharmacist)
+            {
+                Button btnNavPharmWaiting = CreateNavButton("💊  Chờ Phát Thuốc",         navY,       true);
+                Button btnNavPharmDone    = CreateNavButton("✅  Lịch Sử Đã Cấp Phát",        navY += 46, false);
+                Button btnNavPharmMeds    = CreateNavButton("💊  Danh Mục & Thuốc",       navY += 46, false);
+
+                sidebarNavButtons.Add(btnNavPharmWaiting);
+                sidebarNavButtons.Add(btnNavPharmDone);
+                sidebarNavButtons.Add(btnNavPharmMeds);
+
+                btnNavPharmWaiting.Click += async (s, e) => { SetActiveNavButton(btnNavPharmWaiting, sidebarNavButtons); _pharmacistChildForm?.SelectTab(0); if (_pharmacistChildForm != null) await _pharmacistChildForm.LoadDataAsync(); if (_lblPageTitle != null) _lblPageTitle.Text = "Chờ Phát Thuốc"; };
+                btnNavPharmDone.Click    += async (s, e) => { SetActiveNavButton(btnNavPharmDone,    sidebarNavButtons); _pharmacistChildForm?.SelectTab(1); if (_pharmacistChildForm != null) await _pharmacistChildForm.LoadDataAsync(); if (_lblPageTitle != null) _lblPageTitle.Text = "Đã Phát Hôm Nay"; };
+                btnNavPharmMeds.Click    += (s, e) => { SetActiveNavButton(btnNavPharmMeds, sidebarNavButtons); using (var f = new MedicineCatalogForm()) f.ShowDialog(this); };
+
+                pnlSidebar.Controls.Add(btnNavPharmWaiting);
+                pnlSidebar.Controls.Add(btnNavPharmDone);
+                pnlSidebar.Controls.Add(btnNavPharmMeds);
             }
             else
             {
@@ -381,7 +407,7 @@ namespace DTT.Doctor.UI.Forms
 
             _lblPageTitle = new Label
             {
-                Text = isReceptionist ? "Phân hệ Lễ Tân Tiếp Đón & Thu Ngân" : isLabTech ? "Chờ Thực Hiện CLS" : "Quản lý bệnh nhân",
+                Text = isReceptionist ? "Phân hệ Lễ Tân Tiếp Đón & Thu Ngân" : isLabTech ? "Chờ Thực Hiện CLS" : isPharmacist ? "Phân Hệ Dược Sĩ & Cấp Phát Thuốc" : "Quản lý bệnh nhân",
                 Font = ClinicalColors.GetMainFont(18f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(15, 23, 42),
                 Size = new Size(500, 36),
@@ -393,6 +419,7 @@ namespace DTT.Doctor.UI.Forms
             {
                 Text = isReceptionist ? $"📅  Hôm nay: {DateHelper.GetVietnameseDateString(DateTime.Now)}  •  Tiếp nhận, đối chiếu CCCD & thu viện phí"
                      : isLabTech ? $"📅  Hôm nay: {DateHelper.GetVietnameseDateString(DateTime.Now)}  •  Xét nghiệm & Siêu âm chỉ định từ Bác sĩ"
+                     : isPharmacist ? $"📅  Hôm nay: {DateHelper.GetVietnameseDateString(DateTime.Now)}  •  Kiểm tra đơn thuốc & cấp phát thuốc theo toa"
                      : $"📅  Hôm nay: {DateHelper.GetVietnameseDateString(DateTime.Now)}  •  Xem danh sách đặt lịch & tiếp nhận bệnh nhân",
                 Font = ClinicalColors.GetMainFont(10f, FontStyle.Bold),
                 ForeColor = ClinicalColors.PrimaryBlue,
@@ -583,6 +610,17 @@ namespace DTT.Doctor.UI.Forms
                 pnlMain.Controls.Add(_labTechChildForm);
                 _labTechChildForm.Show();
             }
+            else if (isPharmacist)
+            {
+                pnlMain.Controls.Clear();
+                pnlMain.Padding = new Padding(0);
+                _pharmacistChildForm = new PharmacistWorkstationForm();
+                _pharmacistChildForm.TopLevel = false;
+                _pharmacistChildForm.FormBorderStyle = FormBorderStyle.None;
+                _pharmacistChildForm.Dock = DockStyle.Fill;
+                pnlMain.Controls.Add(_pharmacistChildForm);
+                _pharmacistChildForm.Show();
+            }
             else
             {
                 pnlMain.Controls.Add(pnlTableCard);
@@ -622,7 +660,10 @@ namespace DTT.Doctor.UI.Forms
                     ShowCornerToast("⏰ TRẠNG THÁI ĐÃ KHÓA", $"Ca khám của {patientName} đã ghi nhận BỎ KHÁM. Trạng thái đã cố định, không thể chỉnh sửa!", Color.FromArgb(245, 158, 11));
                     return;
                 }
-                if (st.Equals("Completed", StringComparison.OrdinalIgnoreCase) || st.Equals("4") || st.Contains("hoàn thành"))
+                // [Old code]:
+                // if (st.Equals("Completed", StringComparison.OrdinalIgnoreCase) || st.Equals("4") || st.Contains("hoàn thành"))
+                // [New code - hỗ trợ mở Hồ sơ bệnh án cho cả ca đang Chờ Dược sĩ phát thuốc]:
+                if (st.Equals("Completed", StringComparison.OrdinalIgnoreCase) || st.Equals("4") || st.Contains("hoàn thành") || st.Equals("PendingDispensing", StringComparison.OrdinalIgnoreCase) || st.Contains("Chờ Dược sĩ") || st.Contains("Chờ phát thuốc"))
                 {
                     using (var f = new MedicalHistoryForm(patientName, apptId))
                     {
@@ -922,7 +963,10 @@ namespace DTT.Doctor.UI.Forms
 
                 string actionText = "Khám ▼";
                 string st = a.Status?.ToString() ?? "";
-                if (st.Equals("Completed", StringComparison.OrdinalIgnoreCase) || st.Equals("4") || st.Contains("hoàn thành"))
+                // [Old code]:
+                // if (st.Equals("Completed", StringComparison.OrdinalIgnoreCase) || st.Equals("4") || st.Contains("hoàn thành"))
+                // [New code]:
+                if (st.Equals("Completed", StringComparison.OrdinalIgnoreCase) || st.Equals("4") || st.Contains("hoàn thành") || st.Equals("PendingDispensing", StringComparison.OrdinalIgnoreCase) || st.Contains("Chờ Dược sĩ") || st.Contains("Chờ phát thuốc"))
                 {
                     actionText = "Xem Hồ Sơ";
                 }

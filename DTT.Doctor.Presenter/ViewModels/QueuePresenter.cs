@@ -57,10 +57,21 @@ namespace DTT.Doctor.Presenter.ViewModels
                 {
                     // Bác sĩ chỉ thấy bệnh nhân từ WaitingForDoctor (8) trở đi
                     // → CheckedIn (7) chưa đo sinh hiệu → Bác sĩ không thấy
+                    // [Old code]:
+                    // newList = newList.Where(a =>
+                    //     a.Status == "WaitingForDoctor"     ||
+                    //     a.Status == "InProgress"           ||
+                    //     a.Status == "AwaitingTestResults"  ||
+                    //     a.Status == "Completed"            ||
+                    //     a.Status == "NoShow"               ||
+                    //     a.Status == "Cancelled").ToList();
+
+                    // [New code - thêm PendingDispensing để Bác sĩ thấy ca đang chờ Dược sĩ phát thuốc]:
                     newList = newList.Where(a =>
                         a.Status == "WaitingForDoctor"     ||
                         a.Status == "InProgress"           ||
                         a.Status == "AwaitingTestResults"  || // Đã chỉ định CLS, đang chờ KTV trả kết quả
+                        a.Status == "PendingDispensing"    || // BS đã kê đơn → chờ Dược sĩ phát thuốc
                         a.Status == "Completed"            ||
                         a.Status == "NoShow"               ||
                         a.Status == "Cancelled").ToList();
@@ -154,7 +165,9 @@ namespace DTT.Doctor.Presenter.ViewModels
             }
             else if (statusFilter == "Đã xong")
             {
-                filtered = filtered.Where(a => a.Status == "Completed" || a.Status == "Đã xong" || a.Status == "Đã hoàn thành");
+                // [Old code]: filtered = filtered.Where(a => a.Status == "Completed" || a.Status == "Đã xong" || a.Status == "Đã hoàn thành");
+                // [New code]:
+                filtered = filtered.Where(a => a.Status == "Completed" || a.Status == "Đã xong" || a.Status == "Đã hoàn thành" || a.Status == "PendingDispensing");
             }
             else if (statusFilter == "Hủy Lịch" || statusFilter == "Cancelled" || statusFilter == "Hủy lịch")
             {
@@ -168,7 +181,9 @@ namespace DTT.Doctor.Presenter.ViewModels
             int total = _allAppointments.Count;
             int waiting = _allAppointments.Count(a => a.Status == "Confirmed" || a.Status == "Đang chờ" || a.Status == "CheckedIn" || a.Status == "Scheduled" || a.Status == "WaitingForDoctor");
             int inProgress = _allAppointments.Count(a => a.Status == "InProgress" || a.Status == "AwaitingTestResults" || a.Status == "Đang khám");
-            int completed = _allAppointments.Count(a => a.Status == "Completed" || a.Status == "Đã xong" || a.Status == "Đã hoàn thành");
+            // [Old code]: int completed = _allAppointments.Count(a => a.Status == "Completed" || a.Status == "Đã xong" || a.Status == "Đã hoàn thành");
+            // [New code]:
+            int completed = _allAppointments.Count(a => a.Status == "Completed" || a.Status == "Đã xong" || a.Status == "Đã hoàn thành" || a.Status == "PendingDispensing");
 
             _view.UpdateKpiCards(total, waiting, inProgress, completed);
         }

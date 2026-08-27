@@ -723,7 +723,9 @@ namespace DTT.Doctor.UI.Forms
                 MedicineName = drugName,
                 Unit = unit,
                 Quantity = qty,
-                Dosage = "Default",
+                // [Old code]: Dosage = "Default",
+                // [New code - Gán giá trị tiếng Việt chuẩn thay vì "Default"]:
+                Dosage = "Theo chỉ định",
                 UsageInstruction = instruction
             });
 
@@ -783,10 +785,34 @@ namespace DTT.Doctor.UI.Forms
                 return;
             }
 
-            await api.UpdateAppointmentStatusAsync(_appointment.AppointmentId, "Completed");
+            // =========================================================================
+            // [Old code - ghi đè thẳng sang Completed khiến ca khám không vào hàng đợi của Dược sĩ]:
+            // await api.UpdateAppointmentStatusAsync(_appointment.AppointmentId, "Completed");
+            // MessageBox.Show($"✅ HOÀN TẤT CA KHÁM VÀ LƯU HỒ SƠ Y TẾ!\n\n• Bệnh nhân: {_appointment.PatientName}\n• Chẩn đoán: {(!string.IsNullOrEmpty(_txtDiagnosis.Text) ? _txtDiagnosis.Text : "Khám sức khỏe")}\n• Số loại thuốc đã kê: {_prescriptions.Count} thuốc\n\nHồ sơ khám bệnh và đơn thuốc đã được ghi nhận thành công trên hệ thống.", "Hoàn Tất Ca Khám Lâm Sàng", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            // =========================================================================
 
+            // [New code - Backend tự gán StatusId=10 (PendingDispensing) nếu có đơn thuốc, thông báo rõ ràng chuyển Dược sĩ]:
             IsSaved = true;
-            MessageBox.Show($"✅ HOÀN TẤT CA KHÁM VÀ LƯU HỒ SƠ Y TẾ!\n\n• Bệnh nhân: {_appointment.PatientName}\n• Chẩn đoán: {(!string.IsNullOrEmpty(_txtDiagnosis.Text) ? _txtDiagnosis.Text : "Khám sức khỏe")}\n• Số loại thuốc đã kê: {_prescriptions.Count} thuốc\n\nHồ sơ khám bệnh và đơn thuốc đã được ghi nhận thành công trên hệ thống.", "Hoàn Tất Ca Khám Lâm Sàng", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+            if (_prescriptions.Count > 0)
+            {
+                MessageBox.Show(
+                    $"✅ HOÀN TẤT KHÁM & ĐÃ CHUYỂN ĐƠN THUỐC CHO DƯỢC SĨ!\n\n" +
+                    $"• Bệnh nhân: {_appointment.PatientName}\n" +
+                    $"• Chẩn đoán: {(!string.IsNullOrEmpty(_txtDiagnosis.Text) ? _txtDiagnosis.Text : "Khám sức khỏe")}\n" +
+                    $"• Số loại thuốc đã kê: {_prescriptions.Count} loại thuốc\n\n" +
+                    $"📋 Đơn thuốc đã được tự động chuyển sang Phân Hệ Dược Sĩ (Nhà Thuốc Bệnh Viện) để chuẩn bị và cấp phát thuốc cho người bệnh.",
+                    "Đã Chuyển Đơn Sang Dược Sĩ", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            else
+            {
+                MessageBox.Show(
+                    $"✅ HOÀN TẤT CA KHÁM VÀ LƯU HỒ SƠ Y TẾ!\n\n" +
+                    $"• Bệnh nhân: {_appointment.PatientName}\n" +
+                    $"• Chẩn đoán: {(!string.IsNullOrEmpty(_txtDiagnosis.Text) ? _txtDiagnosis.Text : "Khám sức khỏe")}\n\n" +
+                    $"Hồ sơ khám bệnh đã được ghi nhận thành công trên hệ thống.",
+                    "Hoàn Tất Ca Khám Lâm Sàng", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
 
             // Kho thuốc đã tự động trừ theo đơn vừa kê — nếu có thuốc không đủ hàng (đã trừ về 0),
             // cảnh báo riêng để Dược sĩ/Bác sĩ biết cần nhập thêm hàng.

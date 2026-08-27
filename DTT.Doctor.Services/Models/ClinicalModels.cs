@@ -187,4 +187,164 @@ namespace DTT.Doctor.Services.Models
         [Newtonsoft.Json.JsonProperty("relationship")]
         public string Relationship { get; set; } = "Bản thân";
     }
+
+    // ── Phân hệ Dược Sĩ (Pharmacy Models) ──────────────────────────────────
+
+    public class PharmacyDrugItem
+    {
+        [Newtonsoft.Json.JsonProperty("prescriptionDetailId")]
+        public int PrescriptionDetailId { get; set; }
+
+        [Newtonsoft.Json.JsonProperty("medicineId")]
+        public int MedicineId { get; set; }
+
+        [Newtonsoft.Json.JsonProperty("medicineName")]
+        public string MedicineName { get; set; } = string.Empty;
+
+        [Newtonsoft.Json.JsonProperty("unit")]
+        public string Unit { get; set; } = "Viên";
+
+        [Newtonsoft.Json.JsonProperty("quantity")]
+        public int Quantity { get; set; }
+
+        [Newtonsoft.Json.JsonProperty("dosage")]
+        public string Dosage { get; set; } = "500mg";
+
+        [Newtonsoft.Json.JsonProperty("frequency")]
+        public string Frequency { get; set; } = "2 lần/ngày";
+
+        [Newtonsoft.Json.JsonProperty("duration")]
+        public string Duration { get; set; } = "7 ngày";
+
+        [Newtonsoft.Json.JsonProperty("usageInstruction")]
+        public string? UsageInstruction { get; set; }
+
+        [Newtonsoft.Json.JsonProperty("stockQuantity")]
+        public int StockQuantity { get; set; }
+
+        [Newtonsoft.Json.JsonProperty("stockStatus")]
+        public string StockStatus { get; set; } = "Khả dụng"; // "Khả dụng" | "Hết hàng"
+    }
+
+    public class PharmacyQueueItem
+    {
+        [Newtonsoft.Json.JsonProperty("appointmentId")]
+        public int AppointmentId { get; set; }
+
+        [Newtonsoft.Json.JsonProperty("medicalRecordId")]
+        public int MedicalRecordId { get; set; }
+
+        [Newtonsoft.Json.JsonProperty("prescriptionId")]
+        public int PrescriptionId { get; set; }
+
+        [Newtonsoft.Json.JsonProperty("patientId")]
+        public int PatientId { get; set; }
+
+        [Newtonsoft.Json.JsonProperty("patientName")]
+        public string PatientName { get; set; } = string.Empty;
+
+        [Newtonsoft.Json.JsonProperty("patientAge")]
+        public int PatientAge { get; set; } = 30;
+
+        [Newtonsoft.Json.JsonProperty("patientGender")]
+        public string PatientGender { get; set; } = "Nam";
+
+        [Newtonsoft.Json.JsonProperty("doctorName")]
+        public string DoctorName { get; set; } = string.Empty;
+
+        [Newtonsoft.Json.JsonProperty("doctorDegree")]
+        public string DoctorDegree { get; set; } = string.Empty;
+
+        [Newtonsoft.Json.JsonProperty("diagnosis")]
+        public string Diagnosis { get; set; } = string.Empty;
+
+        [Newtonsoft.Json.JsonProperty("symptoms")]
+        public string Symptoms { get; set; } = string.Empty;
+
+        [Newtonsoft.Json.JsonProperty("prescriptionNote")]
+        public string PrescriptionNote { get; set; } = string.Empty;
+
+        [Newtonsoft.Json.JsonProperty("createdAt")]
+        public DateTime CreatedAt { get; set; }
+
+        [Newtonsoft.Json.JsonProperty("timeSlot")]
+        public string TimeSlot { get; set; } = string.Empty;
+
+        [Newtonsoft.Json.JsonProperty("items")]
+        public System.Collections.Generic.List<PharmacyDrugItem> Items { get; set; } = new System.Collections.Generic.List<PharmacyDrugItem>();
+
+        public int DrugCount => Items?.Count ?? 0;
+    }
+
+    public class PharmacyHistoryItem
+    {
+        [Newtonsoft.Json.JsonProperty("prescriptionId")]
+        public int PrescriptionId { get; set; }
+
+        [Newtonsoft.Json.JsonProperty("medicalRecordId")]
+        public int MedicalRecordId { get; set; }
+
+        [Newtonsoft.Json.JsonProperty("appointmentId")]
+        public int AppointmentId { get; set; }
+
+        [Newtonsoft.Json.JsonProperty("patientId")]
+        public int PatientId { get; set; }
+
+        [Newtonsoft.Json.JsonProperty("patientName")]
+        public string PatientName { get; set; } = string.Empty;
+
+        // [New code - Hỗ trợ tìm kiếm và hiển thị SĐT & Mã đơn]:
+        [Newtonsoft.Json.JsonProperty("patientPhone")]
+        public string PatientPhone { get; set; } = string.Empty;
+
+        [Newtonsoft.Json.JsonProperty("prescriptionCode")]
+        public string PrescriptionCode { get; set; } = string.Empty;
+
+        [Newtonsoft.Json.JsonProperty("patientAge")]
+        public int PatientAge { get; set; } = 30;
+
+        [Newtonsoft.Json.JsonProperty("patientGender")]
+        public string PatientGender { get; set; } = "Nam";
+
+        [Newtonsoft.Json.JsonProperty("doctorName")]
+        public string DoctorName { get; set; } = string.Empty;
+
+        // [New code]: Thêm chức danh bác sĩ, ghi chú đơn thuốc và danh sách chi tiết các loại thuốc đã phát
+        [Newtonsoft.Json.JsonProperty("doctorDegree")]
+        public string DoctorDegree { get; set; } = string.Empty;
+
+        [Newtonsoft.Json.JsonProperty("prescriptionNote")]
+        public string PrescriptionNote { get; set; } = string.Empty;
+
+        [Newtonsoft.Json.JsonProperty("diagnosis")]
+        public string Diagnosis { get; set; } = string.Empty;
+
+        [Newtonsoft.Json.JsonProperty("symptoms")]
+        public string Symptoms { get; set; } = string.Empty;
+
+        [Newtonsoft.Json.JsonProperty("dispensedAt")]
+        public DateTime DispensedAt { get; set; }
+
+        [Newtonsoft.Json.JsonProperty("dispensedByName")]
+        public string DispensedByName { get; set; } = "Dược sĩ";
+
+        [Newtonsoft.Json.JsonProperty("note")]
+        public string Note { get; set; } = string.Empty;
+
+        [Newtonsoft.Json.JsonProperty("itemCount")]
+        public int ItemCount { get; set; }
+
+        [Newtonsoft.Json.JsonProperty("summary")]
+        public string Summary { get; set; } = string.Empty;
+
+        [Newtonsoft.Json.JsonProperty("items")]
+        public System.Collections.Generic.List<PharmacyDrugItem> Items { get; set; } = new System.Collections.Generic.List<PharmacyDrugItem>();
+    }
+
+    public class DispenseRequestModel
+    {
+        public Guid? PharmacistUserId { get; set; }
+        public string? PharmacistName { get; set; }
+        public string? PharmacistNote { get; set; }
+    }
 }

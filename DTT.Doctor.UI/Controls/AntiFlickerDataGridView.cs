@@ -165,6 +165,14 @@ namespace DTT.Doctor.UI.Controls
                         fg = Color.FromArgb(114, 46, 209);      // Antd Purple text #722ED1
                         label = "Chờ Kết Quả CLS";
                     }
+                    // [New badge - Trạng thái chờ Dược sĩ phát thuốc]:
+                    else if (rawVal.Equals("PendingDispensing", StringComparison.OrdinalIgnoreCase) || rawVal.Contains("Chờ Dược sĩ") || rawVal.Contains("Chờ phát thuốc") || rawVal.Contains("Chờ cấp thuốc") || rawVal.Equals("10"))
+                    {
+                        bg = Color.FromArgb(243, 232, 255);     // Light Purple bg #F3E8FF
+                        border = Color.FromArgb(192, 132, 252); // Purple border #C084FC
+                        fg = Color.FromArgb(126, 34, 206);      // Purple text #7E22CE
+                        label = "Chờ Dược Sĩ";
+                    }
                     else if (rawVal.Equals("InProgress", StringComparison.OrdinalIgnoreCase) || rawVal.Contains("Đang khám") || rawVal.Contains("Đang tư vấn") || rawVal.Contains("Đang đo") || rawVal.Equals("2"))
                     {
                         bg = Color.FromArgb(230, 244, 255);     // Antd Processing Blue bg #E6F4FF
