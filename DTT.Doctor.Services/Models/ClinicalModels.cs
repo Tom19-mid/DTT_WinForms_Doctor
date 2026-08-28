@@ -17,6 +17,7 @@ namespace DTT.Doctor.Services.Models
         public string Status { get; set; } = "Confirmed"; // Confirmed -> Đang chờ, InProgress -> Đang khám, Completed -> Đã xong
         /// <summary>Trạng thái thanh toán THẬT từ invoices.payment_status ("unpaid" | "partial" | "paid" — đúng theo DB constraint chk_payment_status) — dùng để hiển thị đúng trên màn Thanh Toán, không suy ra từ Status.</summary>
         public string PaymentStatus { get; set; } = "unpaid";
+        public string? PaymentMethod { get; set; }
         public int QueueNumber { get; set; }
         public string ClinicRoom { get; set; } = string.Empty;
         public string Fee { get; set; } = "250.000đ";
@@ -346,5 +347,156 @@ namespace DTT.Doctor.Services.Models
         public Guid? PharmacistUserId { get; set; }
         public string? PharmacistName { get; set; }
         public string? PharmacistNote { get; set; }
+    }
+
+    // ── Các Model hỗ trợ đa phương thức thanh toán Lễ Tân (Tiền mặt, VNPAY, Chuyển khoản VietQR) ──
+    public class VietQrResponse
+    {
+        [Newtonsoft.Json.JsonProperty("success")]
+        public bool Success { get; set; }
+
+        [Newtonsoft.Json.JsonProperty("appointmentId")]
+        public int AppointmentId { get; set; }
+
+        [Newtonsoft.Json.JsonProperty("patientName")]
+        public string PatientName { get; set; } = string.Empty;
+
+        [Newtonsoft.Json.JsonProperty("examFee")]
+        public decimal ExamFee { get; set; }
+
+        [Newtonsoft.Json.JsonProperty("servicesFee")]
+        public decimal ServicesFee { get; set; }
+
+        [Newtonsoft.Json.JsonProperty("medsFee")]
+        public decimal MedsFee { get; set; }
+
+        [Newtonsoft.Json.JsonProperty("totalAmount")]
+        public decimal TotalAmount { get; set; }
+
+        [Newtonsoft.Json.JsonProperty("bankId")]
+        public string BankId { get; set; } = string.Empty;
+
+        [Newtonsoft.Json.JsonProperty("bankName")]
+        public string BankName { get; set; } = string.Empty;
+
+        [Newtonsoft.Json.JsonProperty("accountNo")]
+        public string AccountNo { get; set; } = string.Empty;
+
+        [Newtonsoft.Json.JsonProperty("accountName")]
+        public string AccountName { get; set; } = string.Empty;
+
+        [Newtonsoft.Json.JsonProperty("transferContent")]
+        public string TransferContent { get; set; } = string.Empty;
+
+        [Newtonsoft.Json.JsonProperty("qrUrl")]
+        public string QrUrl { get; set; } = string.Empty;
+    }
+
+    public class VnPayUrlResponse
+    {
+        [Newtonsoft.Json.JsonProperty("success")]
+        public bool Success { get; set; }
+
+        [Newtonsoft.Json.JsonProperty("paymentUrl")]
+        public string PaymentUrl { get; set; } = string.Empty;
+
+        [Newtonsoft.Json.JsonProperty("totalAmount")]
+        public decimal TotalAmount { get; set; }
+
+        [Newtonsoft.Json.JsonProperty("appointmentId")]
+        public int AppointmentId { get; set; }
+
+        [Newtonsoft.Json.JsonProperty("patientName")]
+        public string PatientName { get; set; } = string.Empty;
+
+        [Newtonsoft.Json.JsonProperty("txnRef")]
+        public string TxnRef { get; set; } = string.Empty;
+    }
+
+    public class PaymentStatusResponse
+    {
+        [Newtonsoft.Json.JsonProperty("success")]
+        public bool Success { get; set; }
+
+        [Newtonsoft.Json.JsonProperty("appointmentId")]
+        public int AppointmentId { get; set; }
+
+        [Newtonsoft.Json.JsonProperty("isPaid")]
+        public bool IsPaid { get; set; }
+
+        [Newtonsoft.Json.JsonProperty("paymentStatus")]
+        public string PaymentStatus { get; set; } = "unpaid";
+
+        [Newtonsoft.Json.JsonProperty("paymentMethod")]
+        public string PaymentMethod { get; set; } = "cash";
+
+        [Newtonsoft.Json.JsonProperty("paidAmount")]
+        public decimal PaidAmount { get; set; }
+
+        [Newtonsoft.Json.JsonProperty("totalAmount")]
+        public decimal TotalAmount { get; set; }
+
+        [Newtonsoft.Json.JsonProperty("invoiceId")]
+        public int InvoiceId { get; set; }
+    }
+
+    public class PaypalInfoResponse
+    {
+        [Newtonsoft.Json.JsonProperty("success")]
+        public bool Success { get; set; }
+
+        [Newtonsoft.Json.JsonProperty("appointmentId")]
+        public int AppointmentId { get; set; }
+
+        [Newtonsoft.Json.JsonProperty("patientName")]
+        public string PatientName { get; set; } = string.Empty;
+
+        [Newtonsoft.Json.JsonProperty("examFee")]
+        public decimal ExamFee { get; set; }
+
+        [Newtonsoft.Json.JsonProperty("servicesFee")]
+        public decimal ServicesFee { get; set; }
+
+        [Newtonsoft.Json.JsonProperty("medsFee")]
+        public decimal MedsFee { get; set; }
+
+        [Newtonsoft.Json.JsonProperty("totalVnd")]
+        public decimal TotalVnd { get; set; }
+
+        [Newtonsoft.Json.JsonProperty("totalUsd")]
+        public decimal TotalUsd { get; set; }
+
+        [Newtonsoft.Json.JsonProperty("checkoutUrl")]
+        public string CheckoutUrl { get; set; } = string.Empty;
+
+        [Newtonsoft.Json.JsonProperty("qrUrl")]
+        public string QrUrl { get; set; } = string.Empty;
+    }
+
+    public class InvoiceEstimateResponse
+    {
+        [Newtonsoft.Json.JsonProperty("success")]
+        public bool Success { get; set; }
+
+        [Newtonsoft.Json.JsonProperty("appointmentId")]
+        public int AppointmentId { get; set; }
+
+        [Newtonsoft.Json.JsonProperty("isPackage")]
+        public bool IsPackage { get; set; }
+
+        [Newtonsoft.Json.JsonProperty("examFee")]
+        public decimal ExamFee { get; set; }
+
+        [Newtonsoft.Json.JsonProperty("servicesFee")]
+        public decimal ServicesFee { get; set; }
+
+        [Newtonsoft.Json.JsonProperty("medsFee")]
+        public decimal MedsFee { get; set; }
+
+        [Newtonsoft.Json.JsonProperty("totalAmount")]
+        public decimal TotalAmount { get; set; }
+
+        [Newtonsoft.Json.JsonProperty("hasPrescription")]
+        public bool HasPrescription { get; set; }
     }
 }

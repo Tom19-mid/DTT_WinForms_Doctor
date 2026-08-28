@@ -219,18 +219,18 @@ namespace DTT.Doctor.Services.Core
                 if (res.IsSuccessStatusCode)
                 {
                     var json = await res.Content.ReadAsStringAsync();
-                    dynamic? obj = JsonConvert.DeserializeObject<dynamic>(json);
-                    if (obj != null && (bool)(obj.success ?? false))
+                    var dto = JsonConvert.DeserializeObject<InvoiceEstimateResponse>(json);
+                    if (dto != null && dto.Success)
                     {
-                        decimal exam = (decimal)(obj.examFee ?? 250000m);
-                        decimal svc = (decimal)(obj.servicesFee ?? 0m);
-                        decimal meds = (decimal)(obj.medsFee ?? 0m);
-                        bool isPkg = (bool)(obj.isPackage ?? false);
-                        return (exam, svc, meds, exam + svc + meds, isPkg);
+                        decimal total = dto.TotalAmount > 0 ? dto.TotalAmount : (dto.ExamFee + dto.ServicesFee + dto.MedsFee);
+                        return (dto.ExamFee, dto.ServicesFee, dto.MedsFee, total, dto.IsPackage);
                     }
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("GetInvoiceEstimateAsync error: " + ex.Message);
+            }
             return (250000m, 0m, 0m, 250000m, false);
         }
 
@@ -254,6 +254,89 @@ namespace DTT.Doctor.Services.Core
             }
             catch { }
             return (false, 0, 0);
+        }
+
+        // [New code - Lấy thông tin và mã ảnh VietQR chuẩn Napas 247]:
+        public async Task<VietQrResponse?> GetVietQrInfoAsync(int appointmentId)
+        {
+            AttachBearerToken();
+            try
+            {
+                var res = await _httpClient.GetAsync($"/api/Invoices/vietqr/{appointmentId}");
+                if (res.IsSuccessStatusCode)
+                {
+                    var json = await res.Content.ReadAsStringAsync();
+                    return JsonConvert.DeserializeObject<VietQrResponse>(json);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[GetVietQrInfoAsync] Error: {ex.Message}");
+            }
+            return null;
+        }
+
+        // [New code - Tạo URL cổng thanh toán VNPAY Sandbox]:
+        // [Old code - Cổng VNPAY]:
+        // public async Task<VnPayUrlResponse?> CreateVnPayPaymentUrlAsync(int appointmentId)
+        // {
+        //     AttachBearerToken();
+        //     try
+        //     {
+        //         var payload = new { AppointmentId = appointmentId };
+        //         var content = new StringContent(JsonConvert.SerializeObject(payload), Encoding.UTF8, "application/json");
+        //         var res = await _httpClient.PostAsync("/api/Invoices/vnpay-create-payment-url", content);
+        //         if (res.IsSuccessStatusCode)
+        //         {
+        //             var json = await res.Content.ReadAsStringAsync();
+        //             return JsonConvert.DeserializeObject<VnPayUrlResponse>(json);
+        //         }
+        //     }
+        //     catch (Exception ex)
+        //     {
+        //         System.Diagnostics.Debug.WriteLine($"[CreateVnPayPaymentUrlAsync] Error: {ex.Message}");
+        //     }
+        //     return null;
+        // }
+
+        // [New code - Cổng thanh toán quốc tế PayPal REST API v2 & quét mã QR điện thoại]:
+        public async Task<PaypalInfoResponse?> GetPaypalInfoAsync(int appointmentId)
+        {
+            AttachBearerToken();
+            try
+            {
+                var res = await _httpClient.GetAsync($"/api/Invoices/paypal-info/{appointmentId}");
+                if (res.IsSuccessStatusCode)
+                {
+                    var json = await res.Content.ReadAsStringAsync();
+                    return JsonConvert.DeserializeObject<PaypalInfoResponse>(json);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[GetPaypalInfoAsync] Error: {ex.Message}");
+            }
+            return null;
+        }
+
+        // [New code - Kiểm tra trạng thái thanh toán của ca khám]:
+        public async Task<PaymentStatusResponse?> GetPaymentStatusAsync(int appointmentId)
+        {
+            AttachBearerToken();
+            try
+            {
+                var res = await _httpClient.GetAsync($"/api/Invoices/status/{appointmentId}");
+                if (res.IsSuccessStatusCode)
+                {
+                    var json = await res.Content.ReadAsStringAsync();
+                    return JsonConvert.DeserializeObject<PaymentStatusResponse>(json);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[GetPaymentStatusAsync] Error: {ex.Message}");
+            }
+            return null;
         }
 
         // Lễ Tân tạo hồ sơ bệnh nhân vãng lai → trả về mật khẩu tạm thời giả lập gửi SMS

@@ -482,12 +482,38 @@ namespace DTT.Doctor.UI.Forms
             {
                 Font = ClinicalColors.GetMainFont(10.5f, FontStyle.Regular),
                 Location = new Point(175, 11),
-                Size = new Size(240, 28)
+                Size = new Size(220, 28)
             };
             _txtSearchBilling.TextChanged += (s, e) => FilterBillingGrid();
 
+            Button btnReloadBilling = new Button
+            {
+                Text = "Tải lại dữ liệu",
+                Font = ClinicalColors.GetMainFont(10f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(30, 41, 59),
+                BackColor = Color.FromArgb(241, 245, 249),
+                FlatStyle = FlatStyle.Flat,
+                Size = new Size(130, 30),
+                Location = new Point(405, 10),
+                Cursor = Cursors.Hand,
+                UseMnemonic = false
+            };
+            btnReloadBilling.FlatAppearance.BorderSize = 1;
+            btnReloadBilling.FlatAppearance.BorderColor = Color.FromArgb(203, 213, 225);
+            btnReloadBilling.Click += async (s, e) =>
+            {
+                await LoadDataPublicAsync();
+                if (_gridBilling.Rows.Count > 0)
+                {
+                    _gridBilling.ClearSelection();
+                    _gridBilling.Rows[0].Selected = true;
+                    OnBillingRowSelected();
+                }
+            };
+
             pnlSearch.Controls.Add(lblSearch);
             pnlSearch.Controls.Add(_txtSearchBilling);
+            pnlSearch.Controls.Add(btnReloadBilling);
 
             _gridBilling = new AntiFlickerDataGridView { Dock = DockStyle.Fill };
             _gridBilling.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "STT", FillWeight = 25 });
@@ -1587,6 +1613,7 @@ namespace DTT.Doctor.UI.Forms
                         _cboSpecialtyFilter.SelectedIndex = restoreIndex >= 0 ? restoreIndex : 0;
                     }
 
+                    int billingStt = 1;
                     for (int i = 0; i < appointmentsWithSpec.Count; i++)
                     {
                         var appt = appointmentsWithSpec[i].Appt;
@@ -1619,17 +1646,31 @@ namespace DTT.Doctor.UI.Forms
                         Color billingRowColor;
                         if (isPaid)
                         {
-                            billingStatus = "Da thanh toan";
+                            // [Old code]: billingStatus = "Da thanh toan";
+                            // [New code]: Hien thi ro phuong thuc thanh toan (PayPal / VietQR / Tien mat) sau khi tai lai du lieu
+                            string methodSuffix = "";
+                            if (!string.IsNullOrWhiteSpace(appt.PaymentMethod))
+                            {
+                                string pm = appt.PaymentMethod.Trim().ToLowerInvariant();
+                                if (pm == "paypal") methodSuffix = " (PayPal)";
+                                else if (pm == "bank_transfer" || pm == "vietqr" || pm == "transfer") methodSuffix = " (VietQR)";
+                                else if (pm == "cash" || pm == "tien_mat") methodSuffix = " (Tiền mặt)";
+                                else if (pm == "vnpay") methodSuffix = " (VNPAY)";
+                                else methodSuffix = $" ({appt.PaymentMethod})";
+                            }
+                            billingStatus = $"Đã thanh toán{methodSuffix}";
                             billingRowColor = Color.FromArgb(236, 253, 245); // xanh la - da thanh toan
-                            _gridBilling.Rows.Add(i + 1, pName, spec, fee, billingStatus);
-                            _gridBilling.Rows[_gridBilling.Rows.Count - 1].DefaultCellStyle.BackColor = billingRowColor;
+                            int bIdx = _gridBilling.Rows.Add(billingStt++, pName, spec, fee, billingStatus);
+                            _gridBilling.Rows[bIdx].DefaultCellStyle.BackColor = billingRowColor;
+                            _gridBilling.Rows[bIdx].Tag = appt.AppointmentId;
                         }
                         else if (isCompleted)
                         {
                             billingStatus = "[!] CHO THU PHI";
                             billingRowColor = Color.FromArgb(255, 237, 213); // cam nhat - cho thu phi
-                            _gridBilling.Rows.Add(i + 1, pName, spec, fee, billingStatus);
-                            _gridBilling.Rows[_gridBilling.Rows.Count - 1].DefaultCellStyle.BackColor = billingRowColor;
+                            int bIdx = _gridBilling.Rows.Add(billingStt++, pName, spec, fee, billingStatus);
+                            _gridBilling.Rows[bIdx].DefaultCellStyle.BackColor = billingRowColor;
+                            _gridBilling.Rows[bIdx].Tag = appt.AppointmentId;
                         }
 
                         // Luu appointmentId (khong phai patientId) de goi API check-in
@@ -2218,14 +2259,29 @@ namespace DTT.Doctor.UI.Forms
             string spec = row.Cells[2].Value != null ? row.Cells[2].Value.ToString() : "";
             string status = row.Cells[4].Value != null ? row.Cells[4].Value.ToString() : "";
 
-            // Hiển thị tạm thời trong lúc chờ gọi API lấy phí thuốc thật từ đơn thuốc điện tử
+            // [Old code]:
+            // _lblFeeMeds.Text = "3. Phí thuốc theo Đơn thuốc điện tử  :  Đang tính...";
+            // _lblTotalAmount.Text = "TỔNG THANH TOÁN :  Đang tính...";
+
+            // [New code - Hiển thị ngay tổng tiền thực tế từ dòng danh sách, không để chữ 'Đang tính']:
+            string quickTotal = row.Cells[3].Value != null ? row.Cells[3].Value.ToString() : "250.000đ";
             _lblPatientDetail.Text = string.Format("Bệnh nhân: {0}" + Environment.NewLine + "Dịch vụ: {1}", pName, spec);
             _lblFeeExam.Text = "1. Công khám lâm sàng chuyên khoa  :  250.000 VNĐ";
             _lblFeeServices.Text = "2. Phí dịch vụ Cận lâm sàng (CLS)       :  0 VNĐ";
-            _lblFeeMeds.Text = "3. Phí thuốc theo Đơn thuốc điện tử  :  Đang tính...";
-            _lblTotalAmount.Text = "TỔNG THANH TOÁN :  Đang tính...";
+            _lblFeeMeds.Text = "3. Phí thuốc theo Đơn thuốc điện tử  :  0 VNĐ";
+            _lblTotalAmount.Text = string.Format("TỔNG THANH TOÁN :  {0}", quickTotal.EndsWith("VNĐ") ? quickTotal : quickTotal.Replace("đ", "") + " VNĐ");
 
-            if (_patientRowIdMap.TryGetValue(rowIndex, out int apptIdForEstimate) && apptIdForEstimate > 0)
+            int apptIdForEstimate = 0;
+            if (row.Tag is int tagId && tagId > 0)
+            {
+                apptIdForEstimate = tagId;
+            }
+            else if (_patientRowIdMap.TryGetValue(rowIndex, out int mapId) && mapId > 0)
+            {
+                apptIdForEstimate = mapId;
+            }
+
+            if (apptIdForEstimate > 0)
             {
                 RefreshBillingEstimateAsync(rowIndex, apptIdForEstimate);
             }
@@ -2273,13 +2329,21 @@ namespace DTT.Doctor.UI.Forms
                 _lblFeeServices.Text = string.Format("2. Phí dịch vụ Cận lâm sàng (CLS)       :  {0:N0} VNĐ", estimate.ServicesFee);
                 _lblFeeMeds.Text = string.Format("3. Phí thuốc theo Đơn thuốc điện tử  :  {0:N0} VNĐ", estimate.MedsFee);
                 _lblTotalAmount.Text = string.Format("TỔNG THANH TOÁN :  {0:N0} VNĐ", estimate.Total);
+
+                // Cập nhật cả cột TONG VIEN PHI trên bảng danh sách để Lễ Tân thấy ngay
+                if (rowIndex >= 0 && rowIndex < _gridBilling.Rows.Count)
+                {
+                    _gridBilling.Rows[rowIndex].Cells[3].Value = string.Format("{0:N0}đ", estimate.Total);
+                }
             }
             catch (Exception ex)
             {
-                // async void không có nơi nào khác bắt được ngoại lệ — GetInvoiceEstimateAsync hiện tự
-                // nuốt lỗi và trả về ước tính mặc định nên rủi ro thấp, nhưng vẫn phòng hờ nếu logic đó
-                // thay đổi sau này (vd: throw thay vì trả về default).
                 System.Diagnostics.Debug.WriteLine("RefreshBillingEstimateAsync error: " + ex.Message);
+                if (_gridBilling.SelectedRows.Count > 0 && _gridBilling.SelectedRows[0].Index == rowIndex)
+                {
+                    _lblFeeMeds.Text = "3. Phí thuốc theo Đơn thuốc điện tử  :  0 VNĐ";
+                    _lblTotalAmount.Text = "TỔNG THANH TOÁN :  250.000 VNĐ";
+                }
             }
         }
 
@@ -2290,48 +2354,79 @@ namespace DTT.Doctor.UI.Forms
             int rowIndex = row.Index;
             string pName = row.Cells[1].Value != null ? row.Cells[1].Value.ToString() : "";
 
-            // Lấy appointmentId từ _patientRowIdMap (giống check-in)
-            bool apiSuccess = false;
-            int invoiceId = 0;
-            decimal totalCharged = 250000m;
-            try
+            int apptId = 0;
+            if (row.Tag is int tagId && tagId > 0)
             {
-                if (_patientRowIdMap.TryGetValue(rowIndex, out int apptId) && apptId > 0)
-                {
-                    var api = new ApiService();
-                    // Lấy phí khám + phí thuốc THẬT từ đơn thuốc điện tử trước khi xác nhận thu tiền,
-                    // thay vì luôn gửi medsFee=0 như trước đây khiến hóa đơn thiếu tiền thuốc.
-                    var estimate = await api.GetInvoiceEstimateAsync(apptId);
-                    var result = await api.ConfirmPaymentAsync(apptId, 0, estimate.ExamFee, estimate.ServicesFee, estimate.MedsFee);
-                    apiSuccess = result.Success;
-                    invoiceId = result.InvoiceId;
-                    totalCharged = estimate.Total;
-                }
+                apptId = tagId;
             }
-            catch { }
-
-            // KHÔNG đánh dấu "Đã thanh toán" nếu server chưa thực sự ghi nhận giao dịch — trước đây
-            // dòng này luôn báo thành công dù apiSuccess = false, khiến hóa đơn tưởng đã thu tiền
-            // trong khi payment_status trên DB vẫn "unpaid".
-            if (!apiSuccess)
+            else if (_patientRowIdMap.TryGetValue(rowIndex, out int mapId) && mapId > 0)
             {
-                ShowReceptionNotification(
-                    "XÁC NHẬN THU TIỀN THẤT BẠI",
-                    $"Bệnh nhân: {pName}\n\nKhông kết nối được máy chủ (phiên đăng nhập có thể đã hết hạn). Hóa đơn CHƯA được ghi nhận — vui lòng đăng nhập lại và thử lại.",
-                    false);
+                apptId = mapId;
+            }
+
+            if (apptId <= 0)
+            {
+                MessageBox.Show("Không tìm thấy thông tin ca khám để thanh toán.", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
-            row.Cells[4].Value = "Da thanh toan";
-            row.DefaultCellStyle.BackColor = Color.FromArgb(236, 253, 245);
-            OnBillingRowSelected();
-            // Cap nhat badge tren tab
-            UpdateKpiSummaryCards();
+            // [Old code - Xác nhận thu tiền mặt mặc định trực tiếp không có lựa chọn]:
+            // bool apiSuccess = false;
+            // int invoiceId = 0;
+            // decimal totalCharged = 250000m;
+            // try
+            // {
+            //     if (_patientRowIdMap.TryGetValue(rowIndex, out int apptId) && apptId > 0)
+            //     {
+            //         var api = new ApiService();
+            //         var estimate = await api.GetInvoiceEstimateAsync(apptId);
+            //         var result = await api.ConfirmPaymentAsync(apptId, 0, estimate.ExamFee, estimate.ServicesFee, estimate.MedsFee);
+            //         apiSuccess = result.Success;
+            //         invoiceId = result.InvoiceId;
+            //         totalCharged = estimate.Total;
+            //     }
+            // }
+            // catch { }
 
-            ShowReceptionNotification(
-                "[OK] XAC NHAN THU TIEN THANH CONG",
-                string.Format("Benh nhan: {0}\nVien phi: {1:N0}d\nTrang thai: DA THANH TOAN TAI BENH VIEN\n\n Hoa don #HD-{2} da duoc tao trong CSDL va day len App Mobile cua benh nhan!", pName, totalCharged, invoiceId),
-                true);
+            // [New code - Mở hộp thoại chọn 2 phương thức thanh toán: 1. Tiền mặt tại quầy, 2. Quét mã PayPal]:
+            var api = new ApiService();
+            using var dlg = new PaymentSelectionDialogForm(apptId, 0, pName, api);
+            if (dlg.ShowDialog(this) == DialogResult.OK && dlg.PaymentSuccess)
+            {
+                string methodText = dlg.SelectedMethod switch
+                {
+                    "paypal" => "Đã thanh toán (PayPal)",
+                    _ => "Đã thanh toán (Tiền mặt)"
+                };
+
+                row.Cells[4].Value = methodText;
+                row.DefaultCellStyle.BackColor = Color.FromArgb(236, 253, 245);
+                OnBillingRowSelected();
+                // Cập nhật badge trên tab
+                UpdateKpiSummaryCards();
+
+                // [Old code]:
+                // ShowReceptionNotification(
+                //     "[OK] XÁC NHẬN THU TIỀN THÀNH CÔNG",
+                //     $"Bệnh nhân: {pName}\nHình thức: {methodText}\n\nHóa đơn #HD-{dlg.ResultInvoiceId} đã được ghi nhận trong CSDL và gửi thông báo lên App Mobile của bệnh nhân!",
+                //     true);
+
+                // [New code - Chi tiết từng loại chi phí trong thông báo thành công]:
+                string breakdownMsg =
+                    $"Bệnh nhân: {pName}\n" +
+                    $"Hình thức: {methodText}\n\n" +
+                    $"• 1. Công khám lâm sàng: {dlg.ResultExamFee:N0} VNĐ\n" +
+                    $"• 2. Phí dịch vụ CLS: {dlg.ResultServicesFee:N0} VNĐ\n" +
+                    $"• 3. Phí thuốc đơn điện tử: {dlg.ResultMedsFee:N0} VNĐ\n" +
+                    $"────────────────────────────\n" +
+                    $"➜ TỔNG THU VIỆN PHÍ: {dlg.ResultTotalAmount:N0} VNĐ\n\n" +
+                    $"Hóa đơn #HD-{dlg.ResultInvoiceId} đã được ghi nhận trong CSDL và gửi thông báo lên App Mobile của bệnh nhân!";
+
+                ShowReceptionNotification(
+                    "[OK] XÁC NHẬN THU TIỀN THÀNH CÔNG",
+                    breakdownMsg,
+                    true);
+            }
         }
 
         private void ExecutePrintInvoice()
@@ -2346,6 +2441,35 @@ namespace DTT.Doctor.UI.Forms
             string pName = row.Cells[1].Value != null ? row.Cells[1].Value.ToString() : "";
             string spec = row.Cells[2].Value != null ? row.Cells[2].Value.ToString() : "";
             string total = row.Cells[3].Value != null ? row.Cells[3].Value.ToString() : "250.000đ";
+            string statusCol = row.Cells[4].Value != null ? row.Cells[4].Value.ToString() : "";
+
+            // [Old code]:
+            // g.DrawString("Hình thức thanh toán : Thu tiền mặt / Thẻ POS tại Quầy thu ngân Bệnh viện", fontReg, Brushes.Black, 50, 215);
+            // g.DrawString("Trạng thái          : ĐÃ THANH TOÁN TẠI QUẦY BỆNH VIỆN", fontBold, Brushes.Green, 50, 310);
+
+            // [New code - Cập nhật Hình thức thanh toán và Trạng thái động theo phương thức đã chọn]:
+            string paymentMethodText = "Thu tiền mặt tại Quầy thu ngân Bệnh viện";
+            string paymentStatusText = "ĐÃ THANH TOÁN HOÀN TẤT TẠI QUẦY BỆNH VIỆN";
+            Brush statusBrush = Brushes.Green;
+
+            if (statusCol.Contains("PayPal") || statusCol.Contains("paypal"))
+            {
+                paymentMethodText = "Thanh toán trực tuyến qua Cổng Quốc Tế PayPal (Quét mã QR)";
+                paymentStatusText = "ĐÃ THANH TOÁN THÀNH CÔNG QUA CỔNG PAYPAL";
+                statusBrush = Brushes.Navy;
+            }
+            else if (statusCol.Contains("Chuyển khoản") || statusCol.Contains("bank_transfer") || statusCol.Contains("VietQR"))
+            {
+                paymentMethodText = "Chuyển khoản Ngân hàng (VietQR Napas 247)";
+                paymentStatusText = "ĐÃ THANH TOÁN THÀNH CÔNG QUA VIETQR (CHUYỂN KHOẢN)";
+                statusBrush = Brushes.DarkGreen;
+            }
+            else if (statusCol.Contains("CHO THU PHI") || statusCol.Contains("Cho thu phi"))
+            {
+                paymentMethodText = "Chưa xác định hình thức thanh toán";
+                paymentStatusText = "CHƯA THANH TOÁN (ĐANG CHỜ THU PHÍ)";
+                statusBrush = Brushes.DarkOrange;
+            }
 
             try
             {
@@ -2364,11 +2488,11 @@ namespace DTT.Doctor.UI.Forms
                     g.DrawString("HÓA ĐƠN TÀI CHÍNH VIỆN PHÍ", fontTitle, Brushes.Black, 240, 105);
                     g.DrawString(string.Format("Họ và tên bệnh nhân : {0}", pName), fontReg, Brushes.Black, 50, 155);
                     g.DrawString(string.Format("Nội dung thanh toán  : {0}", spec), fontReg, Brushes.Black, 50, 185);
-                    g.DrawString("Hình thức thanh toán : Thu tiền mặt / Thẻ POS tại Quầy thu ngân Bệnh viện", fontReg, Brushes.Black, 50, 215);
+                    g.DrawString(string.Format("Hình thức thanh toán : {0}", paymentMethodText), fontReg, Brushes.Black, 50, 215);
 
                     g.DrawLine(Pens.Gray, 50, 250, 750, 250);
                     g.DrawString(string.Format("TỔNG TIỀN ĐÃ THU  : {0}", total), fontTitle, Brushes.Red, 50, 270);
-                    g.DrawString("Trạng thái          : ĐÃ THANH TOÁN TẠI QUẦY BỆNH VIỆN", fontBold, Brushes.Green, 50, 310);
+                    g.DrawString(string.Format("Trạng thái          : {0}", paymentStatusText), fontBold, statusBrush, 50, 310);
 
                     g.DrawString("Người lập hóa đơn" + Environment.NewLine + "(Ký và ghi rõ họ tên)", fontBold, Brushes.Black, 550, 365);
                     g.DrawString(!string.IsNullOrEmpty(TokenVault.FullName) ? TokenVault.FullName : "Nguyễn Thị Minh Châu", fontBold, Brushes.Navy, 550, 440);
@@ -2414,7 +2538,7 @@ namespace DTT.Doctor.UI.Forms
         {
             using (Form dialog = new Form())
             {
-                dialog.Size = new Size(540, 380);
+                dialog.Size = new Size(580, 460);
                 dialog.StartPosition = FormStartPosition.CenterScreen;
                 dialog.FormBorderStyle = FormBorderStyle.None;
                 dialog.BackColor = Color.White;
@@ -2435,7 +2559,7 @@ namespace DTT.Doctor.UI.Forms
                     Font = ClinicalColors.GetMainFont(11.5f, FontStyle.Bold),
                     ForeColor = Color.White,
                     Location = new Point(20, 14),
-                    Size = new Size(450, 28),
+                    Size = new Size(480, 28),
                     TextAlign = ContentAlignment.MiddleLeft,
                     UseMnemonic = false
                 };
@@ -2447,7 +2571,7 @@ namespace DTT.Doctor.UI.Forms
                     ForeColor = Color.White,
                     FlatStyle = FlatStyle.Flat,
                     Size = new Size(36, 36),
-                    Location = new Point(485, 10),
+                    Location = new Point(525, 10),
                     Cursor = Cursors.Hand,
                     UseMnemonic = false
                 };
@@ -2460,7 +2584,7 @@ namespace DTT.Doctor.UI.Forms
                 Panel pnlBody = new Panel
                 {
                     Dock = DockStyle.Fill,
-                    Padding = new Padding(24, 20, 24, 75),
+                    Padding = new Padding(24, 20, 24, 80),
                     BackColor = Color.White
                 };
 
@@ -2481,7 +2605,7 @@ namespace DTT.Doctor.UI.Forms
                     BackColor = themeColor,
                     FlatStyle = FlatStyle.Flat,
                     Size = new Size(240, 44),
-                    Location = new Point(150, 316),
+                    Location = new Point(170, 395),
                     Cursor = Cursors.Hand,
                     UseMnemonic = false
                 };
