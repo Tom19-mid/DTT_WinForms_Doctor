@@ -84,7 +84,7 @@ namespace DTT.Doctor.UI.Forms
 
             Button btnRefresh = new Button
             {
-                Text = "🔄 Làm mới",
+                Text = "Làm mới",
                 Font = ClinicalColors.GetMainFont(9.5f, FontStyle.Bold),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = ClinicalColors.PrimaryBlue,
@@ -94,7 +94,7 @@ namespace DTT.Doctor.UI.Forms
                 Cursor = Cursors.Hand
             };
             btnRefresh.FlatAppearance.BorderSize = 0;
-            btnRefresh.Click += async (s, e) => await RefreshAllAsync();
+            btnRefresh.Click += async (s, e) => { ButtonFlashHelper.Flash(btnRefresh); await RefreshAllAsync(); };
 
             pnlKpi.Controls.Add(cardWaiting);
             pnlKpi.Controls.Add(cardDone);

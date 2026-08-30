@@ -550,7 +550,7 @@ namespace DTT.Doctor.UI.Forms
 
             RoundedButton btnPrint = new RoundedButton
             {
-                Text = "🖨️   IN ĐƠN THUỐC QR",
+                Text = "🖨️   IN ĐƠN THUỐC",
                 Font = ClinicalColors.GetMainFont(10f, FontStyle.Bold),
                 BackColor = ClinicalColors.PrimaryBlue,
                 HoverBackColor = Color.FromArgb(29, 78, 216),
@@ -797,7 +797,7 @@ namespace DTT.Doctor.UI.Forms
             if (_prescriptions.Count > 0)
             {
                 MessageBox.Show(
-                    $"✅ HOÀN TẤT KHÁM & ĐÃ CHUYỂN ĐƠN THUỐC CHO DƯỢC SĨ!\n\n" +
+                    $"HOÀN TẤT KHÁM & ĐÃ CHUYỂN ĐƠN THUỐC CHO DƯỢC SĨ!\n\n" +
                     $"• Bệnh nhân: {_appointment.PatientName}\n" +
                     $"• Chẩn đoán: {(!string.IsNullOrEmpty(_txtDiagnosis.Text) ? _txtDiagnosis.Text : "Khám sức khỏe")}\n" +
                     $"• Số loại thuốc đã kê: {_prescriptions.Count} loại thuốc\n\n" +
@@ -807,7 +807,7 @@ namespace DTT.Doctor.UI.Forms
             else
             {
                 MessageBox.Show(
-                    $"✅ HOÀN TẤT CA KHÁM VÀ LƯU HỒ SƠ Y TẾ!\n\n" +
+                    $"HOÀN TẤT CA KHÁM VÀ LƯU HỒ SƠ Y TẾ!\n\n" +
                     $"• Bệnh nhân: {_appointment.PatientName}\n" +
                     $"• Chẩn đoán: {(!string.IsNullOrEmpty(_txtDiagnosis.Text) ? _txtDiagnosis.Text : "Khám sức khỏe")}\n\n" +
                     $"Hồ sơ khám bệnh đã được ghi nhận thành công trên hệ thống.",

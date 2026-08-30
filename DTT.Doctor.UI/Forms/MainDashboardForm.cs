@@ -44,6 +44,7 @@ namespace DTT.Doctor.UI.Forms
         private LabTechWorkstationForm _labTechChildForm;
         private PharmacistWorkstationForm _pharmacistChildForm;
         private int _lastSeenAdminNotificationId = 0;
+        private NotifyIcon _notifyIcon;
 
         public MainDashboardForm()
         {
@@ -111,6 +112,7 @@ namespace DTT.Doctor.UI.Forms
                 _autoRefreshTimer?.Stop();
                 _autoRefreshTimer?.Dispose();
                 NotificationHubService.NotificationsChanged -= OnAdminNotificationsChanged;
+                _notifyIcon?.Dispose();
             };
         }
 
@@ -531,7 +533,7 @@ namespace DTT.Doctor.UI.Forms
 
             RoundedButton btnReloadLive = new RoundedButton
             {
-                Text = "🔄  Làm Mới",
+                Text = "Làm Mới",
                 Font = ClinicalColors.GetMainFont(10f, FontStyle.Bold),
                 BackColor = Color.FromArgb(16, 185, 129), // Vibrant emerald green
                 HoverBackColor = Color.FromArgb(5, 150, 105),
@@ -541,7 +543,7 @@ namespace DTT.Doctor.UI.Forms
                 Location = new Point(860, 15),
                 Anchor = AnchorStyles.Top | AnchorStyles.Left
             };
-            btnReloadLive.Click += async (s, e) => await _presenter.LoadQueueAsync(false);
+            btnReloadLive.Click += async (s, e) => { btnReloadLive.Flash(); await _presenter.LoadQueueAsync(false); };
 
             pnlFilterBar.Controls.Add(_btnTabAll);
             pnlFilterBar.Controls.Add(_btnTabWaiting);
@@ -1265,85 +1267,7 @@ namespace DTT.Doctor.UI.Forms
         private void ShowCornerToast(string title, string message, Color accentColor)
         {
             if (this.IsDisposed || !this.Visible) return;
-
-            // Strip unicode surrogates for clean rendering
-            title = title.Replace("🚫 ", "").Replace("⏰ ", "").Replace("📋 ", "").Replace("✅ ", "").Replace("❌ ", "").Replace("🔔  ", "").Replace("🔄 ", "").Trim();
-
-            AntiFlickerPanel toast = new AntiFlickerPanel
-            {
-                Size = new Size(360, 80),
-                BackColor = Color.FromArgb(15, 23, 42), // Premium Dark Slate Navy
-                BorderColor = accentColor,
-                BorderRadius = 10,
-                Padding = new Padding(12, 10, 12, 10),
-                Anchor = AnchorStyles.Bottom | AnchorStyles.Right,
-                Location = new Point(this.ClientSize.Width - 380, this.ClientSize.Height - 95),
-                Cursor = Cursors.Hand
-            };
-
-            Action dismiss = () => { if (!toast.IsDisposed && this.Controls.Contains(toast)) { this.Controls.Remove(toast); toast.Dispose(); } };
-            toast.Click += (s, e) => dismiss();
-
-            Panel strip = new Panel
-            {
-                Location = new Point(0, 0),
-                Size = new Size(6, 80),
-                BackColor = accentColor
-            };
-
-            Label lblClose = new Label
-            {
-                Text = "✕",
-                Font = ClinicalColors.GetMainFont(9.5f, FontStyle.Bold),
-                ForeColor = Color.FromArgb(148, 163, 184),
-                Location = new Point(332, 6),
-                Size = new Size(20, 20),
-                TextAlign = ContentAlignment.MiddleCenter,
-                Cursor = Cursors.Hand
-            };
-            lblClose.Click += (s, e) => dismiss();
-            lblClose.MouseEnter += (s, e) => lblClose.ForeColor = Color.White;
-            lblClose.MouseLeave += (s, e) => lblClose.ForeColor = Color.FromArgb(148, 163, 184);
-
-            Label lblTitle = new Label
-            {
-                Text = title.ToUpper(),
-                Font = ClinicalColors.GetMainFont(10f, FontStyle.Bold),
-                ForeColor = accentColor,
-                Location = new Point(18, 10),
-                Size = new Size(310, 22),
-                TextAlign = ContentAlignment.MiddleLeft
-            };
-            lblTitle.Click += (s, e) => dismiss();
-
-            Label lblMsg = new Label
-            {
-                Text = message,
-                Font = ClinicalColors.GetMainFont(9f, FontStyle.Regular),
-                ForeColor = Color.FromArgb(226, 232, 240),
-                Location = new Point(18, 32),
-                Size = new Size(330, 42),
-                TextAlign = ContentAlignment.TopLeft
-            };
-            lblMsg.Click += (s, e) => dismiss();
-
-            toast.Controls.Add(strip);
-            toast.Controls.Add(lblClose);
-            toast.Controls.Add(lblTitle);
-            toast.Controls.Add(lblMsg);
-
-            this.Controls.Add(toast);
-            toast.BringToFront();
-
-            try { System.Media.SystemSounds.Asterisk.Play(); } catch { }
-
-            System.Windows.Forms.Timer toastTimer = new System.Windows.Forms.Timer { Interval = 4500 };
-            toastTimer.Tick += (s, e) => {
-                toastTimer.Stop();
-                toastTimer.Dispose();
-                dismiss();
-            };
-            toastTimer.Start();
+            SystemNotifier.Show(ref _notifyIcon, this, title, message, accentColor);
         }
 
         public void UpdateKpiCards(int total, int waiting, int inProgress, int completed)

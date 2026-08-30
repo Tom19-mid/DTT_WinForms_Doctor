@@ -14,6 +14,8 @@ namespace DTT.Doctor.UI.Controls
         public Color HoverBackColor { get; set; } = Color.FromArgb(37, 99, 235);
         public Color NormalBackColor { get; set; } = ClinicalColors.PrimaryBlue;
         private bool _isHovered = false;
+        private bool _isFlashing = false;
+        private Color _flashColor;
 
         public RoundedButton()
         {
@@ -24,6 +26,32 @@ namespace DTT.Doctor.UI.Controls
             DoubleBuffered = true;
             MouseEnter += (s, e) => { _isHovered = true; Invalidate(); };
             MouseLeave += (s, e) => { _isHovered = false; Invalidate(); };
+        }
+
+        // Nhấp nháy nhanh khi bấm — mô phỏng phản hồi "F5 làm mới" trên Windows để người dùng biết
+        // thao tác đã thực sự được ghi nhận, không chỉ im lặng chờ dữ liệu tải xong.
+        public void Flash()
+        {
+            if (IsDisposed) return;
+            _flashColor = ControlPaint.Light(BackColor, 0.7f);
+            int step = 0;
+            const int totalSteps = 4; // sáng - tối - sáng - tối
+            var timer = new System.Windows.Forms.Timer { Interval = 90 };
+            timer.Tick += (s, e) =>
+            {
+                if (IsDisposed) { timer.Stop(); timer.Dispose(); return; }
+                _isFlashing = step % 2 == 0;
+                Invalidate();
+                step++;
+                if (step >= totalSteps)
+                {
+                    timer.Stop();
+                    timer.Dispose();
+                    _isFlashing = false;
+                    Invalidate();
+                }
+            };
+            timer.Start();
         }
 
         protected override void OnPaintBackground(PaintEventArgs pevent)
@@ -41,7 +69,7 @@ namespace DTT.Doctor.UI.Controls
         {
             pevent.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
             Rectangle rect = new Rectangle(0, 0, Width, Height);
-            Color currentBack = _isHovered && Enabled ? HoverBackColor : BackColor;
+            Color currentBack = _isFlashing ? _flashColor : (_isHovered && Enabled ? HoverBackColor : BackColor);
 
             using (var path = CreateRoundedPath(rect, BorderRadius))
             {

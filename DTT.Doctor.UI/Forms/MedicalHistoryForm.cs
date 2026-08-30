@@ -139,7 +139,7 @@ namespace DTT.Doctor.UI.Forms
                 Cursor = Cursors.Hand
             };
             btnRefresh.FlatAppearance.BorderColor = Color.FromArgb(199, 210, 254);
-            btnRefresh.Click += (s, e) => { _txtSearch.Text = ""; _ = LoadMedicalHistoryAsync(); };
+            btnRefresh.Click += (s, e) => { ButtonFlashHelper.Flash(btnRefresh); _txtSearch.Text = ""; _ = LoadMedicalHistoryAsync(); };
 
             _lblStatus = new Label
             {

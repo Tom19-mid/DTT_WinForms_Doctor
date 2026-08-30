@@ -33,7 +33,7 @@ namespace DTT.Doctor.Presenter.ViewModels
 
             if (string.IsNullOrWhiteSpace(password))
             {
-                _view.OnLoginFailure("Vui lòng nhập Mật khẩu bảo mật.");
+                _view.OnLoginFailure("Vui lòng nhập mật khẩu");
                 return;
             }
 

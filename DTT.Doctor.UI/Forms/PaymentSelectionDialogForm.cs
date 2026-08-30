@@ -33,6 +33,7 @@ namespace DTT.Doctor.UI.Forms
         private decimal _servicesFee = 0m;
         private decimal _medsFee = 0m;
         private decimal _totalAmount = 250000m;
+        private bool _estimateLoadFailed = false;
 
         // VietQR state
         private VietQrResponse? _vietQrInfo;
@@ -222,8 +223,24 @@ namespace DTT.Doctor.UI.Forms
                 _medsFee = estimate.MedsFee;
                 _totalAmount = estimate.Total;
 
-                _lblTotalHighlight.Text = $"{_totalAmount:N0} VNĐ";
-                _lblBreakdown.Text = $"Công khám: {_examFee:N0}đ  |  CLS: {_servicesFee:N0}đ  |  Thuốc: {_medsFee:N0}đ";
+                if (!estimate.Success)
+                {
+                    // Không tải được số tiền hóa đơn THẬT — trước đây vẫn hiển thị và cho thu 250.000đ
+                    // bịa cứng như thể đó là số tiền thật. Giờ báo lỗi rõ ràng và chặn hẳn việc thu
+                    // tiền cho tới khi tải lại thành công (xem cờ _estimateLoadFailed trong ProcessPaymentAsync).
+                    _estimateLoadFailed = true;
+                    _lblTotalHighlight.Text = "LỖI TẢI DỮ LIỆU";
+                    _lblTotalHighlight.ForeColor = Color.FromArgb(220, 38, 38);
+                    _lblBreakdown.Text = "Không thể tải số tiền hóa đơn — vui lòng đóng cửa sổ này và thử lại.";
+                    MessageBox.Show(
+                        "Không thể tải số tiền hóa đơn — vui lòng thử lại.\n\nHệ thống sẽ KHÔNG cho phép xác nhận thu tiền cho tới khi tải lại thành công, để tránh thu sai số tiền.",
+                        "Lỗi tải dữ liệu hóa đơn", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+                else
+                {
+                    _lblTotalHighlight.Text = $"{_totalAmount:N0} VNĐ";
+                    _lblBreakdown.Text = $"Công khám: {_examFee:N0}đ  |  CLS: {_servicesFee:N0}đ  |  Thuốc: {_medsFee:N0}đ";
+                }
 
                 // Mặc định mở tab Tiền mặt
                 SwitchTab("cash");
@@ -674,6 +691,16 @@ namespace DTT.Doctor.UI.Forms
         // ── PAYMENT EXECUTION ────────────────────────────────────────────────
         private async Task ProcessPaymentAsync(string method)
         {
+            if (_estimateLoadFailed)
+            {
+                // Chặn thu tiền khi chưa tải được số tiền hóa đơn THẬT — tránh thu 0đ hoặc một số
+                // tiền không có căn cứ. Lễ Tân cần đóng cửa sổ này và mở lại để API thử tải lại.
+                MessageBox.Show(
+                    "Không thể tải số tiền hóa đơn — vui lòng thử lại.\nVui lòng đóng cửa sổ này và mở lại để tải lại số tiền trước khi thu.",
+                    "Lỗi tải dữ liệu hóa đơn", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
             try
             {
                 var result = await _api.ConfirmPaymentAsync(_appointmentId, _patientId, _examFee, _servicesFee, _medsFee, method);

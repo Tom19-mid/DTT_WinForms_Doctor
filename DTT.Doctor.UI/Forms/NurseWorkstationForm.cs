@@ -61,6 +61,7 @@ namespace DTT.Doctor.UI.Forms
         private HashSet<int> _seenWaitingIds = new HashSet<int>();
         private HashSet<string> _seenDoneClsKeys = new HashSet<string>();
         private bool _hasLoadedOnce = false;
+        private NotifyIcon _notifyIcon;
 
         // ── Constructor ─────────────────────────────────────────────────────
         public NurseWorkstationForm()
@@ -81,6 +82,7 @@ namespace DTT.Doctor.UI.Forms
             {
                 _autoRefreshTimer?.Stop();
                 _autoRefreshTimer?.Dispose();
+                _notifyIcon?.Dispose();
             };
         }
 
@@ -96,12 +98,17 @@ namespace DTT.Doctor.UI.Forms
             }
         }
 
+        // Trước đây bảng nhập sinh hiệu tự hiện ngay khi vào tab "Chờ Đo Sinh Hiệu"/"Đã Đo Hôm
+        // Nay", kể cả khi chưa chọn bệnh nhân nào — nhìn như một form đang chờ nhập liệu dù
+        // trống. Giờ chuyển tab luôn ẩn bảng này đi; nó chỉ hiện lại khi điều dưỡng bấm chọn
+        // đúng một bệnh nhân trong danh sách (xem OnWaitingGridCellClick).
         private void UpdateVitalsPanelVisibility()
         {
-            if (_pnlVitals != null && _tabControl != null)
+            if (_pnlVitals != null)
             {
-                bool showVitals = _tabControl.SelectedIndex == 0 || _tabControl.SelectedIndex == 1;
-                _pnlVitals.Visible = showVitals;
+                _pnlVitals.Visible = false;
+                _selectedAppointmentId = 0;
+                _selectedPatientName = "";
             }
         }
 
@@ -133,7 +140,7 @@ namespace DTT.Doctor.UI.Forms
 
             Button btnRefresh = new Button
             {
-                Text      = "🔄 Làm mới",
+                Text      = "Làm mới",
                 Font      = ClinicalColors.GetMainFont(9.5f, FontStyle.Bold),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = ClinicalColors.PrimaryBlue,
@@ -143,7 +150,7 @@ namespace DTT.Doctor.UI.Forms
                 Cursor    = Cursors.Hand
             };
             btnRefresh.FlatAppearance.BorderSize = 0;
-            btnRefresh.Click += async (s, e) => await RefreshAllAsync();
+            btnRefresh.Click += async (s, e) => { ButtonFlashHelper.Flash(btnRefresh); await RefreshAllAsync(); };
 
             pnlKpi.Controls.Add(cardWaiting);
             pnlKpi.Controls.Add(cardDone);
@@ -152,10 +159,12 @@ namespace DTT.Doctor.UI.Forms
             // ── Body: Left tab + Right vitals panel ──────────────────────
             Panel pnlBody = new Panel { Dock = DockStyle.Fill };
 
-            // Right vitals panel (always visible, filled when patient selected)
+            // Right vitals panel — ẩn mặc định, chỉ hiện khi điều dưỡng bấm chọn một bệnh nhân
+            // trong danh sách (OnWaitingGridCellClick); chuyển tab hoặc lưu xong sẽ ẩn lại.
             _pnlVitals = BuildVitalsPanel();
-            _pnlVitals.Width = 360;
-            _pnlVitals.Dock  = DockStyle.Right;
+            _pnlVitals.Width   = 360;
+            _pnlVitals.Dock    = DockStyle.Right;
+            _pnlVitals.Visible = false;
 
             // Left: TabControl
             _tabControl = new TabControl
@@ -565,6 +574,7 @@ namespace DTT.Doctor.UI.Forms
             if (row.Cells["ColApptId"].Value == null) return;
             _selectedAppointmentId = Convert.ToInt32(row.Cells["ColApptId"].Value);
             _selectedPatientName   = row.Cells["ColName"].Value?.ToString() ?? "Bệnh nhân";
+            _pnlVitals.Visible     = true;
 
             // Highlight row
             for (int i = 0; i < _gridWaiting.Rows.Count; i++)
@@ -680,6 +690,7 @@ namespace DTT.Doctor.UI.Forms
                 _btnSaveVitals.Text    = "✅  LƯU & CHUYỂN CHO BÁC SĨ";
                 _btnSaveVitals.Enabled = false;
                 _lblVitalsStatus.Text  = "";
+                _pnlVitals.Visible     = false;
                 await RefreshAllAsync();
             }
             else
@@ -695,76 +706,7 @@ namespace DTT.Doctor.UI.Forms
         private void ShowNurseToast(string title, string message, Color accentColor)
         {
             if (this.IsDisposed || !this.Visible) return;
-
-            AntiFlickerPanel toast = new AntiFlickerPanel
-            {
-                Size = new Size(360, 80),
-                BackColor = Color.FromArgb(15, 23, 42),
-                BorderColor = accentColor,
-                BorderRadius = 10,
-                Padding = new Padding(12, 10, 12, 10),
-                Anchor = AnchorStyles.Bottom | AnchorStyles.Right,
-                Location = new Point(this.ClientSize.Width - 380, this.ClientSize.Height - 95),
-                Cursor = Cursors.Hand
-            };
-
-            Action dismiss = () => { if (!toast.IsDisposed && this.Controls.Contains(toast)) { this.Controls.Remove(toast); toast.Dispose(); } };
-            toast.Click += (s, e) => dismiss();
-
-            Panel strip = new Panel { Location = new Point(0, 0), Size = new Size(6, 80), BackColor = accentColor };
-
-            Label lblClose = new Label
-            {
-                Text = "✕",
-                Font = ClinicalColors.GetMainFont(9.5f, FontStyle.Bold),
-                ForeColor = Color.FromArgb(148, 163, 184),
-                Location = new Point(332, 6),
-                Size = new Size(20, 20),
-                TextAlign = ContentAlignment.MiddleCenter,
-                Cursor = Cursors.Hand
-            };
-            lblClose.Click += (s, e) => dismiss();
-
-            Label lblTitle = new Label
-            {
-                Text = title,
-                Font = ClinicalColors.GetMainFont(10f, FontStyle.Bold),
-                ForeColor = accentColor,
-                Location = new Point(18, 10),
-                Size = new Size(310, 22),
-                TextAlign = ContentAlignment.MiddleLeft
-            };
-            lblTitle.Click += (s, e) => dismiss();
-
-            Label lblMsg = new Label
-            {
-                Text = message,
-                Font = ClinicalColors.GetMainFont(9f, FontStyle.Regular),
-                ForeColor = Color.FromArgb(226, 232, 240),
-                Location = new Point(18, 32),
-                Size = new Size(330, 42),
-                TextAlign = ContentAlignment.TopLeft
-            };
-            lblMsg.Click += (s, e) => dismiss();
-
-            toast.Controls.Add(strip);
-            toast.Controls.Add(lblClose);
-            toast.Controls.Add(lblTitle);
-            toast.Controls.Add(lblMsg);
-
-            this.Controls.Add(toast);
-            toast.BringToFront();
-
-            try { System.Media.SystemSounds.Asterisk.Play(); } catch { }
-
-            System.Windows.Forms.Timer toastTimer = new System.Windows.Forms.Timer { Interval = 5000 };
-            toastTimer.Tick += (s, e) =>
-            {
-                toastTimer.Stop();
-                toastTimer.Dispose();
-                dismiss();
-            };
-            toastTimer.Start();
+            SystemNotifier.Show(ref _notifyIcon, this, title, message, accentColor);
         }
 
         // ── Helpers ─────────────────────────────────────────────────────────

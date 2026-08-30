@@ -69,54 +69,12 @@ namespace DTT.Doctor.Services.Core
             }
             catch (Exception ex)
             {
-                // Complete Fallback matching ALL 10 real doctors in PostgreSQL database (doctors.csv / users.csv)
-                var dbDoctors = new Dictionary<string, (int id, string name, string degree, string room, int specId, string specName, string email, int roleId, string roleCode, string roleName)>
-                {
-                    ["0900000004"] = (1, "Nguyễn Thị Minh Châu", "Cử nhân Quản trị Y tế", "Bàn Tiếp Đón & Thu Ngân #01", 1, "Tiếp Đón & Thu Ngân", "letan.minhchau@gmail.com", 4, "RECEPTIONIST", "Lễ tân tiếp đón"),
-                    ["0900000005"] = (2, "Phạm Thị Hồng Hạnh", "Cử nhân Điều dưỡng Chính", "Trạm Đo Sinh Hiệu #02", 1, "Trạm Sinh Hiệu", "dieuduong.honghanh@gmail.com", 5, "NURSE", "Điều dưỡng"),
-                    ["0900000006"] = (3, "KTV. Trần Tuấn Kiệt", "Cử nhân Chẩn đoán Hình ảnh", "Phòng Siêu âm / Xét nghiệm", 8, "Cận Lâm Sàng", "ktv.tuankiet@gmail.com", 6, "LAB_TECH", "Kỹ thuật viên CLS"),
-                    ["0900000007"] = (4, "Ds. Trịnh Mai Phương", "Dược sĩ Đại học", "Nhà Thuốc Bệnh Viện #01", 1, "Nhà Thuốc Bệnh Viện", "duocsi.maiphuong@gmail.com", 7, "PHARMACIST", "Dược sĩ"),
-                    ["0901111111"] = (5, "BS. CKII Nguyễn Văn A", "Chuyên khoa II Nội tổng quát", "Phòng 101", 1, "Nội tổng quát", "doctor1@gmail.com", 2, "DOCTOR", "Bác sĩ"),
-                    ["0902222222"] = (3, "ThS. BS Trần Văn C", "Thạc sĩ Chuyên môn Tim mạch", "Phòng 201", 5, "Tim mạch", "doctor2@gmail.com", 2, "DOCTOR", "Bác sĩ"),
-                    ["0903333333"] = (4, "BS. CKI Lê Hoàng Văn", "Bác sĩ Chuyên khoa Nhi", "Phòng 102", 2, "Nhi", "doctor3@gmail.com", 2, "DOCTOR", "Bác sĩ"),
-                    ["0904444444"] = (6, "BS. CKI Phạm Thị D", "Bác sĩ Chuyên khoa Da liễu", "Phòng 202", 7, "Da liễu", "doctor4@gmail.com", 2, "DOCTOR", "Bác sĩ"),
-                    ["0905555555"] = (8, "TS. BS Đỗ Phương Hạnh", "Tiến sĩ Chuyên môn Phụ & Sản khoa", "Phòng 301", 3, "Phụ & Sản khoa", "doctor5@gmail.com", 2, "DOCTOR", "Bác sĩ"),
-                    ["0906666666"] = (9, "BS. CKII Phạm Tuấn Kiệt", "Chuyên khoa II Cơ xương khớp", "Phòng 302", 4, "Cơ xương khớp", "doctor6@gmail.com", 2, "DOCTOR", "Bác sĩ"),
-                    ["0907777777"] = (10, "ThS. BS Vũ Bích Ngọc", "Thạc sĩ Bác sĩ Thần kinh", "Phòng 401", 6, "Thần kinh", "doctor7@gmail.com", 2, "DOCTOR", "Bác sĩ"),
-                    ["0908888888"] = (11, "BS. CKI Hoàng Văn Long", "Chuyên khoa Chẩn đoán hình ảnh", "Phòng 402", 8, "Chẩn đoán hình ảnh", "doctor8@gmail.com", 2, "DOCTOR", "Bác sĩ"),
-                    ["0909999999"] = (12, "BS. CKII Trịnh Hoàng Minh", "Bác sĩ Cố vấn Nội tổng quát", "Phòng 103", 1, "Nội tổng quát", "doctor9@gmail.com", 2, "DOCTOR", "Bác sĩ"),
-                    ["0910000000"] = (13, "ThS. BS Nguyễn Mai Chi", "Thạc sĩ Chuyên khoa Nhi", "Phòng 104", 2, "Nhi", "doctor10@gmail.com", 2, "DOCTOR", "Bác sĩ")
-                };
-
-                // Chỉ cho phép fallback demo ngoại tuyến (khi không gọi được API) nếu mật khẩu khớp
-                // đúng mật khẩu demo cố định — trước đây bất kỳ mật khẩu nào cũng được chấp nhận cho
-                // ~14 số điện thoại liệt kê ở trên, tức là chỉ cần gây mất kết nối API (hoặc API tạm
-                // down) là đăng nhập được vào bất kỳ tài khoản nào trong danh sách mà không cần biết
-                // mật khẩu thật.
-                const string offlineDemoPassword = "Demo@2026";
-                if (password == offlineDemoPassword && (dbDoctors.TryGetValue(phone, out var doc) || phone == "admin" || phone == "demo"))
-                {
-                    if (phone == "admin" || phone == "demo") doc = dbDoctors["0901111111"];
-                    var demo = new DoctorAuthResponseDto
-                    {
-                        Token = "demo_jwt_token_doctor_2026",
-                        DoctorId = doc.id,
-                        RoleId = doc.roleId,
-                        RoleCode = doc.roleCode,
-                        RoleName = doc.roleName,
-                        FullName = doc.name,
-                        Degree = doc.degree,
-                        ClinicRoom = doc.room,
-                        SpecialtyId = doc.specId,
-                        SpecialtyName = doc.specName,
-                        Phone = phone,
-                        Email = doc.email
-                    };
-                    TokenVault.StoreSession(demo);
-                    return demo;
-                }
-
-                return new DoctorAuthResponseDto { Message = $"Không thể kết nối Server API ({BaseUrl}). Lỗi: " + ex.Message };
+                // Trước đây có một fallback đăng nhập ngoại tuyến bằng mật khẩu demo cố định
+                // (Demo@2026) cho ~14 số điện thoại hardcode — nghĩa là chỉ cần API mất kết nối
+                // là đăng nhập được vào bất kỳ tài khoản nào trong danh sách mà không cần xác thực
+                // thật. Đã bỏ hoàn toàn: khi không gọi được API, đăng nhập phải thất bại rõ ràng
+                // thay vì cấp một phiên hợp lệ không qua xác thực server.
+                return new DoctorAuthResponseDto { Message = $"Không thể kết nối ({BaseUrl}). Lỗi: " + ex.Message };
             }
         }
 
@@ -187,11 +145,13 @@ namespace DTT.Doctor.Services.Core
             }
             catch
             {
-                // Không kết nối được server (mất mạng/server tắt hẳn) — giữ hành vi demo ngoại tuyến cũ
-                // để vẫn xem được giao diện khi demo đồ án không có server chạy.
+                // Không kết nối được server (mất mạng/server tắt hẳn) — KHÔNG hiện danh sách hàng chờ
+                // demo giả ("David Johns", "Pete Hawks", "Test", "tester"...) vì trông giống bệnh nhân
+                // thật và được dùng chung bởi cả Bác sĩ/Điều dưỡng/Lễ Tân. Trả về rỗng để giao diện
+                // hiện "không có dữ liệu" / lỗi kết nối thay vì dữ liệu giả.
             }
 
-            return GetDemoQueueList();
+            return new List<AppointmentModel>();
         }
 
         // Lễ Tân xác nhận Check-in: chuyển appointment từ Confirmed → CheckedIn
@@ -210,7 +170,7 @@ namespace DTT.Doctor.Services.Core
         }
 
         // Lấy phí khám + phí thuốc THẬT (tính từ đơn thuốc điện tử) để hiển thị đúng trên màn Thanh Toán trước khi thu tiền
-        public async Task<(decimal ExamFee, decimal ServicesFee, decimal MedsFee, decimal Total, bool IsPackage)> GetInvoiceEstimateAsync(int appointmentId)
+        public async Task<(decimal ExamFee, decimal ServicesFee, decimal MedsFee, decimal Total, bool IsPackage, bool Success)> GetInvoiceEstimateAsync(int appointmentId)
         {
             AttachBearerToken();
             try
@@ -223,7 +183,7 @@ namespace DTT.Doctor.Services.Core
                     if (dto != null && dto.Success)
                     {
                         decimal total = dto.TotalAmount > 0 ? dto.TotalAmount : (dto.ExamFee + dto.ServicesFee + dto.MedsFee);
-                        return (dto.ExamFee, dto.ServicesFee, dto.MedsFee, total, dto.IsPackage);
+                        return (dto.ExamFee, dto.ServicesFee, dto.MedsFee, total, dto.IsPackage, true);
                     }
                 }
             }
@@ -231,7 +191,11 @@ namespace DTT.Doctor.Services.Core
             {
                 System.Diagnostics.Debug.WriteLine("GetInvoiceEstimateAsync error: " + ex.Message);
             }
-            return (250000m, 0m, 0m, 250000m, false);
+            // Gọi API thất bại — KHÔNG trả về mức phí khám bịa cứng 250.000đ trông giống số tiền thật,
+            // vì nơi gọi hàm này (màn Thanh Toán) dùng trực tiếp số tiền để thu tiền mặt thật từ bệnh
+            // nhân. Trả về 0đ kèm Success = false để nơi gọi biết rõ đây là "chưa tải được dữ liệu"
+            // và phải chặn thao tác thu tiền thay vì âm thầm hiển thị/thu một số tiền không có thật.
+            return (0m, 0m, 0m, 0m, false, false);
         }
 
         // Lễ Tân xác nhận thu tiền → Tạo Invoice trong DB + gửi thông báo App Mobile
@@ -390,14 +354,11 @@ namespace DTT.Doctor.Services.Core
                 }
             }
             catch { }
-            // Fallback hardcoded nếu API lỗi
-            return new List<(string, int, string)>
-            {
-                ("Nội tổng quát (BS. CKII Nguyễn Văn A)", 1, "Nội tổng quát"),
-                ("Tim mạch (ThS. BS Trần Văn C)", 2, "Tim mạch"),
-                ("Cơ xương khớp (BS. CKII Phạm Tuấn Kiệt)", 3, "Cơ xương khớp"),
-                ("Nhi khoa (BS. CKI Lê Hoàng Văn)", 4, "Nhi khoa"),
-            };
+            // Gọi API thất bại — KHÔNG hiện danh sách chuyên khoa/bác sĩ bịa cứng (4 bác sĩ mẫu
+            // với DoctorId 1-4 không chắc tồn tại trong DB thật) vì có thể khiến hồ sơ đăng ký
+            // vãng lai bị gán nhầm vào một bác sĩ không có thật. Trả về rỗng để giao diện hiện
+            // "không có bác sĩ" thay vì dữ liệu giả.
+            return new List<(string, int, string)>();
         }
 
         // ── Điều Dưỡng: Lưu sinh hiệu & chuyển trạng thái → WaitingForDoctor (8) ──
@@ -500,24 +461,6 @@ namespace DTT.Doctor.Services.Core
             {
                 return (false, new List<string>());
             }
-        }
-
-        public static List<AppointmentModel> GetDemoQueueList()
-        {
-            string doctorSpecialty = !string.IsNullOrEmpty(TokenVault.SpecialtyName) ? TokenVault.SpecialtyName : "Khám tổng quát";
-            string doctorRoom = !string.IsNullOrEmpty(TokenVault.ClinicRoom) ? TokenVault.ClinicRoom : "Phòng 101";
-
-            return new List<AppointmentModel>
-            {
-                new AppointmentModel { AppointmentId = 101, QueueNumber = 1, PatientId = 2, PatientName = "David Johns", PatientAge = 0, PatientGender = "", SpecialtyName = doctorSpecialty, TimeSlot = "08:30", Status = "Confirmed", ClinicRoom = doctorRoom, Fee = "250.000đ" },
-                new AppointmentModel { AppointmentId = 102, QueueNumber = 2, PatientId = 3, PatientName = "Pete Hawks", PatientAge = 0, PatientGender = "", SpecialtyName = doctorSpecialty, TimeSlot = "09:00", Status = "InProgress", ClinicRoom = doctorRoom, Fee = "300.000đ" },
-                new AppointmentModel { AppointmentId = 103, QueueNumber = 3, PatientId = 4, PatientName = "Dawn", PatientAge = 0, PatientGender = "", SpecialtyName = doctorSpecialty, TimeSlot = "09:30", Status = "Confirmed", ClinicRoom = doctorRoom, Fee = "400.000đ" },
-                new AppointmentModel { AppointmentId = 104, QueueNumber = 4, PatientId = 5, PatientName = "Hong", PatientAge = 0, PatientGender = "", SpecialtyName = doctorSpecialty, TimeSlot = "10:00", Status = "Completed", ClinicRoom = doctorRoom, Fee = "200.000đ" },
-                new AppointmentModel { AppointmentId = 105, QueueNumber = 5, PatientId = 6, PatientName = "Minh Dang", PatientAge = 0, PatientGender = "", SpecialtyName = doctorSpecialty, TimeSlot = "10:30", Status = "Confirmed", ClinicRoom = doctorRoom, Fee = "250.000đ" },
-                new AppointmentModel { AppointmentId = 106, QueueNumber = 6, PatientId = 7, PatientName = "DingDong", PatientAge = 0, PatientGender = "", SpecialtyName = doctorSpecialty, TimeSlot = "11:00", Status = "Completed", ClinicRoom = doctorRoom, Fee = "350.000đ" },
-                new AppointmentModel { AppointmentId = 107, QueueNumber = 7, PatientId = 8, PatientName = "Test", PatientAge = 0, PatientGender = "", SpecialtyName = doctorSpecialty, TimeSlot = "13:30", Status = "Confirmed", ClinicRoom = doctorRoom, Fee = "250.000đ" },
-                new AppointmentModel { AppointmentId = 108, QueueNumber = 8, PatientId = 9, PatientName = "tester", PatientAge = 0, PatientGender = "", SpecialtyName = doctorSpecialty, TimeSlot = "14:00", Status = "Confirmed", ClinicRoom = doctorRoom, Fee = "300.000đ" }
-            };
         }
 
         public async Task<List<MedicineModel>> GetMedicinesAsync()
@@ -682,18 +625,11 @@ namespace DTT.Doctor.Services.Core
             }
             catch { }
 
-            // Fallback: dữ liệu thực từ DB (khớp với patients.csv)
-            return new List<PatientSimpleModel>
-            {
-                new PatientSimpleModel { Id = 2, FullName = "David Johns", Phone = "0934123456", Cccd = "", Bhyt = "", VerificationStatus = "verified" },
-                new PatientSimpleModel { Id = 3, FullName = "Pete Hawks", Phone = "0909123456", Cccd = "", Bhyt = "", VerificationStatus = "verified" },
-                new PatientSimpleModel { Id = 4, FullName = "Dawn", Phone = "0938110220", Cccd = "", Bhyt = "", VerificationStatus = "pending" },
-                new PatientSimpleModel { Id = 5, FullName = "Hong", Phone = "0912345557", Cccd = "", Bhyt = "", VerificationStatus = "verified" },
-                new PatientSimpleModel { Id = 6, FullName = "Minh Dang", Phone = "0938000123", Cccd = "", Bhyt = "", VerificationStatus = "verified" },
-                new PatientSimpleModel { Id = 7, FullName = "DingDong", Phone = "0900123000", Cccd = "", Bhyt = "", VerificationStatus = "verified" },
-                new PatientSimpleModel { Id = 8, FullName = "Test", Phone = "0932800100", Cccd = "", Bhyt = "", VerificationStatus = "verified" },
-                new PatientSimpleModel { Id = 9, FullName = "tester", Phone = "0431234551", Cccd = "", Bhyt = "", VerificationStatus = "verified" }
-            };
+            // Gọi API thất bại hoặc trả về rỗng — KHÔNG hiện danh sách bệnh nhân demo giả
+            // ("David Johns", "Test"...) vì trông giống dữ liệu thật, dễ khiến Lễ Tân tưởng
+            // nhầm là danh sách bệnh nhân thật. Trả về rỗng để giao diện hiện "không có dữ liệu"
+            // / thông báo lỗi kết nối thay vì dữ liệu giả.
+            return new List<PatientSimpleModel>();
         }
 
         // Xác thực CCCD bệnh nhân bởi Lễ Tân (PATCH /api/Patients/{id}/verify)

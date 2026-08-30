@@ -106,6 +106,7 @@ namespace DTT.Doctor.UI.Forms
         // Dialog giờ non-modal (Show thay vì ShowDialog) để lễ tân vừa chat vừa chuyển sang tab khác
         // (vd: đặt lịch) — theo dõi theo session_id để tránh mở trùng 2 cửa sổ cho cùng 1 phiên.
         private Dictionary<int, ChatSessionDialogForm> _openChatDialogs = new Dictionary<int, ChatSessionDialogForm>();
+        private NotifyIcon _notifyIcon;
 
         public ReceptionCashierForm()
         {
@@ -122,7 +123,7 @@ namespace DTT.Doctor.UI.Forms
                 }
             };
             this.VisibleChanged += async (s, e) => { if (this.Visible) await LoadDataPublicAsync(); };
-            this.FormClosed += (s, e) => { _chatAutoRefreshTimer?.Stop(); _chatAutoRefreshTimer?.Dispose(); };
+            this.FormClosed += (s, e) => { _chatAutoRefreshTimer?.Stop(); _chatAutoRefreshTimer?.Dispose(); _notifyIcon?.Dispose(); };
         }
 
         public void SelectTab(int index)
@@ -517,10 +518,10 @@ namespace DTT.Doctor.UI.Forms
 
             _gridBilling = new AntiFlickerDataGridView { Dock = DockStyle.Fill };
             _gridBilling.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "STT", FillWeight = 25 });
-            _gridBilling.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "BENH NHAN", FillWeight = 85 });
-            _gridBilling.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "CHUYEN KHOA KHAM", FillWeight = 95 });
-            _gridBilling.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "TONG VIEN PHI", FillWeight = 55 });
-            _gridBilling.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "TRANG THAI THANH TOAN", FillWeight = 80 });
+            _gridBilling.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "BỆNH NHÂN", FillWeight = 85 });
+            _gridBilling.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "CHUYÊN KHOA KHÁM", FillWeight = 95 });
+            _gridBilling.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "TỔNG VIỆN PHÍ", FillWeight = 55 });
+            _gridBilling.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "TRẠNG THÁI THANH TOÁN", FillWeight = 80 });
 
             _gridBilling.SelectionChanged += (s, e) => OnBillingRowSelected();
 
@@ -772,7 +773,7 @@ namespace DTT.Doctor.UI.Forms
 
             Label lblTitle = new Label
             {
-                Text = "➕ ĐĂNG KÝ HỒ SƠ KHÁCH HÀNG VÃNG LAI (KHÁM TRỰC TIẾP TẠI BỆNH VIỆN)",
+                Text = "➕ ĐĂNG KÝ HỒ SƠ",
                 Font = ClinicalColors.GetMainFont(12f, FontStyle.Bold),
                 ForeColor = ClinicalColors.PrimaryBlue,
                 Location = new Point(30, 20),
@@ -847,7 +848,7 @@ namespace DTT.Doctor.UI.Forms
 
             Button btnSaveWalkIn = new Button
             {
-                Text = " Tạo hồ sơ & Cấp số STT khám vãng lai",
+                Text = " Tạo hồ sơ",
                 Font = ClinicalColors.GetMainFont(11f, FontStyle.Bold),
                 ForeColor = Color.White,
                 BackColor = Color.FromArgb(16, 185, 129),
@@ -890,7 +891,7 @@ namespace DTT.Doctor.UI.Forms
 
             Label lblTitle = new Label
             {
-                Text = "🏥 KHÁM TRỰC TIẾP CHO BỆNH NHÂN ĐÃ CÓ HỒ SƠ (CHƯA ĐẶT HẸN TRƯỚC)",
+                Text = "🏥 KHÁM TRỰC TIẾP",
                 Font = ClinicalColors.GetMainFont(12f, FontStyle.Bold),
                 ForeColor = ClinicalColors.PrimaryBlue,
                 Location = new Point(30, 20),
@@ -1013,7 +1014,7 @@ namespace DTT.Doctor.UI.Forms
 
             _btnDirectBookNow = new Button
             {
-                Text = " Đặt Khám Ngay & Check-in",
+                Text = " Đặt Khám Ngay",
                 Font = ClinicalColors.GetMainFont(10.5f, FontStyle.Bold),
                 ForeColor = Color.White,
                 BackColor = Color.FromArgb(16, 185, 129),
@@ -1257,78 +1258,7 @@ namespace DTT.Doctor.UI.Forms
         private void ShowChatToast(string title, string message, Color accentColor)
         {
             if (this.IsDisposed || !this.Visible) return;
-
-            AntiFlickerPanel toast = new AntiFlickerPanel
-            {
-                Size = new Size(360, 84),
-                BackColor = Color.FromArgb(15, 23, 42),
-                BorderColor = accentColor,
-                BorderRadius = 10,
-                Padding = new Padding(12, 10, 12, 10),
-                Anchor = AnchorStyles.Bottom | AnchorStyles.Right,
-                Location = new Point(this.ClientSize.Width - 380, this.ClientSize.Height - 100),
-                Cursor = Cursors.Hand
-            };
-
-            Action dismiss = () => { if (!toast.IsDisposed && this.Controls.Contains(toast)) { this.Controls.Remove(toast); toast.Dispose(); } };
-            toast.Click += (s, e) => dismiss();
-
-            Panel strip = new Panel { Location = new Point(0, 0), Size = new Size(6, 84), BackColor = accentColor };
-
-            Label lblClose = new Label
-            {
-                Text = "✕",
-                Font = ClinicalColors.GetMainFont(9.5f, FontStyle.Bold),
-                ForeColor = Color.FromArgb(148, 163, 184),
-                Location = new Point(332, 6),
-                Size = new Size(20, 20),
-                TextAlign = ContentAlignment.MiddleCenter,
-                Cursor = Cursors.Hand
-            };
-            lblClose.Click += (s, e) => dismiss();
-
-            Label lblTitle = new Label
-            {
-                Text = title,
-                Font = ClinicalColors.GetMainFont(10f, FontStyle.Bold),
-                ForeColor = accentColor,
-                Location = new Point(18, 10),
-                Size = new Size(310, 22),
-                TextAlign = ContentAlignment.MiddleLeft,
-                UseMnemonic = false
-            };
-            lblTitle.Click += (s, e) => dismiss();
-
-            Label lblMsg = new Label
-            {
-                Text = message,
-                Font = ClinicalColors.GetMainFont(9f, FontStyle.Regular),
-                ForeColor = Color.FromArgb(226, 232, 240),
-                Location = new Point(18, 32),
-                Size = new Size(330, 46),
-                TextAlign = ContentAlignment.TopLeft,
-                UseMnemonic = false
-            };
-            lblMsg.Click += (s, e) => dismiss();
-
-            toast.Controls.Add(strip);
-            toast.Controls.Add(lblClose);
-            toast.Controls.Add(lblTitle);
-            toast.Controls.Add(lblMsg);
-
-            this.Controls.Add(toast);
-            toast.BringToFront();
-
-            try { System.Media.SystemSounds.Asterisk.Play(); } catch { }
-
-            System.Windows.Forms.Timer toastTimer = new System.Windows.Forms.Timer { Interval = 6000 };
-            toastTimer.Tick += (s, e) =>
-            {
-                toastTimer.Stop();
-                toastTimer.Dispose();
-                dismiss();
-            };
-            toastTimer.Start();
+            SystemNotifier.Show(ref _notifyIcon, this, title, message, accentColor);
         }
 
         private void OpenChatSessionDialog(ChatQueueItem item)
@@ -1556,7 +1486,7 @@ namespace DTT.Doctor.UI.Forms
             finally
             {
                 _btnDirectBookNow.Enabled = true;
-                _btnDirectBookNow.Text = " Đặt Khám Ngay & Check-in";
+                _btnDirectBookNow.Text = " Đặt Khám Ngay";
             }
         }
 
@@ -1577,16 +1507,17 @@ namespace DTT.Doctor.UI.Forms
 
                 if (appointments != null && appointments.Count > 0)
                 {
-                    string[] specialties = { "Nội tổng quát", "Tim mạch", "Cơ xương khớp", "Nhi khoa", "Nội tổng quát", "Tim mạch", "Cơ xương khớp", "Nhi khoa" };
-
-                    // Gán tên chuyên khoa (kèm fallback demo) rồi SẮP XẾP theo chuyên khoa → giờ hẹn,
-                    // để bệnh nhân cùng chuyên khoa hiển thị gần nhau, dễ điều phối khi đông bệnh nhân.
+                    // Gán tên chuyên khoa rồi SẮP XẾP theo chuyên khoa → giờ hẹn, để bệnh nhân cùng
+                    // chuyên khoa hiển thị gần nhau, dễ điều phối khi đông bệnh nhân. Trước đây khi
+                    // SpecialtyName trống, code đoán bừa một chuyên khoa theo vòng lặp cố định — lễ
+                    // tân thấy một chuyên khoa cụ thể nhưng SAI, dễ điều phối nhầm phòng khám. Giờ
+                    // hiển thị trung thực là "Chưa xác định" thay vì bịa dữ liệu.
                     var appointmentsWithSpec = appointments
                         .Select((appt, idx) => (
                             Appt: appt,
                             Spec: !string.IsNullOrEmpty(appt.SpecialtyName)
                                 ? appt.SpecialtyName.Replace("Goi Kham ", "").Replace("Goi Tam Soat ", "")
-                                : specialties[idx % specialties.Length]
+                                : "Chưa xác định"
                         ))
                         .OrderBy(x => x.Spec, StringComparer.CurrentCultureIgnoreCase)
                         .ThenBy(x => x.Appt.TimeSlot)
@@ -1630,18 +1561,27 @@ namespace DTT.Doctor.UI.Forms
                             : "Chờ Check-in";
                         string code = string.Format("RX-{0:0000}-{1:D4}", DateTime.Now.Year, appt.AppointmentId > 0 ? appt.AppointmentId : i + 1);
                         string pName = !string.IsNullOrEmpty(appt.PatientName) ? appt.PatientName.ToUpper() : string.Format("BỆNH NHÂN #{0}", appt.PatientId);
-                        string slot = !string.IsNullOrEmpty(appt.TimeSlot) ? appt.TimeSlot : string.Format("{0}:00", 8 + i);
+                        // Trước đây bịa giờ hẹn "{8+i}:00" khi TimeSlot trống — lễ tân thấy một giờ cụ
+                        // thể nhưng sai. Giờ hiển thị trung thực là chưa xác định.
+                        string slot = !string.IsNullOrEmpty(appt.TimeSlot) ? appt.TimeSlot : "Chưa xác định";
 
                         string actionText = isCheckedIn ? "Đã Check-in ✓" : "Check-in";
                         _gridCheckIn.Rows.Add(i + 1, code, pName, spec, slot, "Đã xác nhận", checkInStatus, actionText, "Tùy chọn ▼");
                         if (isCheckedIn) _gridCheckIn.Rows[i].DefaultCellStyle.BackColor = Color.FromArgb(236, 253, 245);
 
-                        string fee = !string.IsNullOrEmpty(appt.Fee) ? appt.Fee : "250.000d";
+                        // Trước đây bịa phí "250.000d" khi Fee trống — lễ tân có thể tưởng đó là số
+                        // tiền thật cần thu. Giờ hiển thị trung thực là chưa xác định thay vì một
+                        // con số cụ thể nhưng sai.
+                        string fee = !string.IsNullOrEmpty(appt.Fee) ? appt.Fee : "Chưa xác định";
                         // Phân loại trạng thái thanh toán theo invoices.payment_status THẬT (appt.PaymentStatus)
                         // — KHÔNG dùng appt.Status/StatusId nữa, vì StatusId có thể bị ghi đè bởi các thao tác
                         // lâm sàng khác (vd: bác sĩ lưu lại bệnh án → status_id=4) khiến hóa đơn đã thanh toán
                         // hiện nhầm lại thành "chờ thu phí" mỗi khi tải lại dữ liệu.
                         bool isPaid = appt.PaymentStatus == "paid";
+                        // "partial" là trạng thái thứ 3 thật sự của invoices.payment_status (unpaid/partial/paid)
+                        // — trước đây bị gộp chung vào "chưa thanh toán" nên lễ tân không biết bệnh nhân đã
+                        // đóng trước một phần, dễ thu trùng hoặc thu thiếu phần còn lại.
+                        bool isPartial = appt.PaymentStatus == "partial";
                         string billingStatus;
                         Color billingRowColor;
                         if (isPaid)
@@ -1664,9 +1604,17 @@ namespace DTT.Doctor.UI.Forms
                             _gridBilling.Rows[bIdx].DefaultCellStyle.BackColor = billingRowColor;
                             _gridBilling.Rows[bIdx].Tag = appt.AppointmentId;
                         }
+                        else if (isPartial)
+                        {
+                            billingStatus = "[!] Đã thanh toán một phần";
+                            billingRowColor = Color.FromArgb(254, 249, 195); // vang nhat - thanh toan mot phan (khac cam nhat cua "cho thu phi")
+                            int bIdx = _gridBilling.Rows.Add(billingStt++, pName, spec, fee, billingStatus);
+                            _gridBilling.Rows[bIdx].DefaultCellStyle.BackColor = billingRowColor;
+                            _gridBilling.Rows[bIdx].Tag = appt.AppointmentId;
+                        }
                         else if (isCompleted)
                         {
-                            billingStatus = "[!] CHO THU PHI";
+                            billingStatus = "[!] CHỜ THU PHÍ";
                             billingRowColor = Color.FromArgb(255, 237, 213); // cam nhat - cho thu phi
                             int bIdx = _gridBilling.Rows.Add(billingStt++, pName, spec, fee, billingStatus);
                             _gridBilling.Rows[bIdx].DefaultCellStyle.BackColor = billingRowColor;
@@ -1710,21 +1658,11 @@ namespace DTT.Doctor.UI.Forms
                 }
                 else
                 {
-                    // Fallback: dữ liệu thật từ patients.csv
-                    _gridApproveMobile.Rows.Add(1, "DAWN", "Bản thân", "0938110220", "Chưa nhập CCCD", "—", "Chờ đem CCCD tới Quầy");
-                    _gridApproveMobile.Rows.Add(2, "DAVID JOHNS", "Bản thân", "0934123456", "Chưa nhập CCCD", "—", "Chờ đem CCCD tới Quầy");
-                    _gridApproveMobile.Rows.Add(3, "PETE HAWKS", "Bản thân", "0909123456", "Đã xác thực", "—", "Đã xác thực CCCD (Đã duyệt)");
-                    _gridApproveMobile.Rows.Add(4, "HONG", "Bản thân", "0912345557", "Đã xác thực", "—", "Đã xác thực CCCD (Đã duyệt)");
-                    _gridApproveMobile.Rows[2].DefaultCellStyle.BackColor = Color.FromArgb(236, 253, 245);
-                    _gridApproveMobile.Rows[3].DefaultCellStyle.BackColor = Color.FromArgb(236, 253, 245);
-                    _mobilePatientRowIdMap[0] = 4; // Dawn patient_id=4
-                    _mobilePatientRowIdMap[1] = 2; // David patient_id=2
-                    _mobilePatientRowIdMap[2] = 3; // Pete patient_id=3
-                    _mobilePatientRowIdMap[3] = 5; // Hong patient_id=5
-                    _mobileRecordTypeMap[0] = "patient";
-                    _mobileRecordTypeMap[1] = "patient";
-                    _mobileRecordTypeMap[2] = "patient";
-                    _mobileRecordTypeMap[3] = "patient";
+                    // KHÔNG hiện danh sách bệnh nhân demo giả ("DAWN", "DAVID JOHNS"...) vì trông giống
+                    // hồ sơ thật, dễ khiến Lễ Tân tưởng nhầm là dữ liệu thật thay vì nhận ra lỗi tải API.
+                    // Để trống lưới + báo lỗi bằng toast (giống các lỗi tải khác trong màn hình này).
+                    ShowReceptionNotification("KHÔNG THỂ TẢI DANH SÁCH BỆNH NHÂN",
+                        "Không thể tải danh sách bệnh nhân — vui lòng kiểm tra kết nối và thử lại.", false);
                 }
 
                 // --- Tab 5: Đồng bộ danh sách bệnh nhân cho "Khám Trực Tiếp" (dùng lại dữ liệu vừa tải,
@@ -1788,6 +1726,11 @@ namespace DTT.Doctor.UI.Forms
                 if (schedules != null)
                 {
                     string dayText = selectedDate.ToString("dd/MM/yyyy");
+                    // Chỉ lọc theo giờ hiện tại khi ngày được chọn là HÔM NAY — với ngày trong tương
+                    // lai (đăng ký vãng lai cho ngày sau), "giờ hiện tại" vô nghĩa nên vẫn hiện mọi
+                    // bác sĩ isWorking=true cho cả ngày đó như trước.
+                    bool isToday = selectedDate.Date == DateTime.Today;
+                    TimeSpan nowTime = DateTime.Now.TimeOfDay;
                     int itemIdx = 0;
                     foreach (var sch in schedules)
                     {
@@ -1801,7 +1744,24 @@ namespace DTT.Doctor.UI.Forms
 
                         string fullName = (string)(sch.fullName ?? specInfo.DisplayName);
                         string room = (string)(sch.clinicRoom ?? "");
-                        string displayText = $"{specInfo.SpecialtyName} — {fullName} [{room}] (Lịch trực ngày {dayText})";
+                        string shiftStartStr = (string)(sch.shiftStartTime ?? "");
+                        string shiftEndStr = (string)(sch.shiftEndTime ?? "");
+
+                        // isWorking chỉ cho biết bác sĩ CÓ lịch trong ngày này — không cho biết ca trực
+                        // có bao phủ giờ HIỆN TẠI hay không (bug gốc: bác sĩ chỉ trực sáng vẫn hiện ra
+                        // vào buổi tối). Khi xét cho hôm nay, chỉ giữ bác sĩ nếu giờ hiện tại nằm trong
+                        // [ShiftStartTime, ShiftEndTime]. Nếu thiếu/không parse được giờ ca (dữ liệu cũ),
+                        // fail-safe bằng cách vẫn hiện bác sĩ thay vì ẩn mất do thiếu dữ liệu.
+                        TimeSpan shiftStart = TimeSpan.Zero, shiftEnd = TimeSpan.Zero;
+                        bool hasShiftWindow = TimeSpan.TryParse(shiftStartStr, out shiftStart) &&
+                                              TimeSpan.TryParse(shiftEndStr, out shiftEnd);
+                        if (isToday && hasShiftWindow && (nowTime < shiftStart || nowTime > shiftEnd))
+                        {
+                            continue;
+                        }
+
+                        string shiftSuffix = hasShiftWindow ? $" (Ca: {shiftStartStr} - {shiftEndStr})" : "";
+                        string displayText = $"{specInfo.SpecialtyName} — {fullName} [{room}] (Lịch trực ngày {dayText}){shiftSuffix}";
 
                         combo.Items.Add(displayText);
                         map[itemIdx] = (docId, specInfo.SpecialtyName);
@@ -1870,9 +1830,9 @@ namespace DTT.Doctor.UI.Forms
                 if (row.IsNewRow) continue;
                 total++;
                 string status = row.Cells[6].Value != null ? row.Cells[6].Value.ToString() : "";
-                if (status.Contains("Da Check-in") || status.Contains("Check-in"))
+                if (status.Contains("Đã Check-in") || status.Contains("Check-in"))
                     checkedIn++;
-                else if (status.Contains("Da huy lich") || status.Contains("Bo kham"))
+                else if (status.Contains("Đã hủy lịch") || status.Contains("Bỏ khám"))
                     { /* Không tính vào "Chờ check-in" — đã hủy/bỏ khám, không còn chờ nữa */ }
                 else
                     pending++;
@@ -1890,12 +1850,12 @@ namespace DTT.Doctor.UI.Forms
                 {
                     if (row.IsNewRow) continue;
                     string bs = row.Cells[4].Value != null ? row.Cells[4].Value.ToString() : "";
-                    if (bs.Contains("CHO THU PHI") || bs.Contains("Cho thu phi"))
+                    if (bs.Contains("CHỜ THU PHÍ") || bs.Contains("CHO THU PHI") || bs.Contains("Cho thu phi"))
                         pendingPayment++;
                 }
                 _tabCashier.Text = pendingPayment > 0
-                    ? string.Format("[*] 2. BAN THU NGAN ({0} cho thu phi)", pendingPayment)
-                    : "[*] 2. BAN THU NGAN & IN HOA DON";
+                    ? string.Format("[*] 2. BÀN THU NGÂN ({0} chờ thu phí)", pendingPayment)
+                    : "[*] 2. BÀN THU NGÂN & IN HÓA ĐƠN";
             }
         }
 
@@ -1939,18 +1899,18 @@ namespace DTT.Doctor.UI.Forms
                 return;
             }
 
-            row.Cells[6].Value = string.Format("Da Check-in (STT {0:D2})", rowIndex + 1);
-            if (row.Cells.Count > 7) row.Cells[7].Value = "[In Phieu STT]";
+            row.Cells[6].Value = string.Format("Đã Check-in (STT {0:D2})", rowIndex + 1);
+            if (row.Cells.Count > 7) row.Cells[7].Value = "[In Phiếu STT]";
             row.DefaultCellStyle.BackColor = Color.FromArgb(236, 253, 245);
 
             UpdateKpiSummaryCards();
 
             ShowReceptionNotification(
-                "XAC NHAN CHECK-IN STT THANH CONG",
-                $"Benh nhan: {pName}\n" +
-                $"Ma lich hen: {code}\n" +
-                $"Da cap So Thu Tu: STT-{rowIndex + 1:D2}\n\n" +
-                "Da dong bo len Server - Benh nhan da xuat hien trong Hang cho lam sang cua Bac si!",
+                "XÁC NHẬN CHECK-IN STT THÀNH CÔNG",
+                $"Bệnh nhân: {pName}\n" +
+                $"Mã lịch hẹn: {code}\n" +
+                $"Đã cấp Số Thứ Tự: STT-{rowIndex + 1:D2}\n\n" +
+                "Đã đồng bộ lên Server - Bệnh nhân đã xuất hiện trong Hàng chờ lâm sàng của Bác sĩ!",
                 true);
         }
 
@@ -2097,8 +2057,8 @@ namespace DTT.Doctor.UI.Forms
 
             if (success)
             {
-                row.Cells[5].Value = "Da huy lich";
-                row.Cells[6].Value = "Da huy lich";
+                row.Cells[5].Value = "Đã hủy lịch";
+                row.Cells[6].Value = "Đã hủy lịch";
                 row.Cells[7].Value = "-";
                 row.DefaultCellStyle.BackColor = Color.FromArgb(254, 226, 226);
                 UpdateKpiSummaryCards();
@@ -2125,8 +2085,8 @@ namespace DTT.Doctor.UI.Forms
 
             if (success)
             {
-                row.Cells[5].Value = "Bo kham";
-                row.Cells[6].Value = "Bo kham";
+                row.Cells[5].Value = "Bỏ khám";
+                row.Cells[6].Value = "Bỏ khám";
                 row.Cells[7].Value = "-";
                 row.DefaultCellStyle.BackColor = Color.FromArgb(254, 243, 199);
                 UpdateKpiSummaryCards();
@@ -2142,7 +2102,7 @@ namespace DTT.Doctor.UI.Forms
         {
             Form dlg = new Form
             {
-                Text = "IN PHIEU XAC NHAN CHECK-IN & STT KHAM LAM SANG",
+                Text = "IN PHIẾU XÁC NHẬN CHECK-IN & STT KHÁM LÂM SÀNG",
                 Size = new Size(420, 520),
                 StartPosition = FormStartPosition.CenterParent,
                 FormBorderStyle = FormBorderStyle.FixedDialog,
@@ -2196,7 +2156,7 @@ namespace DTT.Doctor.UI.Forms
                     "Khung giờ: {3}\n" +
                     "Ngày khám: {4:dd/MM/yyyy}\n" +
                     "-------------------------------------\n" +
-                    "Vui long mang phieu nay toi phong kham chuyen khoa!",
+                    "Vui lòng mang phiếu này tới phòng khám chuyên khoa!",
                     code, pName, spec, slot, DateTime.Today),
                 Font = ClinicalColors.GetMainFont(10f, FontStyle.Regular),
                 ForeColor = Color.FromArgb(51, 65, 85),
@@ -2289,14 +2249,14 @@ namespace DTT.Doctor.UI.Forms
             if (status.Contains("Da thanh toan") || status.Contains("Đã thanh toán"))
             {
                 _btnConfirmPayment.Enabled = false;
-                _btnConfirmPayment.Text = "[OK] DA THANH TOAN TAI BENH VIEN";
+                _btnConfirmPayment.Text = "[OK] ĐÃ THANH TOÁN TẠI BỆNH VIỆN";
                 _btnConfirmPayment.BackColor = Color.FromArgb(148, 163, 184);
             }
-            else if (status.Contains("CHO THU PHI") || status.Contains("Cho thu phi"))
+            else if (status.Contains("CHỜ THU PHÍ") || status.Contains("CHO THU PHI") || status.Contains("Cho thu phi"))
             {
                 // Bac si da hoan tat - cho le tan thu tien
                 _btnConfirmPayment.Enabled = true;
-                _btnConfirmPayment.Text = "[!] BAC SI DA XONG - THU TIEN NGAY";
+                _btnConfirmPayment.Text = "[!] BÁC SĨ ĐÃ XONG - THU TIỀN NGAY";
                 _btnConfirmPayment.BackColor = Color.FromArgb(234, 88, 12); // cam dam - urgent
             }
             else
@@ -2320,6 +2280,15 @@ namespace DTT.Doctor.UI.Forms
                 // Bỏ qua nếu người dùng đã chọn sang dòng khác trong lúc chờ API phản hồi
                 if (_gridBilling.SelectedRows.Count == 0 || _gridBilling.SelectedRows[0].Index != rowIndex) return;
 
+                if (!estimate.Success)
+                {
+                    // Không tải được số tiền hóa đơn THẬT — trước đây vẫn âm thầm hiển thị 250.000đ
+                    // bịa cứng như thể đó là số tiền thật cần thu. Giờ báo lỗi rõ ràng và khóa nút
+                    // xác nhận thu tiền cho tới khi tải lại thành công (chọn lại dòng này).
+                    ShowFailedBillingEstimate(rowIndex);
+                    return;
+                }
+
                 // Giá gói chỉ bao gồm các hạng mục CÓ SẴN trong gói — nếu bác sĩ kê thêm thuốc ngoài
                 // phạm vi gói (vd: phát sinh chẩn đoán khác), vẫn phải cộng thêm phí thuốc thật, không
                 // được coi là miễn phí.
@@ -2341,10 +2310,29 @@ namespace DTT.Doctor.UI.Forms
                 System.Diagnostics.Debug.WriteLine("RefreshBillingEstimateAsync error: " + ex.Message);
                 if (_gridBilling.SelectedRows.Count > 0 && _gridBilling.SelectedRows[0].Index == rowIndex)
                 {
-                    _lblFeeMeds.Text = "3. Phí thuốc theo Đơn thuốc điện tử  :  0 VNĐ";
-                    _lblTotalAmount.Text = "TỔNG THANH TOÁN :  250.000 VNĐ";
+                    ShowFailedBillingEstimate(rowIndex);
                 }
             }
+        }
+
+        // Hiển thị trạng thái lỗi rõ ràng khi không tải được số tiền hóa đơn THẬT, và khóa nút xác
+        // nhận thu tiền — trước đây các nhánh lỗi ở trên âm thầm hiện "250.000 VNĐ"/"0 VNĐ" bịa cứng,
+        // khiến Lễ Tân có thể thu sai số tiền của bệnh nhân mà không hề biết API vừa bị lỗi.
+        private void ShowFailedBillingEstimate(int rowIndex)
+        {
+            _lblFeeExam.Text = "1. Công khám lâm sàng chuyên khoa  :  LỖI TẢI DỮ LIỆU";
+            _lblFeeServices.Text = "2. Phí dịch vụ Cận lâm sàng (CLS)       :  LỖI TẢI DỮ LIỆU";
+            _lblFeeMeds.Text = "3. Phí thuốc theo Đơn thuốc điện tử  :  LỖI TẢI DỮ LIỆU";
+            _lblTotalAmount.Text = "TỔNG THANH TOÁN :  KHÔNG THỂ TẢI — VUI LÒNG THỬ LẠI";
+
+            if (rowIndex >= 0 && rowIndex < _gridBilling.Rows.Count)
+            {
+                _gridBilling.Rows[rowIndex].Cells[3].Value = "Lỗi tải dữ liệu";
+            }
+
+            _btnConfirmPayment.Enabled = false;
+            _btnConfirmPayment.Text = "[X] LỖI TẢI HÓA ĐƠN - CHỌN LẠI ĐỂ THỬ LẠI";
+            _btnConfirmPayment.BackColor = Color.FromArgb(220, 38, 38);
         }
 
         private async void ExecuteConfirmPayment()
@@ -2464,7 +2452,13 @@ namespace DTT.Doctor.UI.Forms
                 paymentStatusText = "ĐÃ THANH TOÁN THÀNH CÔNG QUA VIETQR (CHUYỂN KHOẢN)";
                 statusBrush = Brushes.DarkGreen;
             }
-            else if (statusCol.Contains("CHO THU PHI") || statusCol.Contains("Cho thu phi"))
+            else if (statusCol.Contains("thanh toán một phần") || statusCol.Contains("Thanh toán một phần"))
+            {
+                paymentMethodText = "Đã đóng trước một phần — còn lại thu tại Quầy thu ngân Bệnh viện";
+                paymentStatusText = "ĐÃ THANH TOÁN MỘT PHẦN (CÒN NỢ LẠI)";
+                statusBrush = Brushes.DarkGoldenrod;
+            }
+            else if (statusCol.Contains("CHỜ THU PHÍ") || statusCol.Contains("CHO THU PHI") || statusCol.Contains("Cho thu phi"))
             {
                 paymentMethodText = "Chưa xác định hình thức thanh toán";
                 paymentStatusText = "CHƯA THANH TOÁN (ĐANG CHỜ THU PHÍ)";
@@ -2729,14 +2723,21 @@ namespace DTT.Doctor.UI.Forms
             }
 
             // Lấy thông tin chuyên khoa + doctorId từ _walkinSpecialtyMap
+            // Trước đây nếu không tìm thấy (API /api/Specialties/with-doctors lỗi/rỗng hoặc không có
+            // bác sĩ trực ngày này), code âm thầm gán doctorId = 0 và specName = "Nội tổng quát" rồi
+            // vẫn cho đăng ký — tạo ra lịch hẹn gắn với một bác sĩ KHÔNG TỒN TẠI trong DB thật. Giờ
+            // chặn hẳn thao tác và báo lỗi rõ ràng, giống hành vi của tab "Khám Trực Tiếp".
             int selectedIdx = _cboWalkinSpecialty.SelectedIndex;
-            int doctorId = 0;
-            string specName = "Nội tổng quát";
-            if (_walkinSpecialtyMap.TryGetValue(selectedIdx, out var specData))
+            if (selectedIdx < 0 || !_walkinSpecialtyMap.TryGetValue(selectedIdx, out var specData))
             {
-                doctorId = specData.DoctorId;
-                specName = specData.SpecialtyName;
+                ShowReceptionNotification(
+                    " KHÔNG THỂ ĐĂNG KÝ",
+                    "Không có bác sĩ trực để nhận khám vào ngày đã chọn (hoặc không tải được danh sách bác sĩ).\nVui lòng chọn lại chuyên khoa/ngày khám hoặc thử lại sau.",
+                    false);
+                return;
             }
+            int doctorId = specData.DoctorId;
+            string specName = specData.SpecialtyName;
 
             // Chỉ gửi ngày sinh khi lễ tân THẬT SỰ chọn (chưa tick "Chưa rõ ngày sinh") — DateTimePicker
             // luôn có sẵn 1 giá trị (mặc định hôm nay) kể cả khi chưa đụng vào, nên trước đây hồ sơ

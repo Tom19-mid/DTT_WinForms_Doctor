@@ -13,6 +13,7 @@ using System.Linq;
 using System.Text.Json;
 using Panel = System.Windows.Forms.Panel;
 using Button = System.Windows.Forms.Button;
+using CheckBox = System.Windows.Forms.CheckBox;
 using DTT.Doctor.Services.Core;
 
 namespace DTT.Doctor.UI.Forms
@@ -32,6 +33,7 @@ namespace DTT.Doctor.UI.Forms
         private AntiFlickerPanel _pnlMainCard;
         private MaterialTextBoxEdit _txtPhone;
         private MaterialTextBoxEdit _txtPassword;
+        private CheckBox _chkRememberPassword;
         private MaterialButton _btnLogin;
         private Label _lblError;
         private MaterialProgressBar _progLoading;
@@ -43,6 +45,18 @@ namespace DTT.Doctor.UI.Forms
             InitializeComponent();
             SeedDefaultRecentUsersIfEmpty();
             LoadRecentUsers();
+            LoadSavedCredentialsIfAny();
+        }
+
+        /// Nếu người dùng từng bật "Ghi nhớ mật khẩu", điền sẵn SĐT + mật khẩu đã lưu (đã mã hóa
+        /// bằng DPAPI) để không phải gõ lại mỗi lần mở app.
+        private void LoadSavedCredentialsIfAny()
+        {
+            var saved = CredentialVault.TryLoad();
+            if (!saved.Found) return;
+            _txtPhone.Text = saved.Phone;
+            _txtPassword.Text = saved.Password;
+            _chkRememberPassword.Checked = true;
         }
 
         /// <summary>
@@ -71,7 +85,7 @@ namespace DTT.Doctor.UI.Forms
         private void InitializeComponent()
         {
             Text = "DTT Healthcare - CỔNG ĐĂNG NHẬP CHUYÊN KHOA";
-            Size = new Size(940, 580);
+            Size = new Size(940, 600);
             StartPosition = FormStartPosition.CenterScreen;
             FormBorderStyle = FormBorderStyle.None; // Flat Borderless
             MaximizeBox = false;
@@ -81,8 +95,8 @@ namespace DTT.Doctor.UI.Forms
 
             _pnlMainCard = new AntiFlickerPanel
             {
-                Size = new Size(800, 480),
-                Location = new Point((this.ClientSize.Width - 800) / 2, (this.ClientSize.Height - 480) / 2),
+                Size = new Size(800, 504),
+                Location = new Point((this.ClientSize.Width - 800) / 2, (this.ClientSize.Height - 504) / 2),
                 BackColor = Color.White,
                 BorderRadius = 16,
                 BorderColor = Color.Transparent
@@ -181,19 +195,29 @@ namespace DTT.Doctor.UI.Forms
                 Font = ClinicalColors.GetMainFont(11f, FontStyle.Regular)
             };
 
+            _chkRememberPassword = new CheckBox
+            {
+                Text = "Ghi nhớ mật khẩu",
+                Font = ClinicalColors.GetMainFont(9.5f, FontStyle.Regular),
+                ForeColor = ClinicalColors.TextMuted,
+                Location = new Point(390, 292),
+                AutoSize = true,
+                UseMnemonic = false
+            };
+
             _lblError = new Label
             {
                 Text = "",
                 Font = ClinicalColors.GetMainFont(10f, FontStyle.Italic),
                 ForeColor = Color.FromArgb(220, 38, 38),
-                Location = new Point(390, 300),
+                Location = new Point(390, 324),
                 Size = new Size(360, 24),
                 TextAlign = ContentAlignment.MiddleCenter
             };
 
             _progLoading = new MaterialProgressBar
             {
-                Location = new Point(390, 328),
+                Location = new Point(390, 352),
                 Size = new Size(360, 5),
                 Style = ProgressBarStyle.Marquee,
                 Visible = false
@@ -204,7 +228,7 @@ namespace DTT.Doctor.UI.Forms
                 Text = "ĐĂNG NHẬP HỆ THỐNG",
                 Type = MaterialButton.MaterialButtonType.Contained,
                 UseAccentColor = false,
-                Location = new Point(390, 350),
+                Location = new Point(390, 374),
                 Size = new Size(360, 48),
                 Cursor = Cursors.Hand,
                 UseMnemonic = false
@@ -217,6 +241,7 @@ namespace DTT.Doctor.UI.Forms
             _pnlMainCard.Controls.Add(lblSubWelcome);
             _pnlMainCard.Controls.Add(_txtPhone);
             _pnlMainCard.Controls.Add(_txtPassword);
+            _pnlMainCard.Controls.Add(_chkRememberPassword);
             _pnlMainCard.Controls.Add(_lblError);
             _pnlMainCard.Controls.Add(_progLoading);
             _pnlMainCard.Controls.Add(_btnLogin);
@@ -253,18 +278,26 @@ namespace DTT.Doctor.UI.Forms
                 _recentUsers.Insert(0, newUser);
                 if (_recentUsers.Count > 6) _recentUsers.RemoveAt(_recentUsers.Count - 1);
                 File.WriteAllText(RecentLoginsFile, JsonSerializer.Serialize(_recentUsers));
-            } 
+            }
             catch { }
 
-            // Cảnh báo rõ ràng khi rơi vào phiên demo ngoại tuyến (API không kết nối được lúc đăng
-            // nhập) — trước đây không có dấu hiệu gì phân biệt với đăng nhập thật, khiến người dùng
-            // thao tác bình thường rồi gặp một loạt lỗi "kết nối thất bại" không hiểu vì sao.
-            if (response.Token == "demo_jwt_token_doctor_2026")
+            // Ghi nhớ mật khẩu: chỉ lưu (mã hóa DPAPI) khi người dùng chủ động bật checkbox; nếu
+            // tắt (hoặc từng bật rồi tắt lại), xóa hẳn file đã lưu thay vì để sót mật khẩu cũ.
+            if (_chkRememberPassword.Checked)
             {
-                MessageBox.Show(
-                    "⚠️ KHÔNG KẾT NỐI ĐƯỢC MÁY CHỦ API.\n\nBạn đang ở CHẾ ĐỘ DEMO NGOẠI TUYẾN — giao diện hiển thị dữ liệu mẫu, MỌI THAO TÁC LƯU/CẬP NHẬT (check-in, thu tiền, lưu hồ sơ khám...) SẼ KHÔNG được ghi nhận lên hệ thống thật.\n\nVui lòng kiểm tra kết nối mạng/server rồi đăng nhập lại để dùng dữ liệu thật.",
-                    "Chế Độ Demo Ngoại Tuyến", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                CredentialVault.Save(_txtPhone.Text.Trim(), _txtPassword.Text);
             }
+            else
+            {
+                CredentialVault.Clear();
+            }
+
+            // [Đã gỡ bỏ] Trước đây có cảnh báo "Chế Độ Demo Ngoại Tuyến" khi response.Token ==
+            // "demo_jwt_token_doctor_2026" — token demo này được ApiService cấp khi không kết nối
+            // được server lúc đăng nhập. Tính năng đăng nhập demo ngoại tuyến đó đã bị gỡ khỏi
+            // ApiService (đăng nhập thất bại rõ ràng khi không gọi được API thay vì cấp phiên demo),
+            // nên chuỗi token này không bao giờ còn được tạo ra nữa — nhánh kiểm tra đã trở thành
+            // dead code và được gỡ bỏ cùng dialog cảnh báo mà nó bảo vệ.
 
             // Transition to Unified Main Dashboard via Program.cs lifecycle
             this.DialogResult = DialogResult.OK;
@@ -312,14 +345,14 @@ namespace DTT.Doctor.UI.Forms
                     Text = "Gần đây:",
                     Font = ClinicalColors.GetMainFont(9f, FontStyle.Italic),
                     ForeColor = ClinicalColors.TextMuted,
-                    Location = new Point(390, 410),
+                    Location = new Point(390, 434),
                     AutoSize = true
                 };
                 _pnlMainCard.Controls.Add(lblRecent);
 
                 FlowLayoutPanel flowRecent = new FlowLayoutPanel
                 {
-                    Location = new Point(445, 404),
+                    Location = new Point(445, 428),
                     Size = new Size(330, 68),
                     BackColor = Color.Transparent,
                     WrapContents = true,
