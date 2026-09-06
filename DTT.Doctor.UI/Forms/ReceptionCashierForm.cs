@@ -663,9 +663,9 @@ namespace DTT.Doctor.UI.Forms
             _gridApproveMobile.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "HỌ VÀ TÊN BỆNH NHÂN", FillWeight = 90 });
             _gridApproveMobile.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "MỐI QUAN HỆ", FillWeight = 55 });
             _gridApproveMobile.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "SỐ ĐIỆN THOẠI", FillWeight = 60 });
-            _gridApproveMobile.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "SỐ CCCD HIỆN TẠI", FillWeight = 75 });
-            _gridApproveMobile.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "MÃ THẺ BHYT", FillWeight = 75 });
-            _gridApproveMobile.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "TRẠNG THÁI ĐỊNH DANH", FillWeight = 75 });
+            _gridApproveMobile.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "SỐ CCCD HIỆN TẠI", FillWeight = 65 });
+            _gridApproveMobile.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "MÃ THẺ BHYT", FillWeight = 60 });
+            _gridApproveMobile.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "TRẠNG THÁI ĐỊNH DANH", FillWeight = 100 });
 
             _gridApproveMobile.SelectionChanged += (s, e) => OnMobilePatientRowSelected();
 
@@ -1645,7 +1645,7 @@ namespace DTT.Doctor.UI.Forms
                     foreach (var p in allPatients)
                     {
                         bool isVerified = p.VerificationStatus == "verified";
-                        string statusText = isVerified ? "Đã xác thực CCCD (Đã duyệt)" : "Chờ đem CCCD tới Quầy";
+                        string statusText = isVerified ? "Đã xác thực CCCD" : "Chờ đem CCCD tới Quầy";
                         string cccdText = !string.IsNullOrEmpty(p.Cccd) ? p.Cccd : "Chưa nhập CCCD";
                         string bhytText = !string.IsNullOrEmpty(p.Bhyt) ? p.Bhyt : "—";
                         string relationship = !string.IsNullOrEmpty(p.Relationship) ? p.Relationship : "Bản thân";
@@ -2666,7 +2666,7 @@ namespace DTT.Doctor.UI.Forms
             catch { }
 
             row.Cells[4].Value = cccdEntered;
-            row.Cells[6].Value = "Đã xác thực CCCD (Đã duyệt)";
+            row.Cells[6].Value = "Đã xác thực CCCD";
             row.DefaultCellStyle.BackColor = Color.FromArgb(236, 253, 245);
             OnMobilePatientRowSelected();
 

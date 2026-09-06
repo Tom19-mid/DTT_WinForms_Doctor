@@ -74,7 +74,7 @@ namespace DTT.Doctor.Services.Core
                 // là đăng nhập được vào bất kỳ tài khoản nào trong danh sách mà không cần xác thực
                 // thật. Đã bỏ hoàn toàn: khi không gọi được API, đăng nhập phải thất bại rõ ràng
                 // thay vì cấp một phiên hợp lệ không qua xác thực server.
-                return new DoctorAuthResponseDto { Message = $"Không thể kết nối ({BaseUrl}). Lỗi: " + ex.Message };
+                return new DoctorAuthResponseDto { Message = "Không thể kết nối." };
             }
         }
 
@@ -199,7 +199,7 @@ namespace DTT.Doctor.Services.Core
         }
 
         // Lễ Tân xác nhận thu tiền → Tạo Invoice trong DB + gửi thông báo App Mobile
-        public async Task<(bool Success, int InvoiceId, decimal Total)> ConfirmPaymentAsync(int appointmentId, int patientId, decimal examFee = 250000m, decimal servicesFee = 0m, decimal medsFee = 0m, string method = "cash")
+        public async Task<(bool Success, int InvoiceId, decimal Total)> ConfirmPaymentAsync(int appointmentId, int patientId, decimal examFee, decimal servicesFee = 0m, decimal medsFee = 0m, string method = "cash")
         {
             AttachBearerToken();
             try

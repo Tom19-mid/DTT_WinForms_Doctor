@@ -180,7 +180,7 @@ namespace DTT.Doctor.UI.Controls
                         fg = Color.FromArgb(22, 119, 255);      // Antd Processing Blue text #1677FF
                         label = rawVal.Equals("2") ? "Đang khám" : rawVal;
                     }
-                    else if (rawVal.Equals("Completed", StringComparison.OrdinalIgnoreCase) || rawVal.Contains("Đã khám") || rawVal.Contains("Hoàn tất") || rawVal.Contains("Bình thường") || rawVal.Equals("Normal", StringComparison.OrdinalIgnoreCase) || rawVal.Contains("Đã thanh toán") || rawVal.Contains("Đã duyệt") || rawVal.Equals("3"))
+                    else if (rawVal.Equals("Completed", StringComparison.OrdinalIgnoreCase) || rawVal.Contains("Đã khám") || rawVal.Contains("Hoàn tất") || rawVal.Contains("Bình thường") || rawVal.Equals("Normal", StringComparison.OrdinalIgnoreCase) || rawVal.Contains("Đã thanh toán") || rawVal.Contains("Đã duyệt") || rawVal.Contains("Đã xác thực") || rawVal.Equals("3"))
                     {
                         bg = Color.FromArgb(246, 255, 237);     // Antd Success Green bg #F6FFED
                         border = Color.FromArgb(183, 235, 143); // Antd Success Green border #B7EB8F
@@ -208,7 +208,7 @@ namespace DTT.Doctor.UI.Controls
                         int padY = (e.CellBounds.Height - 26) / 2;
                         int padX = 8;
                         int pillWidth = e.CellBounds.Width - 16;
-                        if (pillWidth > 115) pillWidth = 115;
+                        if (pillWidth > 150) pillWidth = 150;
                         if (pillWidth < 60) pillWidth = 60;
                         Rectangle pillRect = new Rectangle(e.CellBounds.X + padX, e.CellBounds.Y + padY, pillWidth, 26);
 
@@ -227,7 +227,16 @@ namespace DTT.Doctor.UI.Controls
                         using (var font = ClinicalColors.GetMainFont(8.5f, FontStyle.Bold))
                         using (var textBrush = new SolidBrush(fg))
                         {
-                            var format = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+                            // NoWrap + Ellipsis: nhãn dài (vd "Đã xác thực CCCD") phải luôn nằm 1 dòng —
+                            // trước đây không có cờ này nên chữ dài bị wrap xuống 2 dòng tràn khỏi pill,
+                            // nhìn mất thẩm mỹ (đặc biệt ở các cột hẹp).
+                            var format = new StringFormat
+                            {
+                                Alignment = StringAlignment.Center,
+                                LineAlignment = StringAlignment.Center,
+                                FormatFlags = StringFormatFlags.NoWrap,
+                                Trimming = StringTrimming.EllipsisCharacter
+                            };
                             e.Graphics.DrawString(label, font, textBrush, pillRect, format);
                         }
                     }

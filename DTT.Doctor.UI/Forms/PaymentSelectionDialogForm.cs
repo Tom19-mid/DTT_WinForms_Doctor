@@ -24,7 +24,6 @@ namespace DTT.Doctor.UI.Forms
 
         // Tabs
         private Button _btnTabCash;
-        private Button _btnTabVietQr;
         private Button _btnTabPaypal;
 
         // Active state
@@ -34,10 +33,6 @@ namespace DTT.Doctor.UI.Forms
         private decimal _medsFee = 0m;
         private decimal _totalAmount = 250000m;
         private bool _estimateLoadFailed = false;
-
-        // VietQR state
-        private VietQrResponse? _vietQrInfo;
-        private PictureBox? _picVietQr;
 
         // PayPal state
         private PaypalInfoResponse? _paypalInfo;
@@ -161,17 +156,13 @@ namespace DTT.Doctor.UI.Forms
             };
 
             _btnTabCash = BuildTabButton("💵  1. Tiền Mặt (Tại Quầy)", "cash", 0);
-            // [Old code - Phương thức chuyển khoản VietQR]:
-            // _btnTabVietQr = BuildTabButton("🏦  2. Chuyển Khoản (VietQR)", "vietqr", 1);
-            // [New code - Chỉ giữ 2 hình thức: Tiền mặt và PayPal]:
+            // [Chỉ giữ 2 hình thức: Tiền mặt và PayPal]:
             _btnTabPaypal = BuildTabButton("🅿️  2. PayPal (Quét Mã QR)", "paypal", 1);
 
             _btnTabCash.Click += (s, e) => SwitchTab("cash");
-            // _btnTabVietQr.Click += (s, e) => SwitchTab("vietqr");
             _btnTabPaypal.Click += (s, e) => SwitchTab("paypal");
 
             pnlTabs.Controls.Add(_btnTabPaypal);
-            // pnlTabs.Controls.Add(_btnTabVietQr);
             pnlTabs.Controls.Add(_btnTabCash);
             pnlTabs.Controls.Add(lblSelectMethod);
 
@@ -260,10 +251,6 @@ namespace DTT.Doctor.UI.Forms
             _btnTabCash.BackColor = tabKey == "cash" ? Color.FromArgb(238, 242, 255) : Color.Transparent;
             _btnTabCash.ForeColor = tabKey == "cash" ? ClinicalColors.PrimaryBlue : Color.FromArgb(51, 65, 85);
 
-            // [Old code - VietQR tab color]:
-            // _btnTabVietQr.BackColor = tabKey == "vietqr" ? Color.FromArgb(238, 242, 255) : Color.Transparent;
-            // _btnTabVietQr.ForeColor = tabKey == "vietqr" ? ClinicalColors.PrimaryBlue : Color.FromArgb(51, 65, 85);
-
             _btnTabPaypal.BackColor = tabKey == "paypal" ? Color.FromArgb(238, 242, 255) : Color.Transparent;
             _btnTabPaypal.ForeColor = tabKey == "paypal" ? ClinicalColors.PrimaryBlue : Color.FromArgb(51, 65, 85);
 
@@ -274,10 +261,6 @@ namespace DTT.Doctor.UI.Forms
                 case "cash":
                     RenderCashTab();
                     break;
-                // [Old code - RenderVietQrTab]:
-                // case "vietqr":
-                //     RenderVietQrTab();
-                //     break;
                 case "paypal":
                     RenderPaypalTab();
                     break;
@@ -369,113 +352,7 @@ namespace DTT.Doctor.UI.Forms
             _pnlContent.Controls.Add(card);
         }
 
-        // ── 2. [OLD CODE] RENDER VIETQR TAB (ĐÃ LOẠI BỎ THEO YÊU CẦU) ───────
-        /*
-        private async void RenderVietQrTab()
-        {
-            Panel card = new Panel
-            {
-                Dock = DockStyle.Fill,
-                BackColor = Color.FromArgb(248, 250, 252),
-                Padding = new Padding(24)
-            };
-
-            Label lblHeading = new Label
-            {
-                Text = "🏦  CHUYỂN KHOẢN NGÂN HÀNG (MÃ VIETQR CHUẨN NAPAS 247)",
-                Font = ClinicalColors.GetMainFont(13f, FontStyle.Bold),
-                ForeColor = Color.FromArgb(30, 41, 59),
-                Location = new Point(24, 20),
-                AutoSize = true
-            };
-
-            Label lblDesc = new Label
-            {
-                Text = "Bệnh nhân dùng bất kỳ App Ngân Hàng nào (VCB, MB, Techcombank, BIDV, Momo...) quét mã để chuyển khoản chính xác.",
-                Font = ClinicalColors.GetMainFont(10f, FontStyle.Regular),
-                ForeColor = Color.FromArgb(100, 116, 139),
-                Location = new Point(24, 52),
-                Size = new Size(880, 25)
-            };
-
-            _picVietQr = new PictureBox
-            {
-                Location = new Point(24, 85),
-                Size = new Size(300, 300),
-                SizeMode = PictureBoxSizeMode.Zoom,
-                BackColor = Color.White,
-                BorderStyle = BorderStyle.FixedSingle
-            };
-
-            Panel pnlBankInfo = new Panel
-            {
-                Location = new Point(345, 85),
-                Size = new Size(540, 300),
-                BackColor = Color.White,
-                Padding = new Padding(20),
-                BorderStyle = BorderStyle.FixedSingle
-            };
-
-            Label lblBankName = new Label { Text = "Ngân hàng: MB Bank (Quân Đội)", Font = ClinicalColors.GetMainFont(10.5f, FontStyle.Regular), ForeColor = Color.FromArgb(51, 65, 85), Location = new Point(20, 15), AutoSize = true };
-            Label lblAccNo = new Label { Text = "STK: 0904444444", Font = ClinicalColors.GetMainFont(12f, FontStyle.Bold), ForeColor = ClinicalColors.PrimaryBlue, Location = new Point(20, 45), AutoSize = true };
-            Label lblAccName = new Label { Text = "Chủ TK: PHONG KHAM DA KHOA DTT", Font = ClinicalColors.GetMainFont(10.5f, FontStyle.Bold), ForeColor = Color.FromArgb(30, 41, 59), Location = new Point(20, 75), AutoSize = true };
-            Label lblAmount = new Label { Text = $"Số tiền: {_totalAmount:N0} VNĐ", Font = ClinicalColors.GetMainFont(12f, FontStyle.Bold), ForeColor = Color.FromArgb(16, 185, 129), Location = new Point(20, 105), AutoSize = true };
-            Label lblContent = new Label { Text = $"Nội dung: DTT CA{_appointmentId}", Font = ClinicalColors.GetMainFont(10.5f, FontStyle.Bold), ForeColor = Color.FromArgb(220, 38, 38), Location = new Point(20, 135), AutoSize = true };
-
-            Button btnConfirmTransfer = new Button
-            {
-                Text = "✔ XÁC NHẬN ĐÃ NHẬN CHUYỂN KHOẢN",
-                Font = ClinicalColors.GetMainFont(11f, FontStyle.Bold),
-                ForeColor = Color.White,
-                BackColor = Color.FromArgb(16, 185, 129),
-                FlatStyle = FlatStyle.Flat,
-                FlatAppearance = { BorderSize = 0 },
-                Location = new Point(20, 210),
-                Size = new Size(500, 56),
-                Cursor = Cursors.Hand
-            };
-
-            pnlBankInfo.Controls.Add(btnConfirmTransfer);
-            pnlBankInfo.Controls.Add(lblContent);
-            pnlBankInfo.Controls.Add(lblAmount);
-            pnlBankInfo.Controls.Add(lblAccName);
-            pnlBankInfo.Controls.Add(lblAccNo);
-            pnlBankInfo.Controls.Add(lblBankName);
-
-            card.Controls.Add(pnlBankInfo);
-            card.Controls.Add(_picVietQr);
-            card.Controls.Add(lblDesc);
-            card.Controls.Add(lblHeading);
-
-            _pnlContent.Controls.Add(card);
-
-            // Tải thông tin VietQR từ backend
-            _vietQrInfo = await _api.GetVietQrInfoAsync(_appointmentId);
-            if (_vietQrInfo != null)
-            {
-                lblBankName.Text = $"Ngân hàng: {_vietQrInfo.BankName}";
-                lblAccNo.Text = $"STK: {_vietQrInfo.AccountNo}";
-                lblAccName.Text = $"Chủ TK: {_vietQrInfo.AccountName}";
-                lblAmount.Text = $"Số tiền: {_vietQrInfo.TotalAmount:N0} VNĐ";
-                lblContent.Text = $"Nội dung: {_vietQrInfo.TransferContent}";
-
-                if (!string.IsNullOrEmpty(_vietQrInfo.QrUrl))
-                {
-                    LoadImageAsync(_picVietQr, _vietQrInfo.QrUrl);
-                }
-            }
-
-            btnConfirmTransfer.Click += async (s, e) =>
-            {
-                btnConfirmTransfer.Enabled = false;
-                btnConfirmTransfer.Text = "Đang xử lý...";
-                await ProcessPaymentAsync("bank_transfer");
-                btnConfirmTransfer.Enabled = true;
-            };
-        }
-        */
-
-        // ── 3. RENDER PAYPAL TAB (QUÉT MÃ QR BẰNG ĐIỆN THOẠI) ────────────────
+        // ── 2. RENDER PAYPAL TAB (QUÉT MÃ QR BẰNG ĐIỆN THOẠI) ────────────────
         private async void RenderPaypalTab()
         {
             Panel card = new Panel
