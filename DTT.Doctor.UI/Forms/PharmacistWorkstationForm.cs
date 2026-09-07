@@ -559,7 +559,7 @@ namespace DTT.Doctor.UI.Forms
                     it.Diagnosis,
                     $"{it.DrugCount} loại",
                     timeStr,
-                    "👉 Phát thuốc",
+                    "Phát thuốc",
                     it.AppointmentId
                 );
 
