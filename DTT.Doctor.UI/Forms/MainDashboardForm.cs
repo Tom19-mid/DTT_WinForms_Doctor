@@ -46,6 +46,36 @@ namespace DTT.Doctor.UI.Forms
         private int _lastSeenAdminNotificationId = 0;
         private NotifyIcon _notifyIcon;
 
+        private bool _isBorderlessFullscreen = false;
+        private FormBorderStyle _savedBorderStyle;
+        private FormWindowState _savedWindowState;
+        private Rectangle _savedBounds;
+
+        // F11 — bật/tắt toàn màn hình KHÔNG viền (phủ kín cả vùng taskbar), khác Maximized thông
+        // thường (Maximized vẫn giữ thanh tiêu đề + chừa taskbar). Lưu lại trạng thái cũ để khôi phục
+        // đúng khi tắt, thay vì cố định về 1 kích thước mặc định.
+        private void ToggleBorderlessFullscreen()
+        {
+            if (!_isBorderlessFullscreen)
+            {
+                _savedBorderStyle = FormBorderStyle;
+                _savedWindowState = WindowState;
+                _savedBounds = Bounds;
+
+                FormBorderStyle = FormBorderStyle.None;
+                WindowState = FormWindowState.Normal;
+                Bounds = Screen.FromControl(this).Bounds;
+                _isBorderlessFullscreen = true;
+            }
+            else
+            {
+                FormBorderStyle = _savedBorderStyle;
+                WindowState = _savedWindowState;
+                if (_savedWindowState == FormWindowState.Normal) Bounds = _savedBounds;
+                _isBorderlessFullscreen = false;
+            }
+        }
+
         public MainDashboardForm()
         {
             _presenter = new QueuePresenter(this);
@@ -179,6 +209,17 @@ namespace DTT.Doctor.UI.Forms
             BackColor = ClinicalColors.GhostWhite;
             Font = ClinicalColors.GetMainFont(10f, FontStyle.Regular);
             KeyPreview = true;
+
+            // Mở sẵn ở trạng thái Maximized — trước đây mở ở kích thước cố định 1380x840 giữa màn
+            // hình, người dùng phải tự kéo/double-click title bar để phóng to mỗi lần mở app. Toàn bộ
+            // layout bên trong (sidebar Dock=Left, các form con Dock=Fill, SplitContainer trong
+            // ReceptionCashierForm...) đã dùng Dock/Anchor nên tự co giãn đúng theo kích thước cửa sổ
+            // thật, không cần chỉnh gì thêm để việc mở Maximized có tác dụng.
+            WindowState = FormWindowState.Maximized;
+
+            // F11: chuyển qua lại chế độ toàn màn hình KHÔNG viền (phủ kín cả vùng taskbar) — hữu ích khi
+            // trình bày/demo, không phải chỉ Maximized thông thường (vẫn còn thanh tiêu đề + taskbar).
+            KeyDown += (s, e) => { if (e.KeyCode == Keys.F11) ToggleBorderlessFullscreen(); };
 
             // ── Left Navigation Sidebar (Clean Light Theme with Border Divider) ───────
             Panel pnlSidebar = new Panel

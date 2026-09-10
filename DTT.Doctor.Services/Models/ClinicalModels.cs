@@ -187,6 +187,12 @@ namespace DTT.Doctor.Services.Models
         public string RecordType { get; set; } = "patient";
         [Newtonsoft.Json.JsonProperty("relationship")]
         public string Relationship { get; set; } = "Bản thân";
+        // Chỉ có giá trị khi RecordType == "family_member": patient_id của CHỦ TÀI KHOẢN sở hữu hồ sơ
+        // người thân này — bắt buộc phải gửi kèm khi "Đặt Khám Ngay" cho 1 người thân, để backend gán
+        // đúng appointment.patient_id (chủ tài khoản) + appointment.member_id (Id ở trên), thay vì tìm
+        // lại theo SĐT (SĐT người thân thường trùng SĐT chủ tài khoản, dễ gán nhầm/ghi đè hồ sơ sai).
+        [Newtonsoft.Json.JsonProperty("ownerPatientId")]
+        public int? OwnerPatientId { get; set; }
     }
 
     // ── Phân hệ Dược Sĩ (Pharmacy Models) ──────────────────────────────────

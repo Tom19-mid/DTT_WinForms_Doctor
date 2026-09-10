@@ -19,6 +19,8 @@ namespace DTT.Doctor.UI.Forms
         private AntiFlickerDataGridView _gridCheckIn;
         private AntiFlickerDataGridView _gridBilling;
         private AntiFlickerDataGridView _gridApproveMobile;
+        private TextBox _txtApproveSearch;
+        private List<PatientSimpleModel> _allApproveProfiles = new List<PatientSimpleModel>();
         private TextBox _txtSearchPatient;
         private TextBox _txtSearchBilling;
         private ComboBox _cboSpecialtyFilter;
@@ -558,7 +560,9 @@ namespace DTT.Doctor.UI.Forms
             _lblFeeServices = new Label { Text = "2. Phí dịch vụ Cận lâm sàng (CLS)       :  0 VNĐ", Font = ClinicalColors.GetMainFont(9.5f, FontStyle.Regular), Location = new Point(15, 45), AutoSize = true, UseMnemonic = false };
             _lblFeeMeds = new Label { Text = "3. Phí thuốc theo Đơn thuốc điện tử  :  0 VNĐ", Font = ClinicalColors.GetMainFont(9.5f, FontStyle.Regular), Location = new Point(15, 75), AutoSize = true, UseMnemonic = false };
 
-            Panel lineSub = new Panel { Location = new Point(15, 110), Size = new Size(350, 1), BackColor = ClinicalColors.BorderGray };
+            // 350 -> 280: panel bên phải tab này chỉ rộng ~360px cố định (xem SplitterDistance phía
+            // trên), 350 tràn ra ngoài vùng nhìn thấy — cùng lỗi đã sửa ở tab "Xác Thực Hồ Sơ".
+            Panel lineSub = new Panel { Location = new Point(15, 110), Size = new Size(280, 1), BackColor = ClinicalColors.BorderGray };
 
             _lblTotalAmount = new Label
             {
@@ -585,7 +589,9 @@ namespace DTT.Doctor.UI.Forms
                 ForeColor = Color.White,
                 BackColor = Color.FromArgb(16, 185, 129),
                 FlatStyle = FlatStyle.Flat,
-                Size = new Size(340, 48),
+                // 340 -> 300: panel bên phải tab này chỉ rộng ~360px cố định, 340 tràn nhẹ ra ngoài —
+                // cùng lỗi đã sửa ở tab "Xác Thực Hồ Sơ".
+                Size = new Size(300, 48),
                 Location = new Point(10, 10),
                 Cursor = Cursors.Hand,
                 UseMnemonic = false
@@ -600,7 +606,7 @@ namespace DTT.Doctor.UI.Forms
                 ForeColor = ClinicalColors.PrimaryBlue,
                 BackColor = Color.White,
                 FlatStyle = FlatStyle.Flat,
-                Size = new Size(340, 42),
+                Size = new Size(300, 42),
                 Location = new Point(10, 68),
                 Cursor = Cursors.Hand,
                 UseMnemonic = false
@@ -645,18 +651,41 @@ namespace DTT.Doctor.UI.Forms
             };
 
             Panel pnlLeft = new Panel { Dock = DockStyle.Fill, BackColor = Color.White };
-            Panel pnlTop = new Panel { Dock = DockStyle.Top, Height = 55, BackColor = Color.White, Padding = new Padding(15, 12, 15, 12) };
+            Panel pnlTop = new Panel { Dock = DockStyle.Top, Height = 92, BackColor = Color.White, Padding = new Padding(15, 10, 15, 10) };
 
             Label lblTitle = new Label
             {
                 Text = "[*] HỒ SƠ ĐĂNG KÝ APP MOBILE CHỜ LỄ TÂN ĐỐI CHIẾU THẺ CCCD THỰC TẾ",
                 Font = ClinicalColors.GetMainFont(10.5f, FontStyle.Bold),
                 ForeColor = ClinicalColors.PrimaryBlue,
-                Location = new Point(15, 16),
+                Location = new Point(15, 12),
                 AutoSize = true,
                 UseMnemonic = false
             };
+
+            // Tìm theo Tên/SĐT — trước đây tab này không có ô tìm kiếm, Lễ tân phải cuộn tay qua toàn
+            // bộ danh sách để tìm đúng hồ sơ cần đối chiếu CCCD (khác tab "Đặt Khám Ngay" đã có sẵn).
+            Label lblSearch = new Label
+            {
+                Text = "Tìm theo Tên/SĐT:",
+                Font = ClinicalColors.GetMainFont(10f, FontStyle.Bold),
+                ForeColor = ClinicalColors.TextDark,
+                Location = new Point(15, 52),
+                AutoSize = true,
+                UseMnemonic = false
+            };
+            _txtApproveSearch = new TextBox
+            {
+                Font = ClinicalColors.GetMainFont(10f, FontStyle.Regular),
+                Location = new Point(155, 48),
+                Size = new Size(300, 28),
+                PlaceholderText = "Nhập tên hoặc số điện thoại..."
+            };
+            _txtApproveSearch.TextChanged += (s, e) => FilterApproveMobileGrid();
+
             pnlTop.Controls.Add(lblTitle);
+            pnlTop.Controls.Add(lblSearch);
+            pnlTop.Controls.Add(_txtApproveSearch);
 
             _gridApproveMobile = new AntiFlickerDataGridView { Dock = DockStyle.Fill };
             _gridApproveMobile.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "STT", FillWeight = 25 });
@@ -696,7 +725,11 @@ namespace DTT.Doctor.UI.Forms
 
             Panel pnlDivider = new Panel { Dock = DockStyle.Top, Height = 1, BackColor = ClinicalColors.BorderGray };
 
-            Panel pnlCccdInputBox = new Panel { Dock = DockStyle.Top, Height = 200, BackColor = Color.FromArgb(248, 250, 252), Padding = new Padding(15) };
+            // Height tăng từ 200 -> 280 để chừa chỗ cho nút Quét QR (xếp DƯỚI ô nhập, không xếp NGANG
+            // HÀNG như trước — panel bên phải này chỉ rộng ~340px do SplitterDistance cố định
+            // split.Width - 380 phía trên, xếp ngang hàng khiến nút bị đẩy ra ngoài vùng nhìn thấy,
+            // phải kéo thanh cuộn ngang mới thấy được nút (đúng lỗi bạn báo).
+            Panel pnlCccdInputBox = new Panel { Dock = DockStyle.Top, Height = 280, BackColor = Color.FromArgb(248, 250, 252), Padding = new Padding(15) };
 
             Label lblCccdPrompt = new Label
             {
@@ -712,17 +745,37 @@ namespace DTT.Doctor.UI.Forms
             {
                 Font = ClinicalColors.GetMainFont(12f, FontStyle.Bold),
                 Location = new Point(15, 45),
-                Size = new Size(320, 34),
+                Size = new Size(300, 34),
                 MaxLength = 12
             };
+
+            // Quét mã QR mặt sau thẻ CCCD qua webcam để tự động điền 12 số — hỗ trợ nhập nhanh hơn
+            // gõ tay, KHÔNG thay thế bước Lễ Tân tự mắt đối chiếu thẻ cứng thật (xem CccdQrScannerForm).
+            // Đặt NGAY DƯỚI ô nhập CCCD (không đặt bên phải) — panel này hẹp cố định, xếp ngang hàng sẽ
+            // bị tràn ra ngoài vùng nhìn thấy.
+            Button btnScanQr = new Button
+            {
+                Text = "📷 Quét QR CCCD",
+                Font = ClinicalColors.GetMainFont(9.5f, FontStyle.Bold),
+                ForeColor = Color.White,
+                BackColor = ClinicalColors.PrimaryBlue,
+                FlatStyle = FlatStyle.Flat,
+                Size = new Size(300, 34),
+                Location = new Point(15, 85),
+                Cursor = Cursors.Hand,
+                UseMnemonic = false
+            };
+            btnScanQr.FlatAppearance.BorderSize = 0;
+            btnScanQr.Click += (s, e) => ExecuteScanCccdQr();
+            pnlCccdInputBox.Controls.Add(btnScanQr);
 
             Label lblInstruction = new Label
             {
                 Text = " Quy trình chuẩn Y tế: Lễ tân bắt buộc phải đối chiếu khớp thông tin trên thẻ CCCD thực tế với bệnh nhân trước khi nhấn Duyệt kích hoạt tài khoản App Mobile.",
                 Font = ClinicalColors.GetMainFont(9f, FontStyle.Regular),
                 ForeColor = Color.FromArgb(180, 83, 9),
-                Location = new Point(15, 95),
-                Size = new Size(340, 70),
+                Location = new Point(15, 135),
+                Size = new Size(300, 90),
                 UseMnemonic = false
             };
 
@@ -739,7 +792,10 @@ namespace DTT.Doctor.UI.Forms
                 ForeColor = Color.White,
                 BackColor = Color.FromArgb(16, 185, 129),
                 FlatStyle = FlatStyle.Flat,
-                Size = new Size(340, 50),
+                // 340 -> 300: panel bên phải này chỉ rộng ~340px cố định (xem SplitterDistance phía
+                // trên) — 340 vốn đã tràn nhẹ ra ngoài, góp phần gây thanh cuộn ngang phải kéo mới thấy
+                // hết nút, cùng gốc rễ với nút Quét QR đã sửa ở trên.
+                Size = new Size(300, 50),
                 Location = new Point(10, 15),
                 Cursor = Cursors.Hand,
                 UseMnemonic = false
@@ -1320,6 +1376,41 @@ namespace DTT.Doctor.UI.Forms
             }
         }
 
+        // Lọc theo tên HOẶC SĐT ngay khi gõ cho tab "Xác Thực Hồ Sơ" — trước đây tab này không có ô
+        // tìm kiếm, Lễ Tân phải cuộn tay qua toàn bộ danh sách (gồm cả hồ sơ chính lẫn hồ sơ người thân)
+        // để tìm đúng hồ sơ cần đối chiếu CCCD.
+        private void FilterApproveMobileGrid()
+        {
+            if (_gridApproveMobile == null) return;
+            string q = (_txtApproveSearch?.Text ?? "").Trim().ToLower();
+
+            var filtered = string.IsNullOrEmpty(q)
+                ? _allApproveProfiles
+                : _allApproveProfiles.Where(p =>
+                    (!string.IsNullOrEmpty(p.FullName) && p.FullName.ToLower().Contains(q)) ||
+                    (!string.IsNullOrEmpty(p.Phone) && p.Phone.Replace(" ", "").Contains(q.Replace(" ", "")))
+                  ).ToList();
+
+            _gridApproveMobile.Rows.Clear();
+            _mobilePatientRowIdMap.Clear();
+            _mobileRecordTypeMap.Clear();
+
+            int rowIdx = 0;
+            foreach (var p in filtered)
+            {
+                bool isVerified = p.VerificationStatus == "verified";
+                string statusText = isVerified ? "Đã xác thực CCCD" : "Chờ đem CCCD tới Quầy";
+                string cccdText = !string.IsNullOrEmpty(p.Cccd) ? p.Cccd : "Chưa nhập CCCD";
+                string bhytText = !string.IsNullOrEmpty(p.Bhyt) ? p.Bhyt : "—";
+                string relationship = !string.IsNullOrEmpty(p.Relationship) ? p.Relationship : "Bản thân";
+                _gridApproveMobile.Rows.Add(rowIdx + 1, p.FullName.ToUpper(), relationship, p.Phone, cccdText, bhytText, statusText);
+                if (isVerified) _gridApproveMobile.Rows[rowIdx].DefaultCellStyle.BackColor = Color.FromArgb(236, 253, 245);
+                _mobilePatientRowIdMap[rowIdx] = p.Id;
+                _mobileRecordTypeMap[rowIdx] = p.RecordType;
+                rowIdx++;
+            }
+        }
+
         // Tải toàn bộ danh sách bệnh nhân (hồ sơ chính) vào lưới để Lễ Tân xem/chọn nhanh,
         // thay vì bắt buộc phải gõ đúng SĐT như trước đây.
         private async Task LoadDirectPatientsListAsync()
@@ -1447,6 +1538,20 @@ namespace DTT.Doctor.UI.Forms
                 return;
             }
 
+            // _directFoundPatient là 1 hồ sơ ĐÃ CÓ SẴN (tìm qua tab "Đặt Khám Ngay"), không phải bệnh
+            // nhân vãng lai mới — phải cho backend biết chính xác Id/RecordType để nó không tìm/khớp
+            // lại theo SĐT (SĐT người thân thường trùng SĐT chủ tài khoản, trước đây khiến hồ sơ CHỦ
+            // TÀI KHOẢN bị ghi đè nhầm bằng thông tin của người thân). Nếu là hồ sơ người thân mà thiếu
+            // OwnerPatientId (dữ liệu tải về bất thường) thì CHẶN LUÔN thay vì âm thầm gọi API mà không
+            // có ownerPatientId — nếu không chặn, backend sẽ rơi về nhánh tìm-theo-SĐT cũ và tái diễn
+            // đúng lỗi ghi đè hồ sơ chủ tài khoản mà sửa này nhằm ngăn.
+            bool isFamilyMember = _directFoundPatient.RecordType == "family_member";
+            if (isFamilyMember && (!_directFoundPatient.OwnerPatientId.HasValue || _directFoundPatient.OwnerPatientId.Value <= 0))
+            {
+                MessageBox.Show("Không xác định được chủ tài khoản của hồ sơ người thân này. Vui lòng tải lại danh sách và thử lại.", "Thiếu thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
             _btnDirectBookNow.Enabled = false;
             _btnDirectBookNow.Text = " Đang xử lý...";
 
@@ -1462,7 +1567,10 @@ namespace DTT.Doctor.UI.Forms
                     _directFoundPatient.Bhyt,
                     address: null,
                     doctorId: specInfo.DoctorId,
-                    specialtyName: specInfo.SpecialtyName);
+                    specialtyName: specInfo.SpecialtyName,
+                    existingPatientId: isFamilyMember ? (int?)null : _directFoundPatient.Id,
+                    memberId: isFamilyMember ? (int?)_directFoundPatient.Id : null,
+                    ownerPatientId: isFamilyMember ? _directFoundPatient.OwnerPatientId : null);
 
                 if (result.Success)
                 {
@@ -1499,6 +1607,12 @@ namespace DTT.Doctor.UI.Forms
 
                 // --- Tab 1 & 2: Load appointments + billing from API ---
                 var appointments = await api.GetQueueAppointmentsAsync();
+
+                // Ca đã HỦY/KHÔNG ĐẾN không cần tiếp đón hay thu ngân gì nữa — API todayOnly=true trả
+                // về TẤT CẢ trạng thái của hôm nay (kể cả Cancelled/NoShow), và vòng lặp bên dưới hiển
+                // thị CỨNG "Đã xác nhận" cho mọi dòng bất kể trạng thái thật, khiến lịch hẹn đã hủy vẫn
+                // hiện như đang chờ check-in, làm hàng đợi lễ tân "tồn đọng" ảo dù không có ca thật nào.
+                appointments = appointments?.Where(a => a.Status != "Cancelled" && a.Status != "NoShow").ToList();
 
                 _gridCheckIn.Rows.Clear();
                 _gridBilling.Rows.Clear();
@@ -1635,28 +1749,10 @@ namespace DTT.Doctor.UI.Forms
 
                 // --- Tab 3: Load real patients + hồ sơ người thân pending CCCD verification ---
                 var allPatients = await api.GetPatientsAsync();
-                _gridApproveMobile.Rows.Clear();
-                _mobilePatientRowIdMap.Clear();
-                _mobileRecordTypeMap.Clear();
+                _allApproveProfiles = allPatients ?? new List<PatientSimpleModel>();
+                FilterApproveMobileGrid();
 
-                if (allPatients != null && allPatients.Count > 0)
-                {
-                    int rowIdx = 0;
-                    foreach (var p in allPatients)
-                    {
-                        bool isVerified = p.VerificationStatus == "verified";
-                        string statusText = isVerified ? "Đã xác thực CCCD" : "Chờ đem CCCD tới Quầy";
-                        string cccdText = !string.IsNullOrEmpty(p.Cccd) ? p.Cccd : "Chưa nhập CCCD";
-                        string bhytText = !string.IsNullOrEmpty(p.Bhyt) ? p.Bhyt : "—";
-                        string relationship = !string.IsNullOrEmpty(p.Relationship) ? p.Relationship : "Bản thân";
-                        _gridApproveMobile.Rows.Add(rowIdx + 1, p.FullName.ToUpper(), relationship, p.Phone, cccdText, bhytText, statusText);
-                        if (isVerified) _gridApproveMobile.Rows[rowIdx].DefaultCellStyle.BackColor = Color.FromArgb(236, 253, 245);
-                        _mobilePatientRowIdMap[rowIdx] = p.Id;
-                        _mobileRecordTypeMap[rowIdx] = p.RecordType;
-                        rowIdx++;
-                    }
-                }
-                else
+                if (allPatients == null || allPatients.Count == 0)
                 {
                     // KHÔNG hiện danh sách bệnh nhân demo giả ("DAWN", "DAVID JOHNS"...) vì trông giống
                     // hồ sơ thật, dễ khiến Lễ Tân tưởng nhầm là dữ liệu thật thay vì nhận ra lỗi tải API.
@@ -2528,97 +2624,84 @@ namespace DTT.Doctor.UI.Forms
             }
         }
 
+        // Trước đây vẽ 1 Form borderless tự custom toàn bộ (header phẳng tô màu, nút "✕" tự vẽ, viền
+        // tô tay bằng Paint) — nhìn khác hẳn phong cách cửa sổ Windows chuẩn, gây rối mắt khi hiện liên
+        // tục trong lúc thao tác. Giờ dùng khung cửa sổ chuẩn của Windows (FixedDialog: có thanh tiêu đề
+        // + nút đóng hệ thống thật), chỉ giữ lại màu xanh/đỏ làm điểm nhấn ở nút hành động, và tự co
+        // giãn chiều cao theo đúng độ dài nội dung thay vì cố định 580x460 (thông báo ngắn từng bị thừa
+        // khoảng trắng, thông báo dài từng có nguy cơ bị cắt chữ).
         private void ShowReceptionNotification(string title, string message, bool isSuccess = true)
         {
             using (Form dialog = new Form())
             {
-                dialog.Size = new Size(580, 460);
-                dialog.StartPosition = FormStartPosition.CenterScreen;
-                dialog.FormBorderStyle = FormBorderStyle.None;
-                dialog.BackColor = Color.White;
+                dialog.Text = title.Trim();
+                dialog.FormBorderStyle = FormBorderStyle.FixedDialog;
+                dialog.MaximizeBox = false;
+                dialog.MinimizeBox = false;
+                dialog.ShowIcon = false;
                 dialog.ShowInTaskbar = false;
+                dialog.StartPosition = FormStartPosition.CenterParent;
+                dialog.BackColor = Color.White;
 
                 Color themeColor = isSuccess ? Color.FromArgb(16, 185, 129) : Color.FromArgb(220, 38, 38);
-
-                Panel pnlHeader = new Panel
-                {
-                    Dock = DockStyle.Top,
-                    Height = 56,
-                    BackColor = themeColor
-                };
-
-                Label lblTitle = new Label
-                {
-                    Text = title,
-                    Font = ClinicalColors.GetMainFont(11.5f, FontStyle.Bold),
-                    ForeColor = Color.White,
-                    Location = new Point(20, 14),
-                    Size = new Size(480, 28),
-                    TextAlign = ContentAlignment.MiddleLeft,
-                    UseMnemonic = false
-                };
-
-                Button btnClose = new Button
-                {
-                    Text = "✕",
-                    Font = ClinicalColors.GetMainFont(12f, FontStyle.Bold),
-                    ForeColor = Color.White,
-                    FlatStyle = FlatStyle.Flat,
-                    Size = new Size(36, 36),
-                    Location = new Point(525, 10),
-                    Cursor = Cursors.Hand,
-                    UseMnemonic = false
-                };
-                btnClose.FlatAppearance.BorderSize = 0;
-                btnClose.Click += (s, e) => dialog.Close();
-
-                pnlHeader.Controls.Add(lblTitle);
-                pnlHeader.Controls.Add(btnClose);
-
-                Panel pnlBody = new Panel
-                {
-                    Dock = DockStyle.Fill,
-                    Padding = new Padding(24, 20, 24, 80),
-                    BackColor = Color.White
-                };
+                const int contentWidth = 440;
 
                 Label lblMsg = new Label
                 {
                     Text = message,
                     Font = ClinicalColors.GetMainFont(10f, FontStyle.Regular),
                     ForeColor = ClinicalColors.TextDark,
-                    Dock = DockStyle.Fill,
+                    Location = new Point(24, 24),
+                    AutoSize = false,
                     UseMnemonic = false
                 };
+                var measured = TextRenderer.MeasureText(message, lblMsg.Font, new Size(contentWidth, int.MaxValue), TextFormatFlags.WordBreak);
+                lblMsg.Size = new Size(contentWidth, Math.Max(40, measured.Height + 10));
 
                 Button btnOk = new Button
                 {
-                    Text = isSuccess ? " XÁC NHẬN / ĐÃ HIỂU" : "✕ ĐÓNG & KIỂM TRA LẠI",
-                    Font = ClinicalColors.GetMainFont(10.5f, FontStyle.Bold),
+                    Text = isSuccess ? "Xác nhận / Đã hiểu" : "Đóng",
+                    Font = ClinicalColors.GetMainFont(10f, FontStyle.Bold),
                     ForeColor = Color.White,
                     BackColor = themeColor,
                     FlatStyle = FlatStyle.Flat,
-                    Size = new Size(240, 44),
-                    Location = new Point(170, 395),
+                    Size = new Size(170, 38),
                     Cursor = Cursors.Hand,
+                    DialogResult = DialogResult.OK,
                     UseMnemonic = false
                 };
                 btnOk.FlatAppearance.BorderSize = 0;
-                btnOk.Click += (s, e) => dialog.Close();
+                btnOk.Location = new Point((contentWidth + 48 - btnOk.Width) / 2, lblMsg.Bottom + 24);
 
-                pnlBody.Controls.Add(lblMsg);
+                dialog.ClientSize = new Size(contentWidth + 48, btnOk.Bottom + 24);
+                dialog.AcceptButton = btnOk;
+                dialog.Controls.Add(lblMsg);
                 dialog.Controls.Add(btnOk);
-                dialog.Controls.Add(pnlBody);
-                dialog.Controls.Add(pnlHeader);
-
-                dialog.Paint += (s, e) => {
-                    using (Pen p = new Pen(themeColor, 3))
-                    {
-                        e.Graphics.DrawRectangle(p, 0, 0, dialog.Width - 1, dialog.Height - 1);
-                    }
-                };
 
                 dialog.ShowDialog(this);
+            }
+        }
+
+        // Mở dialog quét QR mặt sau thẻ CCCD qua webcam, điền tự động vào ô nhập CCCD nếu quét thành
+        // công. Chỉ hỗ trợ NHẬP NHANH — Lễ Tân vẫn phải tự mắt đối chiếu thẻ cứng thật trước khi bấm
+        // "Xác nhận đối chiếu CCCD & Duyệt hồ sơ" như quy trình chuẩn hiện tại.
+        private void ExecuteScanCccdQr()
+        {
+            using var scanner = new CccdQrScannerForm();
+            var result = scanner.ShowDialog(this);
+            if (result == DialogResult.OK && !string.IsNullOrWhiteSpace(scanner.ScannedCccdNumber))
+            {
+                _txtVerifyCccdInput.Text = scanner.ScannedCccdNumber;
+
+                string preview = scanner.ScannedFullName ?? "";
+                if (!string.IsNullOrWhiteSpace(scanner.ScannedDob)) preview += $" — Sinh {scanner.ScannedDob}";
+                if (!string.IsNullOrWhiteSpace(preview))
+                {
+                    ShowReceptionNotification(
+                        "ĐÃ QUÉT MÃ QR CCCD",
+                        $"Số CCCD: {scanner.ScannedCccdNumber}\nThông tin trên thẻ: {preview.Trim()}\n\nVui lòng đối chiếu kỹ thông tin này với thẻ cứng và tên hồ sơ đang chọn trước khi Duyệt.",
+                        true);
+                }
             }
         }
 

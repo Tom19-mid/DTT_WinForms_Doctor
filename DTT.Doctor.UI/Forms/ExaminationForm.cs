@@ -757,6 +757,19 @@ namespace DTT.Doctor.UI.Forms
 
         private async void OnSaveClinicalRecordClick(object sender, EventArgs e)
         {
+            // Không xác định được Bác sĩ đang đăng nhập (TokenVault.DoctorId <= 0) — trước đây
+            // BuildCurrentRecordRequest() âm thầm gán cứng DoctorId = 1 trong trường hợp này, nghĩa là
+            // bệnh án/đơn thuốc sẽ bị ghi nhận nhầm cho "Bác sĩ #1" trong DB dù người khám thực sự là
+            // ai khác (hoặc phiên đăng nhập đã lỗi) — sai lệch trách nhiệm y khoa mà không hề cảnh báo.
+            // Giờ chặn lưu và báo lỗi rõ ràng thay vì lưu bệnh án dưới tên bác sĩ sai.
+            if (TokenVault.DoctorId <= 0)
+            {
+                MessageBox.Show(
+                    "Không xác định được Bác sĩ đang đăng nhập (phiên đăng nhập có thể đã lỗi).\n\nVui lòng đăng nhập lại trước khi lưu bệnh án — KHÔNG được lưu để tránh ghi nhận nhầm bác sĩ khám.",
+                    "Thiếu Thông Tin Bác Sĩ", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
             var api = new ApiService();
 
             // Cảnh báo nếu ca khám này còn chỉ định Xét nghiệm/Siêu âm CHƯA có kết quả — tránh bấm

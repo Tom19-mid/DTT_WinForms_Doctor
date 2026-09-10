@@ -309,12 +309,18 @@ namespace DTT.Doctor.Services.Core
 
         // Lễ Tân tạo hồ sơ bệnh nhân vãng lai → trả về mật khẩu tạm thời giả lập gửi SMS
         public async Task<(bool Success, string TempPassword, int PatientId, int AppointmentId)> RegisterWalkInAsync(
-            string fullName, string phone, string cccd, string? dob, string? gender, string? bhyt, string? address, int doctorId, string? specialtyName)
+            string fullName, string phone, string cccd, string? dob, string? gender, string? bhyt, string? address, int doctorId, string? specialtyName,
+            int? existingPatientId = null, int? memberId = null, int? ownerPatientId = null)
         {
             AttachBearerToken();
             try
             {
-                var payload = new { FullName = fullName, Phone = phone, CccdNumber = cccd, DateOfBirth = dob, Gender = gender ?? "Nam", BhytNumber = bhyt, Address = address, DoctorId = doctorId, SpecialtyName = specialtyName };
+                // existingPatientId / (memberId + ownerPatientId): dùng khi "Đặt Khám Ngay" cho 1 hồ sơ
+                // bệnh nhân/người thân ĐÃ CÓ SẴN (tìm qua tab tra cứu SĐT) — backend sẽ KHÔNG tìm/khớp
+                // lại theo Phone như đăng ký vãng lai mới hoàn toàn (xem RegisterWalkIn trong
+                // InvoicesController.cs: trước đây luôn khớp theo SĐT nên hồ sơ người thân — vốn dùng
+                // chung SĐT với chủ tài khoản — bị ghi đè nhầm lên đúng hồ sơ của chủ tài khoản).
+                var payload = new { FullName = fullName, Phone = phone, CccdNumber = cccd, DateOfBirth = dob, Gender = gender ?? "Nam", BhytNumber = bhyt, Address = address, DoctorId = doctorId, SpecialtyName = specialtyName, ExistingPatientId = existingPatientId, MemberId = memberId, OwnerPatientId = ownerPatientId };
                 var content = new StringContent(JsonConvert.SerializeObject(payload), Encoding.UTF8, "application/json");
                 var res = await _httpClient.PostAsync("/api/Invoices/register-walkin", content);
                 if (res.IsSuccessStatusCode)
