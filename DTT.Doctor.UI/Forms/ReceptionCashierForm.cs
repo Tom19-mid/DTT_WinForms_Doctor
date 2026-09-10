@@ -1503,8 +1503,15 @@ namespace DTT.Doctor.UI.Forms
             string[] finishedStatuses = { "Completed", "Cancelled", "NoShow" };
             var api = new ApiService();
             var todayAppointments = await api.GetQueueAppointmentsAsync();
+            // [Old code]: "a.PatientId == found.Id" — SAI khi found là hồ sơ NGƯỜI THÂN: found.Id lúc đó
+            // là family_members.member_id, trong khi appointments.patient_id LUÔN là patient_id của CHỦ
+            // TÀI KHOẢN (không phải member_id) — 2 không gian ID khác nhau nên so sánh này không bao giờ
+            // khớp đúng cho người thân (bỏ lọt cảnh báo trùng lịch), và có thể trùng nhầm với 1 bệnh
+            // nhân khác có PatientId trùng số với member_id đó. So đúng theo đúng không gian ID tương ứng.
+            bool isFamilyMemberCheck = found.RecordType == "family_member";
             bool hasActiveApptToday = todayAppointments != null && todayAppointments.Any(a =>
-                a.PatientId == found.Id && !finishedStatuses.Contains(a.Status));
+                !finishedStatuses.Contains(a.Status) &&
+                (isFamilyMemberCheck ? a.MemberId == found.Id : (a.PatientId == found.Id && a.MemberId == null)));
 
             if (hasActiveApptToday)
             {
@@ -2834,6 +2841,7 @@ namespace DTT.Doctor.UI.Forms
             bool apiSuccess = false;
             string tempPwd = $"DTT@{phone.Substring(phone.Length - 4)}";
             int newPatientId = 0, newApptId = 0;
+            string apiErrorMessage = "Không thể kết nối tới máy chủ. Vui lòng thử lại.";
             try
             {
                 var api = new ApiService();
@@ -2842,8 +2850,23 @@ namespace DTT.Doctor.UI.Forms
                 if (!string.IsNullOrEmpty(result.TempPassword)) tempPwd = result.TempPassword;
                 newPatientId = result.PatientId;
                 newApptId = result.AppointmentId;
+                apiErrorMessage = result.ErrorMessage;
             }
             catch { }
+
+            // [New code]: trước đây KHÔNG kiểm tra apiSuccess — dù API thất bại thật sự (vd trùng CCCD
+            // với ràng buộc mới, mất kết nối...), giao diện vẫn thêm 1 dòng vào bảng check-in và hiện
+            // "TẠO HỒ SƠ & BẮN SMS KÍCH HOẠT THÀNH CÔNG" với mã lịch hẹn/SMS GIẢ (fallback
+            // "100 + newStt"), khiến Lễ Tân tưởng bệnh nhân đã vào hàng đợi khám trong khi thực tế
+            // backend không hề tạo được gì cả. Giờ báo lỗi rõ ràng và dừng lại, không tự bịa dữ liệu.
+            if (!apiSuccess)
+            {
+                ShowReceptionNotification(
+                    " ĐĂNG KÝ THẤT BẠI",
+                    $"Không thể tạo hồ sơ bệnh nhân vãng lai!\n\nLý do: {apiErrorMessage}\n\nVui lòng kiểm tra lại thông tin (CCCD có thể đã được dùng cho hồ sơ khác) rồi thử lại.",
+                    false);
+                return;
+            }
 
             // Cập nhật giao diện Tab Tiếp Đón
             int newStt = _gridCheckIn.Rows.Count + 1;

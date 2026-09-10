@@ -6,6 +6,11 @@ namespace DTT.Doctor.Services.Models
     {
         public int AppointmentId { get; set; }
         public int PatientId { get; set; }
+        // Khác null khi lịch hẹn đặt cho hồ sơ THÀNH VIÊN GIA ĐÌNH (family_members.member_id) —
+        // PatientId luôn là patient_id của CHỦ TÀI KHOẢN trong trường hợp này, không phải của người
+        // thân đó. Cần thiết để so khớp đúng "người thân X đã có lịch hôm nay chưa" thay vì so nhầm
+        // member_id với patient_id (2 không gian ID khác nhau — xem ReceptionCashierForm).
+        public int? MemberId { get; set; }
         public int DoctorId { get; set; }
         public string PatientName { get; set; } = string.Empty;
         public string PatientGender { get; set; } = "Nam";

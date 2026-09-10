@@ -308,7 +308,10 @@ namespace DTT.Doctor.Services.Core
         }
 
         // Lễ Tân tạo hồ sơ bệnh nhân vãng lai → trả về mật khẩu tạm thời giả lập gửi SMS
-        public async Task<(bool Success, string TempPassword, int PatientId, int AppointmentId)> RegisterWalkInAsync(
+        // [New code]: thêm ErrorMessage vào tuple trả về — trước đây gọi thất bại (vd trùng CCCD, lỗi
+        // mạng) chỉ trả về Success=false không kèm lý do gì, khiến ReceptionCashierForm không có gì để
+        // hiện cho Lễ Tân biết vì sao thất bại (và trước đây còn không kiểm tra Success luôn).
+        public async Task<(bool Success, string TempPassword, int PatientId, int AppointmentId, string ErrorMessage)> RegisterWalkInAsync(
             string fullName, string phone, string cccd, string? dob, string? gender, string? bhyt, string? address, int doctorId, string? specialtyName,
             int? existingPatientId = null, int? memberId = null, int? ownerPatientId = null)
         {
@@ -323,18 +326,31 @@ namespace DTT.Doctor.Services.Core
                 var payload = new { FullName = fullName, Phone = phone, CccdNumber = cccd, DateOfBirth = dob, Gender = gender ?? "Nam", BhytNumber = bhyt, Address = address, DoctorId = doctorId, SpecialtyName = specialtyName, ExistingPatientId = existingPatientId, MemberId = memberId, OwnerPatientId = ownerPatientId };
                 var content = new StringContent(JsonConvert.SerializeObject(payload), Encoding.UTF8, "application/json");
                 var res = await _httpClient.PostAsync("/api/Invoices/register-walkin", content);
+                var respJson = await res.Content.ReadAsStringAsync();
                 if (res.IsSuccessStatusCode)
                 {
-                    var json = await res.Content.ReadAsStringAsync();
-                    dynamic? obj = JsonConvert.DeserializeObject<dynamic>(json);
+                    dynamic? obj = JsonConvert.DeserializeObject<dynamic>(respJson);
                     string pwd = (string)(obj?.tempPassword ?? "DTT@0000");
                     int pid = (int)(obj?.patientId ?? 0);
                     int aid = (int)(obj?.appointmentId ?? 0);
-                    return (true, pwd, pid, aid);
+                    return (true, pwd, pid, aid, "");
+                }
+                else
+                {
+                    string errMsg = "Đăng ký thất bại.";
+                    try
+                    {
+                        dynamic? errObj = JsonConvert.DeserializeObject<dynamic>(respJson);
+                        if (errObj?.message != null) errMsg = (string)errObj.message;
+                    }
+                    catch { }
+                    return (false, "", 0, 0, errMsg);
                 }
             }
-            catch { }
-            return (false, "", 0, 0);
+            catch (Exception ex)
+            {
+                return (false, "", 0, 0, "Lỗi kết nối tới máy chủ: " + ex.Message);
+            }
         }
 
         // Lấy danh sách chuyên khoa kèm tên bác sĩ từ DB (cho form đăng ký vãng lai)
