@@ -158,7 +158,7 @@ namespace DTT.Doctor.UI.Controls
                     Color fg = Color.FromArgb(212, 136, 6);      // Antd Warning Gold text #D48806
                     string label = string.IsNullOrWhiteSpace(rawVal) ? "Đang chờ" : rawVal;
 
-                    if (rawVal.Equals("AwaitingTestResults", StringComparison.OrdinalIgnoreCase) || rawVal.Contains("Chờ Kết Quả") || rawVal.Contains("Chờ kết quả"))
+                    if (rawVal.Equals("AwaitingTestResults", StringComparison.OrdinalIgnoreCase) || rawVal.Contains("Chờ Kết Quả") || rawVal.Contains("Chờ kết quả") || rawVal.Equals("9"))
                     {
                         bg = Color.FromArgb(249, 240, 255);     // Antd Purple bg #F9F0FF
                         border = Color.FromArgb(211, 173, 247); // Antd Purple border #D3ADF7
@@ -173,33 +173,69 @@ namespace DTT.Doctor.UI.Controls
                         fg = Color.FromArgb(126, 34, 206);      // Purple text #7E22CE
                         label = "Chờ Dược Sĩ";
                     }
-                    else if (rawVal.Equals("InProgress", StringComparison.OrdinalIgnoreCase) || rawVal.Contains("Đang khám") || rawVal.Contains("Đang tư vấn") || rawVal.Contains("Đang đo") || rawVal.Equals("2"))
+                    // [New badge - Trạng thái chờ thanh toán viện phí]:
+                    else if (rawVal.Equals("PendingPayment", StringComparison.OrdinalIgnoreCase) || rawVal.Contains("Chờ thanh toán") || rawVal.Contains("Chờ viện phí") || rawVal.Equals("11"))
+                    {
+                        bg = Color.FromArgb(254, 243, 199);     // Amber bg #FEF3C7
+                        border = Color.FromArgb(252, 211, 77);  // Amber border #FCD34D
+                        fg = Color.FromArgb(180, 83, 9);        // Amber text #B45309
+                        label = "Chờ Thanh Toán";
+                    }
+                    // [Trạng thái Điều dưỡng đã đo sinh hiệu, chờ Bác sĩ gọi vào khám]:
+                    else if (rawVal.Equals("WaitingForDoctor", StringComparison.OrdinalIgnoreCase) || rawVal.Contains("Chờ Bác sĩ") || rawVal.Contains("Chờ khám") || rawVal.Equals("8"))
+                    {
+                        bg = Color.FromArgb(255, 251, 230);    // Antd Warning Gold bg #FFFBE6
+                        border = Color.FromArgb(255, 229, 143);// Antd Warning Gold border #FFE58F
+                        fg = Color.FromArgb(212, 136, 6);      // Antd Warning Gold text #D48806
+                        label = "Chờ Khám";
+                    }
+                    // [Trạng thái Lễ tân đã check-in]:
+                    else if (rawVal.Equals("CheckedIn", StringComparison.OrdinalIgnoreCase) || rawVal.Contains("Đã check-in") || rawVal.Equals("7"))
+                    {
+                        bg = Color.FromArgb(230, 244, 255);     // Light blue
+                        border = Color.FromArgb(145, 202, 255);
+                        fg = Color.FromArgb(22, 119, 255);
+                        label = "Đã Check-in";
+                    }
+                    // [Trạng thái đã xác nhận lịch hẹn]:
+                    else if (rawVal.Equals("Confirmed", StringComparison.OrdinalIgnoreCase) || rawVal.Contains("Đã xác nhận") || rawVal.Equals("Scheduled", StringComparison.OrdinalIgnoreCase) || rawVal.Equals("1"))
+                    {
+                        bg = Color.FromArgb(240, 253, 250);     // Soft Teal
+                        border = Color.FromArgb(153, 246, 228);
+                        fg = Color.FromArgb(13, 148, 136);
+                        label = "Đã Xác Nhận";
+                    }
+                    // [Trạng thái đang khám lâm sàng]:
+                    else if (rawVal.Equals("InProgress", StringComparison.OrdinalIgnoreCase) || rawVal.Contains("Đang khám") || rawVal.Contains("Đang tư vấn") || rawVal.Contains("Đang đo") || rawVal.Equals("2") || rawVal.Equals("3"))
                     {
                         bg = Color.FromArgb(230, 244, 255);     // Antd Processing Blue bg #E6F4FF
                         border = Color.FromArgb(145, 202, 255); // Antd Processing Blue border #91CAFF
                         fg = Color.FromArgb(22, 119, 255);      // Antd Processing Blue text #1677FF
-                        label = rawVal.Equals("2") ? "Đang khám" : rawVal;
+                        label = "Đang Khám";
                     }
-                    else if (rawVal.Equals("Completed", StringComparison.OrdinalIgnoreCase) || rawVal.Contains("Đã khám") || rawVal.Contains("Hoàn tất") || rawVal.Contains("Bình thường") || rawVal.Equals("Normal", StringComparison.OrdinalIgnoreCase) || rawVal.Contains("Đã thanh toán") || rawVal.Contains("Đã duyệt") || rawVal.Contains("Đã xác thực") || rawVal.Equals("3"))
+                    // [Trạng thái hoàn thành]:
+                    else if (rawVal.Equals("Completed", StringComparison.OrdinalIgnoreCase) || rawVal.Contains("Đã khám") || rawVal.Contains("Hoàn tất") || rawVal.Contains("hoàn thành") || rawVal.Contains("Bình thường") || rawVal.Equals("Normal", StringComparison.OrdinalIgnoreCase) || rawVal.Contains("Đã thanh toán") || rawVal.Contains("Đã duyệt") || rawVal.Contains("Đã xác thực") || rawVal.Equals("4"))
                     {
                         bg = Color.FromArgb(246, 255, 237);     // Antd Success Green bg #F6FFED
                         border = Color.FromArgb(183, 235, 143); // Antd Success Green border #B7EB8F
                         fg = Color.FromArgb(82, 196, 26);       // Antd Success Green text #52C41A
-                        label = rawVal.Equals("3") ? "Đã khám" : rawVal;
+                        label = "Đã Hoàn Thành";
                     }
-                    else if (rawVal.Equals("Cancelled", StringComparison.OrdinalIgnoreCase) || rawVal.Contains("Hủy") || rawVal.Contains("hủy"))
+                    // [Trạng thái hủy lịch]:
+                    else if (rawVal.Equals("Cancelled", StringComparison.OrdinalIgnoreCase) || rawVal.Contains("Hủy") || rawVal.Contains("hủy") || rawVal.Equals("5"))
                     {
                         bg = Color.FromArgb(255, 241, 240);     // Antd Error Red bg #FFF1F0
                         border = Color.FromArgb(255, 204, 199); // Antd Error Red border #FFCCC7
                         fg = Color.FromArgb(255, 77, 79);       // Antd Error Red text #FF4D4F
-                        label = rawVal.Equals("Cancelled", StringComparison.OrdinalIgnoreCase) ? "Hủy Lịch" : rawVal;
+                        label = "Đã Hủy";
                     }
-                    else if (rawVal.Equals("NoShow", StringComparison.OrdinalIgnoreCase) || rawVal.Equals("Expired", StringComparison.OrdinalIgnoreCase) || rawVal.Contains("Quá hạn") || rawVal.Contains("Bỏ khám") || rawVal.Contains("Bất thường") || rawVal.Equals("Abnormal", StringComparison.OrdinalIgnoreCase) || rawVal.Contains("Khẩn"))
+                    // [Trạng thái không đến khám / quá hạn]:
+                    else if (rawVal.Equals("NoShow", StringComparison.OrdinalIgnoreCase) || rawVal.Equals("Expired", StringComparison.OrdinalIgnoreCase) || rawVal.Contains("Quá hạn") || rawVal.Contains("Bỏ khám") || rawVal.Contains("Không đến") || rawVal.Contains("không đến") || rawVal.Contains("Bất thường") || rawVal.Equals("Abnormal", StringComparison.OrdinalIgnoreCase) || rawVal.Contains("Khẩn") || rawVal.Equals("6"))
                     {
                         bg = Color.FromArgb(255, 241, 240);     // Antd Error Red bg #FFF1F0
                         border = Color.FromArgb(255, 204, 199); // Antd Error Red border #FFCCC7
                         fg = Color.FromArgb(255, 77, 79);       // Antd Error Red text #FF4D4F
-                        label = rawVal.Equals("NoShow", StringComparison.OrdinalIgnoreCase) ? "Bỏ Khám" : rawVal;
+                        label = "Không Đến Khám";
                     }
 
                     if (!string.IsNullOrWhiteSpace(label))

@@ -40,19 +40,35 @@ namespace DTT.Doctor.UI.Forms
             this.Shown += async (s, e) =>
             {
                 await RefreshAllAsync();
-                if (_autoRefreshTimer == null)
+                StartAutoRefresh();
+            };
+            this.VisibleChanged += async (s, e) =>
+            {
+                if (this.Visible)
                 {
-                    _autoRefreshTimer = new System.Windows.Forms.Timer { Interval = 10000 };
-                    _autoRefreshTimer.Tick += async (ts, te) => await RefreshAllAsync();
-                    _autoRefreshTimer.Start();
+                    await RefreshAllAsync();
+                    StartAutoRefresh();
                 }
             };
-            this.VisibleChanged += async (s, e) => { if (this.Visible) await RefreshAllAsync(); };
             this.FormClosed += (s, e) =>
             {
                 _autoRefreshTimer?.Stop();
                 _autoRefreshTimer?.Dispose();
             };
+        }
+
+        public void StartAutoRefresh()
+        {
+            if (_autoRefreshTimer == null)
+            {
+                _autoRefreshTimer = new System.Windows.Forms.Timer { Interval = 1500 };
+                _autoRefreshTimer.Tick += async (ts, te) => await RefreshAllAsync();
+                _autoRefreshTimer.Start();
+            }
+            else if (!_autoRefreshTimer.Enabled)
+            {
+                _autoRefreshTimer.Start();
+            }
         }
 
         public async Task LoadDataAsync() => await RefreshAllAsync();

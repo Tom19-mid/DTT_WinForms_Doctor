@@ -251,7 +251,7 @@ namespace DTT.Doctor.UI.Forms
                             }
                             if (isDone) revenue += fee;
 
-                            string sttText = isDone ? "Đã Khám Bệnh" : status == "Cancelled" ? "Hủy Lịch" : status == "NoShow" ? "Bỏ Khám" : "Đang Chờ";
+                            string sttText = isDone ? "Đã Khám Bệnh" : status == "Cancelled" ? "Hủy Lịch" : (status == "NoShow" || status == "Expired") ? "Không Đến Khám" : "Đang Chờ";
 
                             _gridStats.Rows.Add(
                                 stt++,

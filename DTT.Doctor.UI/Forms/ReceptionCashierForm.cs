@@ -105,6 +105,13 @@ namespace DTT.Doctor.UI.Forms
         // hàng chờ có sẵn mỗi khi Lễ tân mở lại app/chuyển tab.
         private HashSet<int> _knownChatSessionIds = new HashSet<int>();
         private bool _chatQueueInitialized = false;
+        private HashSet<int> _knownPendingPaymentIds = new HashSet<int>();
+        private bool _hasLoadedAppointmentsOnce = false;
+        private int _autoRefreshApptCounter = 0;
+        private static List<(string DisplayName, int DoctorId, string SpecialtyName)> _cachedDoctorsWithSpec;
+        private static DateTime _lastSpecFetchTime = DateTime.MinValue;
+        private static DateTime _lastPatientsFetchTime = DateTime.MinValue;
+        private static DateTime _lastDoctorExamDateFetchTime = DateTime.MinValue;
         // Dialog giờ non-modal (Show thay vì ShowDialog) để lễ tân vừa chat vừa chuyển sang tab khác
         // (vd: đặt lịch) — theo dõi theo session_id để tránh mở trùng 2 cửa sổ cho cùng 1 phiên.
         private Dictionary<int, ChatSessionDialogForm> _openChatDialogs = new Dictionary<int, ChatSessionDialogForm>();
@@ -117,15 +124,35 @@ namespace DTT.Doctor.UI.Forms
             {
                 await LoadDataPublicAsync();
                 await RefreshChatQueueAsync();
-                if (_chatAutoRefreshTimer == null)
+                StartAutoRefresh();
+            };
+            this.VisibleChanged += async (s, e) =>
+            {
+                if (this.Visible)
                 {
-                    _chatAutoRefreshTimer = new System.Windows.Forms.Timer { Interval = 5000 };
-                    _chatAutoRefreshTimer.Tick += async (ts, te) => await RefreshChatQueueAsync();
-                    _chatAutoRefreshTimer.Start();
+                    await LoadDataPublicAsync();
+                    StartAutoRefresh();
                 }
             };
-            this.VisibleChanged += async (s, e) => { if (this.Visible) await LoadDataPublicAsync(); };
             this.FormClosed += (s, e) => { _chatAutoRefreshTimer?.Stop(); _chatAutoRefreshTimer?.Dispose(); _notifyIcon?.Dispose(); };
+        }
+
+        public void StartAutoRefresh()
+        {
+            if (_chatAutoRefreshTimer == null)
+            {
+                _chatAutoRefreshTimer = new System.Windows.Forms.Timer { Interval = 1500 };
+                _chatAutoRefreshTimer.Tick += async (ts, te) =>
+                {
+                    await RefreshChatQueueAsync();
+                    await LoadDataPublicAsync();
+                };
+                _chatAutoRefreshTimer.Start();
+            }
+            else if (!_chatAutoRefreshTimer.Enabled)
+            {
+                _chatAutoRefreshTimer.Start();
+            }
         }
 
         public void SelectTab(int index)
@@ -387,14 +414,14 @@ namespace DTT.Doctor.UI.Forms
                     string spec = row.Cells[3].Value != null ? row.Cells[3].Value.ToString() : "";
                     string slot = row.Cells[4].Value != null ? row.Cells[4].Value.ToString() : "";
 
-                    if (status.Contains("Đã Check-in"))
+                    if (status.Contains("Chờ Check-in"))
                     {
-                        // Đã Check-in rồi thì không thực hiện lại nữa để tránh conflict dữ liệu
-                        return;
+                        ExecuteCheckInRow(row);
                     }
                     else
                     {
-                        ExecuteCheckInRow(row);
+                        // Đã Check-in rồi hoặc đang ở trạng thái khác (đang khám, hủy, v.v.) thì không thực hiện lại nữa
+                        return;
                     }
                 }
                 else if (e.ColumnIndex == 8)
@@ -1391,11 +1418,20 @@ namespace DTT.Doctor.UI.Forms
                     (!string.IsNullOrEmpty(p.Phone) && p.Phone.Replace(" ", "").Contains(q.Replace(" ", "")))
                   ).ToList();
 
+            int scrollIndex = -1;
+            try { scrollIndex = _gridApproveMobile.FirstDisplayedScrollingRowIndex; } catch { }
+            int selectedId = 0;
+            if (_gridApproveMobile.SelectedRows.Count > 0 && _mobilePatientRowIdMap.TryGetValue(_gridApproveMobile.SelectedRows[0].Index, out int sid))
+            {
+                selectedId = sid;
+            }
+
             _gridApproveMobile.Rows.Clear();
             _mobilePatientRowIdMap.Clear();
             _mobileRecordTypeMap.Clear();
 
             int rowIdx = 0;
+            int restoredSelectRow = -1;
             foreach (var p in filtered)
             {
                 bool isVerified = p.VerificationStatus == "verified";
@@ -1403,11 +1439,25 @@ namespace DTT.Doctor.UI.Forms
                 string cccdText = !string.IsNullOrEmpty(p.Cccd) ? p.Cccd : "Chưa nhập CCCD";
                 string bhytText = !string.IsNullOrEmpty(p.Bhyt) ? p.Bhyt : "—";
                 string relationship = !string.IsNullOrEmpty(p.Relationship) ? p.Relationship : "Bản thân";
-                _gridApproveMobile.Rows.Add(rowIdx + 1, p.FullName.ToUpper(), relationship, p.Phone, cccdText, bhytText, statusText);
-                if (isVerified) _gridApproveMobile.Rows[rowIdx].DefaultCellStyle.BackColor = Color.FromArgb(236, 253, 245);
-                _mobilePatientRowIdMap[rowIdx] = p.Id;
-                _mobileRecordTypeMap[rowIdx] = p.RecordType;
+                int addIdx = _gridApproveMobile.Rows.Add(rowIdx + 1, p.FullName.ToUpper(), relationship, p.Phone, cccdText, bhytText, statusText);
+                if (isVerified) _gridApproveMobile.Rows[addIdx].DefaultCellStyle.BackColor = Color.FromArgb(236, 253, 245);
+                _mobilePatientRowIdMap[addIdx] = p.Id;
+                _mobileRecordTypeMap[addIdx] = p.RecordType;
+                if (selectedId > 0 && p.Id == selectedId)
+                {
+                    restoredSelectRow = addIdx;
+                }
                 rowIdx++;
+            }
+
+            if (restoredSelectRow >= 0 && restoredSelectRow < _gridApproveMobile.Rows.Count)
+            {
+                _gridApproveMobile.ClearSelection();
+                _gridApproveMobile.Rows[restoredSelectRow].Selected = true;
+            }
+            if (scrollIndex >= 0 && scrollIndex < _gridApproveMobile.Rows.Count)
+            {
+                try { _gridApproveMobile.FirstDisplayedScrollingRowIndex = scrollIndex; } catch { }
             }
         }
 
@@ -1420,6 +1470,7 @@ namespace DTT.Doctor.UI.Forms
             {
                 var api = new ApiService();
                 var allPatients = await api.GetPatientsAsync();
+                _lastPatientsFetchTime = DateTime.Now;
                 _allDirectPatients = allPatients ?? new List<PatientSimpleModel>();
                 FilterDirectPatientsGrid();
             }
@@ -1439,8 +1490,17 @@ namespace DTT.Doctor.UI.Forms
                     (!string.IsNullOrEmpty(p.Phone) && p.Phone.Replace(" ", "").Contains(q.Replace(" ", "")))
                   ).ToList();
 
+            int scrollIndex = -1;
+            try { scrollIndex = _gridDirectPatients.FirstDisplayedScrollingRowIndex; } catch { }
+            int selectedPatientId = 0;
+            if (_gridDirectPatients.SelectedRows.Count > 0 && _gridDirectPatients.SelectedRows[0].Tag is PatientSimpleModel selP)
+            {
+                selectedPatientId = selP.Id;
+            }
+
             _gridDirectPatients.Rows.Clear();
             int stt = 1;
+            int restoredSelectRow = -1;
             foreach (var p in filtered)
             {
                 bool isVerified = p.VerificationStatus == "verified";
@@ -1449,6 +1509,20 @@ namespace DTT.Doctor.UI.Forms
                 int rowIdx = _gridDirectPatients.Rows.Add(stt++, p.FullName.ToUpper(), p.Phone, cccdText, statusText);
                 _gridDirectPatients.Rows[rowIdx].Tag = p;
                 if (isVerified) _gridDirectPatients.Rows[rowIdx].DefaultCellStyle.BackColor = Color.FromArgb(236, 253, 245);
+                if (selectedPatientId > 0 && p.Id == selectedPatientId)
+                {
+                    restoredSelectRow = rowIdx;
+                }
+            }
+
+            if (restoredSelectRow >= 0 && restoredSelectRow < _gridDirectPatients.Rows.Count)
+            {
+                _gridDirectPatients.ClearSelection();
+                _gridDirectPatients.Rows[restoredSelectRow].Selected = true;
+            }
+            if (scrollIndex >= 0 && scrollIndex < _gridDirectPatients.Rows.Count)
+            {
+                try { _gridDirectPatients.FirstDisplayedScrollingRowIndex = scrollIndex; } catch { }
             }
         }
 
@@ -1541,7 +1615,7 @@ namespace DTT.Doctor.UI.Forms
             int selectedIdx = _cboDirectSpecialty.SelectedIndex;
             if (selectedIdx < 0 || !_directSpecialtyMap.TryGetValue(selectedIdx, out var specInfo))
             {
-                MessageBox.Show("Không có bác sĩ trực để nhận khám hôm nay. Vui lòng chọn chuyên khoa khác.", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("Hiện đã hết ca trực hôm nay. Vui lòng chọn chuyên khoa khác hoặc kiểm tra lại lịch trực.", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
@@ -1615,11 +1689,37 @@ namespace DTT.Doctor.UI.Forms
                 // --- Tab 1 & 2: Load appointments + billing from API ---
                 var appointments = await api.GetQueueAppointmentsAsync();
 
-                // Ca đã HỦY/KHÔNG ĐẾN không cần tiếp đón hay thu ngân gì nữa — API todayOnly=true trả
-                // về TẤT CẢ trạng thái của hôm nay (kể cả Cancelled/NoShow), và vòng lặp bên dưới hiển
-                // thị CỨNG "Đã xác nhận" cho mọi dòng bất kể trạng thái thật, khiến lịch hẹn đã hủy vẫn
-                // hiện như đang chờ check-in, làm hàng đợi lễ tân "tồn đọng" ảo dù không có ca thật nào.
-                appointments = appointments?.Where(a => a.Status != "Cancelled" && a.Status != "NoShow").ToList();
+                // Lễ tân cần theo dõi toàn bộ các ca trong ngày, kể cả ca Đã hủy (Cancelled) hoặc Không đến khám (NoShow)
+                // Cột trạng thái và màu nền hàng đã được ánh xạ trung thực tương ứng.
+
+                if (appointments != null)
+                {
+                    var currentPendingPaymentAppts = appointments.Where(a => a.Status == "PendingPayment" || a.Status == "11").ToList();
+                    if (_hasLoadedAppointmentsOnce)
+                    {
+                        var newPendingPayments = currentPendingPaymentAppts.Where(a => !_knownPendingPaymentIds.Contains(a.AppointmentId)).ToList();
+                        foreach (var appt in newPendingPayments)
+                        {
+                            MainDashboardForm.Instance?.PushNotification(
+                                "💳 CHỜ THU VIỆN PHÍ",
+                                appt.PatientName,
+                                "Bác sĩ vừa hoàn tất khám & kê đơn — ca khám đang chờ thu phí",
+                                appt.TimeSlot,
+                                Color.FromArgb(245, 158, 11),
+                                true
+                            );
+                        }
+                    }
+                    _knownPendingPaymentIds = new HashSet<int>(currentPendingPaymentAppts.Select(a => a.AppointmentId));
+                    _hasLoadedAppointmentsOnce = true;
+                }
+
+                int checkInScroll = -1;
+                try { checkInScroll = _gridCheckIn.FirstDisplayedScrollingRowIndex; } catch { }
+                int billingScroll = -1;
+                try { billingScroll = _gridBilling.FirstDisplayedScrollingRowIndex; } catch { }
+                int selectedCheckInRow = _gridCheckIn.SelectedRows.Count > 0 ? _gridCheckIn.SelectedRows[0].Index : -1;
+                int selectedBillingRow = _gridBilling.SelectedRows.Count > 0 ? _gridBilling.SelectedRows[0].Index : -1;
 
                 _gridCheckIn.Rows.Clear();
                 _gridBilling.Rows.Clear();
@@ -1648,10 +1748,15 @@ namespace DTT.Doctor.UI.Forms
                     // bệnh viện (nguồn: API /api/Specialties/with-doctors thật, trước đây là
                     // _allDoctorSchedules bịa cứng chỉ 8 khoa), không chỉ những khoa đang có bệnh nhân
                     // hôm nay, để lễ tân luôn thấy đủ danh sách kể cả khi khoa đó chưa có ai check-in.
-                    if (_cboSpecialtyFilter != null)
+                    if (_cboSpecialtyFilter != null && (_cachedDoctorsWithSpec == null || (DateTime.Now - _lastSpecFetchTime).TotalSeconds > 60 || _cboSpecialtyFilter.Items.Count <= 1))
                     {
                         string previousSelection = _cboSpecialtyFilter.SelectedItem?.ToString() ?? SpecialtyFilterAll;
-                        var allDoctorsWithSpec = await api.GetSpecialtiesWithDoctorsAsync();
+                        if (_cachedDoctorsWithSpec == null || (DateTime.Now - _lastSpecFetchTime).TotalSeconds > 60)
+                        {
+                            _cachedDoctorsWithSpec = await api.GetSpecialtiesWithDoctorsAsync();
+                            _lastSpecFetchTime = DateTime.Now;
+                        }
+                        var allDoctorsWithSpec = _cachedDoctorsWithSpec ?? new List<(string DisplayName, int DoctorId, string SpecialtyName)>();
                         var allSpecs = allDoctorsWithSpec.Select(d => d.SpecialtyName).Distinct().OrderBy(s => s, StringComparer.CurrentCultureIgnoreCase).ToList();
                         // Phòng trường hợp có bệnh nhân thuộc chuyên khoa lạ không nằm trong danh sách bác sĩ đang hoạt động
                         var extraSpecs = appointmentsWithSpec.Select(x => x.Spec).Distinct().Except(allSpecs, StringComparer.CurrentCultureIgnoreCase);
@@ -1671,24 +1776,106 @@ namespace DTT.Doctor.UI.Forms
                         var appt = appointmentsWithSpec[i].Appt;
                         string spec = appointmentsWithSpec[i].Spec;
                         // isCompleted = Bac si da hoan tat kham, cho le tan thu tien
-                        bool isCompleted = appt.Status == "Completed" || appt.Status == "Da xong";
-                        // isCheckedIn = da check-in tai quay le tan (chua kham xong) — bao gom ca cac
-                        // trang thai sau check-in (dieu duong da do sinh hieu, dang cho ket qua CLS)
-                        // ma truoc day bi bo sot khien man Le Tan hien nham "Cho Check-in"
-                        bool isCheckedIn = appt.Status == "CheckedIn" || appt.Status == "WaitingForDoctor" || appt.Status == "AwaitingTestResults" || appt.Status == "InProgress" || isCompleted;
+                        bool isCompleted = appt.Status == "Completed" || appt.Status == "Da xong" || appt.Status == "PendingPayment" || appt.Status == "PendingDispensing" || appt.Status == "4";
+                        // isCheckedIn = da check-in tai quay le tan
+                        bool isCheckedIn = appt.Status == "CheckedIn" || appt.Status == "WaitingForDoctor" || appt.Status == "AwaitingTestResults" || appt.Status == "InProgress" || appt.Status == "PendingDispensing" || appt.Status == "PendingPayment" || isCompleted || appt.Status == "7" || appt.Status == "8" || appt.Status == "2" || appt.Status == "3" || appt.Status == "9" || appt.Status == "10" || appt.Status == "11";
 
-                        string checkInStatus = isCheckedIn
-                            ? string.Format("Đã Check-in (STT {0:D2})", appt.QueueNumber)
-                            : "Chờ Check-in";
+                        string appointmentDisplayStatus;
+                        switch (appt.Status)
+                        {
+                            case "Scheduled":
+                            case "1":
+                            case "Confirmed":
+                                appointmentDisplayStatus = "Đã Xác Nhận";
+                                break;
+                            case "CheckedIn":
+                            case "7":
+                                appointmentDisplayStatus = "Đã Check-in";
+                                break;
+                            case "WaitingForDoctor":
+                            case "8":
+                                appointmentDisplayStatus = "Chờ Khám";
+                                break;
+                            case "InProgress":
+                            case "2":
+                            case "3":
+                                appointmentDisplayStatus = "Đang Khám";
+                                break;
+                            case "AwaitingTestResults":
+                            case "9":
+                                appointmentDisplayStatus = "Chờ CLS";
+                                break;
+                            case "PendingPayment":
+                            case "11":
+                                appointmentDisplayStatus = "Chờ Thanh Toán";
+                                break;
+                            case "PendingDispensing":
+                            case "10":
+                                appointmentDisplayStatus = "Chờ Dược Sĩ";
+                                break;
+                            case "Completed":
+                            case "4":
+                                appointmentDisplayStatus = "Đã Hoàn Thành";
+                                break;
+                            case "Cancelled":
+                            case "5":
+                                appointmentDisplayStatus = "Đã Hủy";
+                                break;
+                            case "NoShow":
+                            case "Expired":
+                            case "6":
+                                appointmentDisplayStatus = "Không Đến Khám";
+                                break;
+                            default:
+                                appointmentDisplayStatus = !string.IsNullOrEmpty(appt.Status) ? appt.Status : "Đã Xác Nhận";
+                                break;
+                        }
+
+                        string checkInStatus;
+                        if (appt.Status == "Completed" || appt.Status == "4")
+                            checkInStatus = "Đã hoàn thành ✓";
+                        else if (appt.Status == "PendingPayment" || appt.Status == "11")
+                            checkInStatus = "Chờ thanh toán 💳";
+                        else if (appt.Status == "PendingDispensing" || appt.Status == "10")
+                            checkInStatus = "Chờ phát thuốc 💊";
+                        else if (appt.Status == "InProgress" || appt.Status == "3" || appt.Status == "2")
+                            checkInStatus = string.Format("Đang Khám (STT {0:D2})", appt.QueueNumber);
+                        else if (appt.Status == "AwaitingTestResults" || appt.Status == "9")
+                            checkInStatus = string.Format("Đang Làm CLS (STT {0:D2})", appt.QueueNumber);
+                        else if (appt.Status == "WaitingForDoctor" || appt.Status == "8")
+                            checkInStatus = string.Format("Đã Có Sinh Hiệu (STT {0:D2})", appt.QueueNumber);
+                        else if (appt.Status == "Cancelled" || appt.Status == "5")
+                            checkInStatus = "Đã Hủy";
+                        else if (appt.Status == "NoShow" || appt.Status == "Expired" || appt.Status == "6")
+                            checkInStatus = "Không Đến Khám";
+                        else if (isCheckedIn)
+                            checkInStatus = string.Format("Đã Check-in (STT {0:D2})", appt.QueueNumber);
+                        else
+                            checkInStatus = "Chờ Check-in";
+
                         string code = string.Format("RX-{0:0000}-{1:D4}", DateTime.Now.Year, appt.AppointmentId > 0 ? appt.AppointmentId : i + 1);
                         string pName = !string.IsNullOrEmpty(appt.PatientName) ? appt.PatientName.ToUpper() : string.Format("BỆNH NHÂN #{0}", appt.PatientId);
-                        // Trước đây bịa giờ hẹn "{8+i}:00" khi TimeSlot trống — lễ tân thấy một giờ cụ
-                        // thể nhưng sai. Giờ hiển thị trung thực là chưa xác định.
                         string slot = !string.IsNullOrEmpty(appt.TimeSlot) ? appt.TimeSlot : "Chưa xác định";
 
-                        string actionText = isCheckedIn ? "Đã Check-in ✓" : "Check-in";
-                        _gridCheckIn.Rows.Add(i + 1, code, pName, spec, slot, "Đã xác nhận", checkInStatus, actionText, "Tùy chọn ▼");
-                        if (isCheckedIn) _gridCheckIn.Rows[i].DefaultCellStyle.BackColor = Color.FromArgb(236, 253, 245);
+                        string actionText;
+                        if (appt.Status == "Cancelled" || appt.Status == "5" || appt.Status == "NoShow" || appt.Status == "Expired" || appt.Status == "6")
+                            actionText = "—";
+                        else if (!isCheckedIn)
+                            actionText = "Check-in";
+                        else if (appt.Status == "PendingPayment" || appt.Status == "11")
+                            actionText = "Đã Khám Xong";
+                        else if (appt.Status == "Completed" || appt.Status == "4")
+                            actionText = "Hoàn Tất";
+                        else
+                            actionText = "Đã Check-in ✓";
+
+                        _gridCheckIn.Rows.Add(i + 1, code, pName, spec, slot, appointmentDisplayStatus, checkInStatus, actionText, "Tùy chọn ▼");
+                        if (appt.Status == "Cancelled" || appt.Status == "5")
+                            _gridCheckIn.Rows[i].DefaultCellStyle.BackColor = Color.FromArgb(254, 226, 226); // đỏ nhạt - Đã hủy
+                        else if (appt.Status == "NoShow" || appt.Status == "Expired" || appt.Status == "6")
+                            _gridCheckIn.Rows[i].DefaultCellStyle.BackColor = Color.FromArgb(254, 243, 199); // vàng cam nhạt - Không đến khám
+                        else if (isCheckedIn)
+                            _gridCheckIn.Rows[i].DefaultCellStyle.BackColor = Color.FromArgb(236, 253, 245); // xanh lá nhạt - Đã check-in
 
                         // Trước đây bịa phí "250.000d" khi Fee trống — lễ tân có thể tưởng đó là số
                         // tiền thật cần thu. Giờ hiển thị trung thực là chưa xác định thay vì một
@@ -1733,7 +1920,7 @@ namespace DTT.Doctor.UI.Forms
                             _gridBilling.Rows[bIdx].DefaultCellStyle.BackColor = billingRowColor;
                             _gridBilling.Rows[bIdx].Tag = appt.AppointmentId;
                         }
-                        else if (isCompleted)
+                        else if (isCompleted || appt.Status == "PendingPayment" || appt.Status == "PendingDispensing")
                         {
                             billingStatus = "[!] CHỜ THU PHÍ";
                             billingRowColor = Color.FromArgb(255, 237, 213); // cam nhat - cho thu phi
@@ -1752,28 +1939,48 @@ namespace DTT.Doctor.UI.Forms
                     // Trống danh sách khi chưa có dữ liệu hôm nay
                 }
 
-                UpdateKpiSummaryCards();
-
-                // --- Tab 3: Load real patients + hồ sơ người thân pending CCCD verification ---
-                var allPatients = await api.GetPatientsAsync();
-                _allApproveProfiles = allPatients ?? new List<PatientSimpleModel>();
-                FilterApproveMobileGrid();
-
-                if (allPatients == null || allPatients.Count == 0)
+                if (selectedCheckInRow >= 0 && selectedCheckInRow < _gridCheckIn.Rows.Count)
                 {
-                    // KHÔNG hiện danh sách bệnh nhân demo giả ("DAWN", "DAVID JOHNS"...) vì trông giống
-                    // hồ sơ thật, dễ khiến Lễ Tân tưởng nhầm là dữ liệu thật thay vì nhận ra lỗi tải API.
-                    // Để trống lưới + báo lỗi bằng toast (giống các lỗi tải khác trong màn hình này).
-                    ShowReceptionNotification("KHÔNG THỂ TẢI DANH SÁCH BỆNH NHÂN",
-                        "Không thể tải danh sách bệnh nhân — vui lòng kiểm tra kết nối và thử lại.", false);
+                    _gridCheckIn.ClearSelection();
+                    _gridCheckIn.Rows[selectedCheckInRow].Selected = true;
+                }
+                if (checkInScroll >= 0 && checkInScroll < _gridCheckIn.Rows.Count)
+                {
+                    try { _gridCheckIn.FirstDisplayedScrollingRowIndex = checkInScroll; } catch { }
                 }
 
-                // --- Tab 5: Đồng bộ danh sách bệnh nhân cho "Khám Trực Tiếp" (dùng lại dữ liệu vừa tải,
-                // chỉ lấy hồ sơ chính — không gồm hồ sơ người thân) ---
-                _allDirectPatients = (allPatients ?? new List<PatientSimpleModel>())
-                    .Where(p => p.RecordType != "family_member")
-                    .ToList();
-                FilterDirectPatientsGrid();
+                if (selectedBillingRow >= 0 && selectedBillingRow < _gridBilling.Rows.Count)
+                {
+                    _gridBilling.ClearSelection();
+                    _gridBilling.Rows[selectedBillingRow].Selected = true;
+                }
+                if (billingScroll >= 0 && billingScroll < _gridBilling.Rows.Count)
+                {
+                    try { _gridBilling.FirstDisplayedScrollingRowIndex = billingScroll; } catch { }
+                }
+
+                FilterReceptionGrid();
+                FilterBillingGrid();
+                UpdateKpiSummaryCards();
+
+                // --- Tab 3 & 5: Load real patients + hồ sơ người thân pending CCCD verification ---
+                // Chỉ tải lại danh mục bệnh nhân khi chưa tải lần nào hoặc sau mỗi 60 giây,
+                // tránh gọi API liên tục mỗi 1.5s làm giật lưới và đẩy thanh cuộn của người dùng lên đầu.
+                if (_allApproveProfiles == null || _allApproveProfiles.Count == 0 || (DateTime.Now - _lastPatientsFetchTime).TotalSeconds > 60)
+                {
+                    var allPatients = await api.GetPatientsAsync();
+                    _lastPatientsFetchTime = DateTime.Now;
+                    if (allPatients != null && allPatients.Count > 0)
+                    {
+                        _allApproveProfiles = allPatients;
+                        FilterApproveMobileGrid();
+
+                        _allDirectPatients = allPatients
+                            .Where(p => p.RecordType != "family_member")
+                            .ToList();
+                        FilterDirectPatientsGrid();
+                    }
+                }
             }
             catch (Exception ex)
             {
@@ -1783,7 +1990,11 @@ namespace DTT.Doctor.UI.Forms
             // --- Tab 4: Filter specialties + doctors theo Ngày đăng ký khám ---
             try
             {
-                await FilterDoctorsByExamDateAsync();
+                if ((DateTime.Now - _lastDoctorExamDateFetchTime).TotalSeconds > 60)
+                {
+                    await FilterDoctorsByExamDateAsync();
+                    _lastDoctorExamDateFetchTime = DateTime.Now;
+                }
             }
             catch { }
         }
@@ -1826,13 +2037,14 @@ namespace DTT.Doctor.UI.Forms
                 combo.Items.Clear();
                 map.Clear();
 
+                bool isToday = selectedDate.Date == DateTime.Today;
+
                 if (schedules != null)
                 {
                     string dayText = selectedDate.ToString("dd/MM/yyyy");
                     // Chỉ lọc theo giờ hiện tại khi ngày được chọn là HÔM NAY — với ngày trong tương
                     // lai (đăng ký vãng lai cho ngày sau), "giờ hiện tại" vô nghĩa nên vẫn hiện mọi
                     // bác sĩ isWorking=true cho cả ngày đó như trước.
-                    bool isToday = selectedDate.Date == DateTime.Today;
                     TimeSpan nowTime = DateTime.Now.TimeOfDay;
                     int itemIdx = 0;
                     foreach (var sch in schedules)
@@ -1858,10 +2070,11 @@ namespace DTT.Doctor.UI.Forms
                         TimeSpan shiftStart = TimeSpan.Zero, shiftEnd = TimeSpan.Zero;
                         bool hasShiftWindow = TimeSpan.TryParse(shiftStartStr, out shiftStart) &&
                                               TimeSpan.TryParse(shiftEndStr, out shiftEnd);
-                        if (isToday && hasShiftWindow && (nowTime < shiftStart || nowTime > shiftEnd))
-                        {
-                            continue;
-                        }
+                        // TẠM THỜI COMMENT ĐỂ TEST ĐẶT LỊCH (BẬT LẠI KHI TEST XONG):
+                        // if (isToday && hasShiftWindow && (nowTime < shiftStart || nowTime > shiftEnd))
+                        // {
+                        //     continue;
+                        // }
 
                         string shiftSuffix = hasShiftWindow ? $" (Ca: {shiftStartStr} - {shiftEndStr})" : "";
                         string displayText = $"{specInfo.SpecialtyName} — {fullName} [{room}] (Lịch trực ngày {dayText}){shiftSuffix}";
@@ -1874,7 +2087,14 @@ namespace DTT.Doctor.UI.Forms
 
                 if (combo.Items.Count == 0)
                 {
-                    combo.Items.Add(" Không có Bác sĩ trực vào ngày này");
+                    if (isToday)
+                    {
+                        combo.Items.Add(" Đã hết ca trực hôm nay");
+                    }
+                    else
+                    {
+                        combo.Items.Add(" Không có Bác sĩ trực vào ngày này");
+                    }
                 }
                 combo.SelectedIndex = 0;
             }
@@ -1893,31 +2113,57 @@ namespace DTT.Doctor.UI.Forms
             if (_txtSearchPatient == null || _gridCheckIn == null) return;
             string q = _txtSearchPatient.Text.ToLower().Trim();
             string specFilter = _cboSpecialtyFilter != null && _cboSpecialtyFilter.SelectedItem != null
-                ? _cboSpecialtyFilter.SelectedItem.ToString()
+                ? _cboSpecialtyFilter.SelectedItem.ToString().Trim()
                 : SpecialtyFilterAll;
 
-            foreach (DataGridViewRow row in _gridCheckIn.Rows)
+            try
             {
-                if (row.IsNewRow) continue;
-                string pName = row.Cells[2].Value != null ? row.Cells[2].Value.ToString().ToLower() : "";
-                string code = row.Cells[1].Value != null ? row.Cells[1].Value.ToString().ToLower() : "";
-                string spec = row.Cells[3].Value != null ? row.Cells[3].Value.ToString() : "";
+                if (_gridCheckIn.CurrentCell != null)
+                {
+                    _gridCheckIn.CurrentCell = null;
+                }
 
-                bool matchesSearch = string.IsNullOrEmpty(q) || pName.Contains(q) || code.Contains(q);
-                bool matchesSpecialty = specFilter == SpecialtyFilterAll || spec == specFilter;
-                row.Visible = matchesSearch && matchesSpecialty;
+                foreach (DataGridViewRow row in _gridCheckIn.Rows)
+                {
+                    if (row.IsNewRow) continue;
+                    string pName = row.Cells[2].Value != null ? row.Cells[2].Value.ToString().ToLower() : "";
+                    string code = row.Cells[1].Value != null ? row.Cells[1].Value.ToString().ToLower() : "";
+                    string spec = row.Cells[3].Value != null ? row.Cells[3].Value.ToString().Trim() : "";
+
+                    bool matchesSearch = string.IsNullOrEmpty(q) || pName.Contains(q) || code.Contains(q);
+                    bool matchesSpecialty = specFilter == SpecialtyFilterAll || string.Equals(spec, specFilter, StringComparison.OrdinalIgnoreCase);
+                    row.Visible = matchesSearch && matchesSpecialty;
+                }
             }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("FilterReceptionGrid error: " + ex.Message);
+            }
+
+            UpdateKpiSummaryCards();
         }
 
         private void FilterBillingGrid()
         {
+            if (_txtSearchBilling == null || _gridBilling == null) return;
             string q = _txtSearchBilling.Text.ToLower().Trim();
-            foreach (DataGridViewRow row in _gridBilling.Rows)
+            try
             {
-                if (row.IsNewRow) continue;
-                string pName = row.Cells[1].Value != null ? row.Cells[1].Value.ToString().ToLower() : "";
-                string spec = row.Cells[2].Value != null ? row.Cells[2].Value.ToString().ToLower() : "";
-                row.Visible = string.IsNullOrEmpty(q) || pName.Contains(q) || spec.Contains(q);
+                if (_gridBilling.CurrentCell != null)
+                {
+                    _gridBilling.CurrentCell = null;
+                }
+                foreach (DataGridViewRow row in _gridBilling.Rows)
+                {
+                    if (row.IsNewRow) continue;
+                    string pName = row.Cells[1].Value != null ? row.Cells[1].Value.ToString().ToLower() : "";
+                    string spec = row.Cells[2].Value != null ? row.Cells[2].Value.ToString().ToLower() : "";
+                    row.Visible = string.IsNullOrEmpty(q) || pName.Contains(q) || spec.Contains(q);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("FilterBillingGrid error: " + ex.Message);
             }
         }
 
@@ -1930,12 +2176,14 @@ namespace DTT.Doctor.UI.Forms
 
             foreach (DataGridViewRow row in _gridCheckIn.Rows)
             {
-                if (row.IsNewRow) continue;
+                if (row.IsNewRow || !row.Visible) continue;
                 total++;
                 string status = row.Cells[6].Value != null ? row.Cells[6].Value.ToString() : "";
-                if (status.Contains("Đã Check-in") || status.Contains("Check-in"))
+                if (status.Contains("Chờ Check-in"))
+                    pending++;
+                else if (status.Contains("Đã Check-in") || status.Contains("Đang Khám") || status.Contains("Đã Có Sinh Hiệu") || status.Contains("Đang Làm CLS") || status.Contains("Chờ thanh toán") || status.Contains("Chờ phát thuốc") || status.Contains("Đã hoàn thành"))
                     checkedIn++;
-                else if (status.Contains("Đã hủy lịch") || status.Contains("Bỏ khám"))
+                else if (status.Contains("Đã Hủy") || status.Contains("Đã hủy") || status.Contains("Bỏ khám") || status.Contains("Không Đến Khám") || status.Contains("Không đến khám"))
                     { /* Không tính vào "Chờ check-in" — đã hủy/bỏ khám, không còn chờ nữa */ }
                 else
                     pending++;
@@ -2015,6 +2263,7 @@ namespace DTT.Doctor.UI.Forms
                 $"Đã cấp Số Thứ Tự: STT-{rowIndex + 1:D2}\n\n" +
                 "Đã đồng bộ lên Server - Bệnh nhân đã xuất hiện trong Hàng chờ lâm sàng của Bác sĩ!",
                 true);
+            _ = LoadDataPublicAsync();
         }
 
         // ── Hủy lịch hẹn / Đánh dấu Bỏ khám — dành riêng cho Lễ Tân, khác luồng bệnh nhân tự hủy trên App ──
@@ -2027,8 +2276,9 @@ namespace DTT.Doctor.UI.Forms
             // để quyết định có được hủy/bỏ khám nữa hay không.
             string realStatus = _checkInRowStatusMap.TryGetValue(rowIndex, out string rs) ? rs : "";
             bool alreadyLocked = checkInStatus.Contains("Hủy") || checkInStatus.Contains("Bỏ khám")
-                || realStatus == "Cancelled" || realStatus == "NoShow";
-            bool alreadyCompleted = realStatus == "Completed";
+                || checkInStatus.Contains("Không Đến Khám") || checkInStatus.Contains("Không đến khám")
+                || realStatus == "Cancelled" || realStatus == "NoShow" || realStatus == "Expired" || realStatus == "5" || realStatus == "6";
+            bool alreadyCompleted = realStatus == "Completed" || realStatus == "4";
 
             if (alreadyLocked)
             {
@@ -2177,8 +2427,8 @@ namespace DTT.Doctor.UI.Forms
         {
             string pName = row.Cells[2].Value?.ToString() ?? "Bệnh nhân";
             var confirm = MessageBox.Show(
-                $"Xác nhận đánh dấu BỎ KHÁM cho bệnh nhân {pName}?\nChỉ dùng khi bệnh nhân đã đặt hẹn hôm nay nhưng không đến quầy tiếp đón.",
-                "Xác nhận Bỏ khám", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                $"Xác nhận đánh dấu KHÔNG ĐẾN KHÁM cho bệnh nhân {pName}?\nChỉ dùng khi bệnh nhân đã đặt hẹn hôm nay nhưng không đến quầy tiếp đón.",
+                "Xác nhận Không đến khám", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
             if (confirm != DialogResult.Yes) return;
 
             if (!_patientRowIdMap.TryGetValue(rowIndex, out int apptId) || apptId <= 0) return;
@@ -2188,12 +2438,12 @@ namespace DTT.Doctor.UI.Forms
 
             if (success)
             {
-                row.Cells[5].Value = "Bỏ khám";
-                row.Cells[6].Value = "Bỏ khám";
+                row.Cells[5].Value = "Không đến khám";
+                row.Cells[6].Value = "Không đến khám";
                 row.Cells[7].Value = "-";
                 row.DefaultCellStyle.BackColor = Color.FromArgb(254, 243, 199);
                 UpdateKpiSummaryCards();
-                ShowReceptionNotification("ĐÃ GHI NHẬN BỎ KHÁM", $"Đã đánh dấu {pName} bỏ khám hôm nay. Trạng thái này sẽ hiện trong báo cáo thống kê của Bác sĩ.", true);
+                ShowReceptionNotification("ĐÃ GHI NHẬN KHÔNG ĐẾN KHÁM", $"Đã đánh dấu {pName} không đến khám hôm nay. Trạng thái này sẽ hiện trong báo cáo thống kê của Bác sĩ.", true);
             }
             else
             {

@@ -804,18 +804,19 @@ namespace DTT.Doctor.UI.Forms
             // MessageBox.Show($"✅ HOÀN TẤT CA KHÁM VÀ LƯU HỒ SƠ Y TẾ!\n\n• Bệnh nhân: {_appointment.PatientName}\n• Chẩn đoán: {(!string.IsNullOrEmpty(_txtDiagnosis.Text) ? _txtDiagnosis.Text : "Khám sức khỏe")}\n• Số loại thuốc đã kê: {_prescriptions.Count} thuốc\n\nHồ sơ khám bệnh và đơn thuốc đã được ghi nhận thành công trên hệ thống.", "Hoàn Tất Ca Khám Lâm Sàng", MessageBoxButtons.OK, MessageBoxIcon.Information);
             // =========================================================================
 
-            // [New code - Backend tự gán StatusId=10 (PendingDispensing) nếu có đơn thuốc, thông báo rõ ràng chuyển Dược sĩ]:
+            // [New code - Backend chuyển StatusId=11 (PendingPayment), yêu cầu thanh toán trước khi phát thuốc]:
             IsSaved = true;
 
             if (_prescriptions.Count > 0)
             {
                 MessageBox.Show(
-                    $"HOÀN TẤT KHÁM & ĐÃ CHUYỂN ĐƠN THUỐC CHO DƯỢC SĨ!\n\n" +
+                    $"HOÀN TẤT KHÁM & ĐÃ KÊ ĐƠN THUỐC!\n\n" +
                     $"• Bệnh nhân: {_appointment.PatientName}\n" +
                     $"• Chẩn đoán: {(!string.IsNullOrEmpty(_txtDiagnosis.Text) ? _txtDiagnosis.Text : "Khám sức khỏe")}\n" +
                     $"• Số loại thuốc đã kê: {_prescriptions.Count} loại thuốc\n\n" +
-                    $"📋 Đơn thuốc đã được tự động chuyển sang Phân Hệ Dược Sĩ (Nhà Thuốc Bệnh Viện) để chuẩn bị và cấp phát thuốc cho người bệnh.",
-                    "Đã Chuyển Đơn Sang Dược Sĩ", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    $"💳 Ca khám đã được chuyển sang trạng thái CHỜ THANH TOÁN.\n" +
+                    $"Bệnh nhân vui lòng đến Quầy Thu Ngân thanh toán viện phí và tiền thuốc trước khi sang Nhà Thuốc nhận thuốc.",
+                    "Hoàn Tất Khám - Chờ Thanh Toán", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             else
             {

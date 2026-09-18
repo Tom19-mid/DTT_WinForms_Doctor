@@ -625,7 +625,7 @@ namespace DTT.Doctor.UI.Forms
         private void StartPolling(Label lblStatus)
         {
             StopPolling();
-            _pollingTimer = new System.Windows.Forms.Timer { Interval = 2500 };
+            _pollingTimer = new System.Windows.Forms.Timer { Interval = 1500 };
             _pollingTimer.Tick += async (s, e) =>
             {
                 var status = await _api.GetPaymentStatusAsync(_appointmentId);

@@ -70,20 +70,36 @@ namespace DTT.Doctor.UI.Forms
             this.Shown += async (s, e) =>
             {
                 await RefreshAllAsync();
-                if (_autoRefreshTimer == null)
+                StartAutoRefresh();
+            };
+            this.VisibleChanged += async (s, e) =>
+            {
+                if (this.Visible)
                 {
-                    _autoRefreshTimer = new System.Windows.Forms.Timer { Interval = 10000 };
-                    _autoRefreshTimer.Tick += async (ts, te) => await RefreshAllAsync();
-                    _autoRefreshTimer.Start();
+                    await RefreshAllAsync();
+                    StartAutoRefresh();
                 }
             };
-            this.VisibleChanged += async (s, e) => { if (this.Visible) await RefreshAllAsync(); };
             this.FormClosed += (s, e) =>
             {
                 _autoRefreshTimer?.Stop();
                 _autoRefreshTimer?.Dispose();
                 _notifyIcon?.Dispose();
             };
+        }
+
+        public void StartAutoRefresh()
+        {
+            if (_autoRefreshTimer == null)
+            {
+                _autoRefreshTimer = new System.Windows.Forms.Timer { Interval = 1500 };
+                _autoRefreshTimer.Tick += async (ts, te) => await RefreshAllAsync();
+                _autoRefreshTimer.Start();
+            }
+            else if (!_autoRefreshTimer.Enabled)
+            {
+                _autoRefreshTimer.Start();
+            }
         }
 
         // ── Public API ──────────────────────────────────────────────────────
@@ -456,7 +472,15 @@ namespace DTT.Doctor.UI.Forms
         {
             try
             {
-                var all = await _api.GetQueueAppointmentsAsync();
+                var allTask = _api.GetQueueAppointmentsAsync();
+                var testFalseTask = _api.GetClinicalOrderQueueAsync("Test", done: false);
+                var testTrueTask = _api.GetClinicalOrderQueueAsync("Test", done: true);
+                var usFalseTask = _api.GetClinicalOrderQueueAsync("Ultrasound", done: false);
+                var usTrueTask = _api.GetClinicalOrderQueueAsync("Ultrasound", done: true);
+
+                await Task.WhenAll(allTask, testFalseTask, testTrueTask, usFalseTask, usTrueTask);
+
+                var all = await allTask;
 
                 // Tab 0: Bệnh nhân đã tiếp đón/Check-in (status=7 hoặc CheckedIn/Confirmed) – chờ điều dưỡng đo
                 _waitingList = all.FindAll(a => a.Status == "CheckedIn" || a.Status == "Confirmed" || a.Status == "Waiting");
@@ -466,13 +490,13 @@ namespace DTT.Doctor.UI.Forms
 
                 // Tab 2/3: Xem tiến độ CLS (chưa làm + đã có kết quả hôm nay) — chỉ để tham khảo
                 var labTests = new List<ClinicalOrderQueueItem>();
-                labTests.AddRange(await _api.GetClinicalOrderQueueAsync("Test", done: false));
-                labTests.AddRange(await _api.GetClinicalOrderQueueAsync("Test", done: true));
+                labTests.AddRange(await testFalseTask);
+                labTests.AddRange(await testTrueTask);
                 _labTestList = labTests;
 
                 var ultrasounds = new List<ClinicalOrderQueueItem>();
-                ultrasounds.AddRange(await _api.GetClinicalOrderQueueAsync("Ultrasound", done: false));
-                ultrasounds.AddRange(await _api.GetClinicalOrderQueueAsync("Ultrasound", done: true));
+                ultrasounds.AddRange(await usFalseTask);
+                ultrasounds.AddRange(await usTrueTask);
                 _ultrasoundList = ultrasounds;
 
                 // Báo (toast) nếu có bệnh nhân MỚI vừa xuất hiện trong danh sách chờ đo — bỏ qua lần
@@ -481,6 +505,18 @@ namespace DTT.Doctor.UI.Forms
                 if (_hasLoadedOnce)
                 {
                     var newArrivals = _waitingList.FindAll(a => !_seenWaitingIds.Contains(a.AppointmentId));
+                    foreach (var arr in newArrivals)
+                    {
+                        MainDashboardForm.Instance?.PushNotification(
+                            "🔔 BỆNH NHÂN MỚI CHECK-IN",
+                            arr.PatientName,
+                            "Vừa check-in tại Lễ Tân — cần đo sinh hiệu",
+                            arr.TimeSlot,
+                            Color.FromArgb(16, 185, 129),
+                            false
+                        );
+                    }
+
                     if (newArrivals.Count == 1)
                     {
                         ShowNurseToast("🔔 BỆNH NHÂN MỚI CHECK-IN",
@@ -505,6 +541,18 @@ namespace DTT.Doctor.UI.Forms
                 if (_hasLoadedOnce)
                 {
                     var newlyDone = doneNow.FindAll(x => !_seenDoneClsKeys.Contains($"{x.Kind}-{x.Id}"));
+                    foreach (var cl in newlyDone)
+                    {
+                        MainDashboardForm.Instance?.PushNotification(
+                            "🔬 CÓ KẾT QUẢ CLS MỚI",
+                            cl.PatientName,
+                            $"Đã có kết quả {cl.ServiceName} — mời quay lại phòng khám Bác sĩ",
+                            DateTime.Now.ToString("HH:mm"),
+                            Color.FromArgb(139, 92, 246),
+                            false
+                        );
+                    }
+
                     if (newlyDone.Count == 1)
                     {
                         ShowNurseToast("🔬 CÓ KẾT QUẢ CLS MỚI",
@@ -682,8 +730,8 @@ namespace DTT.Doctor.UI.Forms
                 _btnSaveVitals.Text        = "✅  ĐÃ LƯU THÀNH CÔNG";
                 _btnSaveVitals.BackColor   = ClinicalColors.TextMuted;
 
-                // Auto-refresh after 1.5 seconds
-                await Task.Delay(1500);
+                // Auto-refresh after 0.5s so user sees success state briefly
+                await Task.Delay(500);
                 _selectedAppointmentId = 0;
                 _selectedPatientName   = "";
                 _lblVitalsTitle.Text   = "CHỌN BỆNH NHÂN\nĐể bắt đầu đo sinh hiệu";

@@ -19,12 +19,16 @@ namespace DTT.Doctor.UI.Forms
         private Label _lblStatus;
 
         private int _targetApptId = 0;
+        private int _patientId = 0;
+        private string _initialPatientName = "";
 
-        public MedicalHistoryForm() : this("", 0) { }
+        public MedicalHistoryForm() : this("", 0, 0) { }
 
-        public MedicalHistoryForm(string filterPatientName, int targetApptId = 0)
+        public MedicalHistoryForm(string filterPatientName, int targetApptId = 0, int patientId = 0)
         {
             _targetApptId = targetApptId;
+            _patientId = patientId;
+            _initialPatientName = filterPatientName?.Trim() ?? "";
             InitializeComponent();
             if (!string.IsNullOrWhiteSpace(filterPatientName) && _txtSearch != null)
             {
@@ -252,7 +256,11 @@ namespace DTT.Doctor.UI.Forms
                 var api = new ApiService();
                 string search = _txtSearch.Text.Trim();
                 string queryUrl = $"/api/MedicalRecords/all?search={Uri.EscapeDataString(search)}";
-                if (TokenVault.DoctorId > 0)
+                if (_patientId > 0 && !string.IsNullOrWhiteSpace(search) && search.Equals(_initialPatientName, StringComparison.OrdinalIgnoreCase))
+                {
+                    queryUrl += $"&patientId={_patientId}";
+                }
+                else if (TokenVault.DoctorId > 0 && string.IsNullOrWhiteSpace(search))
                 {
                     queryUrl += $"&doctorId={TokenVault.DoctorId}";
                 }
@@ -284,11 +292,22 @@ namespace DTT.Doctor.UI.Forms
 
                             _gridHistory.Rows[rowIdx].Tag = r;
                         }
-                        _lblStatus.Text = $"Đã tải thành công {_gridHistory.Rows.Count} hồ sơ bệnh án";
+
+                        if (_gridHistory.Rows.Count == 0)
+                        {
+                            _lblStatus.Text = string.IsNullOrWhiteSpace(search)
+                                ? "Chưa có hồ sơ bệnh án nào."
+                                : $"Không tìm thấy hồ sơ bệnh án nào của bệnh nhân \"{search}\".";
+                        }
+                        else
+                        {
+                            _lblStatus.Text = $"Đã tải thành công {_gridHistory.Rows.Count} hồ sơ bệnh án";
+                        }
 
                         if (_targetApptId > 0 || !string.IsNullOrWhiteSpace(_txtSearch.Text))
                         {
                             DataGridViewRow targetRow = null;
+                            bool matchedExactAppt = false;
                             if (_targetApptId > 0)
                             {
                                 foreach (DataGridViewRow r in _gridHistory.Rows)
@@ -297,7 +316,7 @@ namespace DTT.Doctor.UI.Forms
                                     {
                                         dynamic tag = r.Tag;
                                         int apptId = (int)(tag.appointmentId ?? 0);
-                                        if (apptId == _targetApptId) { targetRow = r; break; }
+                                        if (apptId == _targetApptId) { targetRow = r; matchedExactAppt = true; break; }
                                     }
                                 }
                             }
@@ -310,7 +329,7 @@ namespace DTT.Doctor.UI.Forms
                                 targetRow.Selected = true;
                                 _gridHistory.CurrentCell = targetRow.Cells[0];
 
-                                if (targetRow.Tag != null)
+                                if (matchedExactAppt && targetRow.Tag != null)
                                 {
                                     var rowData = targetRow.Tag;
                                     BeginInvoke((Action)(() =>

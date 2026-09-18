@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using DTT.Doctor.Services.Core;
@@ -49,6 +50,8 @@ namespace DTT.Doctor.UI.Forms
         private Button _btnTodayDone;
 
         private System.Windows.Forms.Timer _autoRefreshTimer;
+        private HashSet<int> _seenWaitingApptIds = new HashSet<int>();
+        private bool _hasLoadedOnce = false;
 
         public PharmacistWorkstationForm()
         {
@@ -56,19 +59,35 @@ namespace DTT.Doctor.UI.Forms
             this.Shown += async (s, e) =>
             {
                 await RefreshAllAsync();
-                if (_autoRefreshTimer == null)
+                StartAutoRefresh();
+            };
+            this.VisibleChanged += async (s, e) =>
+            {
+                if (this.Visible)
                 {
-                    _autoRefreshTimer = new System.Windows.Forms.Timer { Interval = 10000 };
-                    _autoRefreshTimer.Tick += async (ts, te) => await RefreshAllAsync();
-                    _autoRefreshTimer.Start();
+                    await RefreshAllAsync();
+                    StartAutoRefresh();
                 }
             };
-            this.VisibleChanged += async (s, e) => { if (this.Visible) await RefreshAllAsync(); };
             this.FormClosed += (s, e) =>
             {
                 _autoRefreshTimer?.Stop();
                 _autoRefreshTimer?.Dispose();
             };
+        }
+
+        public void StartAutoRefresh()
+        {
+            if (_autoRefreshTimer == null)
+            {
+                _autoRefreshTimer = new System.Windows.Forms.Timer { Interval = 1500 };
+                _autoRefreshTimer.Tick += async (ts, te) => await RefreshAllAsync();
+                _autoRefreshTimer.Start();
+            }
+            else if (!_autoRefreshTimer.Enabled)
+            {
+                _autoRefreshTimer.Start();
+            }
         }
 
         public async Task LoadDataAsync() => await RefreshAllAsync();
@@ -502,6 +521,27 @@ namespace DTT.Doctor.UI.Forms
             {
                 // [New code]: Hàng chờ chỉ lấy hôm nay (todayOnly: true)
                 _waitingList = await _api.GetPharmacyQueueAsync(todayOnly: true);
+                if (_waitingList != null)
+                {
+                    if (_hasLoadedOnce)
+                    {
+                        var newDispenses = _waitingList.Where(it => !_seenWaitingApptIds.Contains(it.AppointmentId)).ToList();
+                        foreach (var item in newDispenses)
+                        {
+                            MainDashboardForm.Instance?.PushNotification(
+                                "💊 ĐƠN THUỐC MỚI",
+                                item.PatientName,
+                                $"Đã thanh toán viện phí — đơn {item.DrugCount} loại thuốc sẵn sàng phát",
+                                !string.IsNullOrEmpty(item.TimeSlot) ? item.TimeSlot : item.CreatedAt.ToString("HH:mm"),
+                                Color.FromArgb(59, 130, 246),
+                                true
+                            );
+                        }
+                    }
+                    _seenWaitingApptIds = new HashSet<int>(_waitingList.Select(it => it.AppointmentId));
+                    _hasLoadedOnce = true;
+                }
+
                 _doneTodayList = await _api.GetPharmacyHistoryAsync(date: DateTime.Today);
 
                 if (_lblKpiWaiting != null) _lblKpiWaiting.Text = _waitingList.Count.ToString();
