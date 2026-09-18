@@ -17,9 +17,9 @@ namespace DTT.Doctor.Services.Core
         // chạy dotnet run cục bộ nữa. Đổi lại "http://localhost:5000" nếu muốn debug
         // với Backend chạy cục bộ.
         private readonly HttpClient _httpClient;
-        public string BaseUrl { get; set; } = "http://localhost:5000";
+        public string BaseUrl { get; set; } = "https://dtt-healthcare-api.onrender.com";
 
-        public ApiService(string baseUrl = "http://localhost:5000")
+        public ApiService(string baseUrl = "https://dtt-healthcare-api.onrender.com")
         {
             BaseUrl = baseUrl;
             _httpClient = new HttpClient

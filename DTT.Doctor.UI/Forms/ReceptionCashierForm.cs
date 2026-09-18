@@ -2070,11 +2070,10 @@ namespace DTT.Doctor.UI.Forms
                         TimeSpan shiftStart = TimeSpan.Zero, shiftEnd = TimeSpan.Zero;
                         bool hasShiftWindow = TimeSpan.TryParse(shiftStartStr, out shiftStart) &&
                                               TimeSpan.TryParse(shiftEndStr, out shiftEnd);
-                        // TẠM THỜI COMMENT ĐỂ TEST ĐẶT LỊCH (BẬT LẠI KHI TEST XONG):
-                        // if (isToday && hasShiftWindow && (nowTime < shiftStart || nowTime > shiftEnd))
-                        // {
-                        //     continue;
-                        // }
+                        if (isToday && hasShiftWindow && (nowTime < shiftStart || nowTime > shiftEnd))
+                        {
+                            continue;
+                        }
 
                         string shiftSuffix = hasShiftWindow ? $" (Ca: {shiftStartStr} - {shiftEndStr})" : "";
                         string displayText = $"{specInfo.SpecialtyName} — {fullName} [{room}] (Lịch trực ngày {dayText}){shiftSuffix}";
