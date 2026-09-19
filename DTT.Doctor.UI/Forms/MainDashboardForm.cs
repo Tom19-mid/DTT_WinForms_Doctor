@@ -784,28 +784,22 @@ namespace DTT.Doctor.UI.Forms
                     Margin = itemMarg
                 };
                 itemExam.Click += async (s, ev) => {
+                    // Kiểm tra bệnh nhân TRƯỚC khi đổi trạng thái sang InProgress — nếu chặn sau thì ca khám
+                    // bị kẹt "Đang khám" mà không mở được form. Không đoán/bịa PatientId: hồ sơ bệnh án,
+                    // đơn thuốc sẽ ghi vào sai người trên dữ liệu thật.
+                    var appt = _presenter.GetAppointmentById(apptId);
+                    if (appt == null || appt.PatientId <= 0)
+                    {
+                        MessageBox.Show(
+                            "Không xác định được bệnh nhân của lịch hẹn này nên không thể mở phiếu khám.\nVui lòng bấm \"Làm Mới\" để tải lại danh sách rồi thử lại.",
+                            "Không thể khám lâm sàng", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        return;
+                    }
+
                     await _presenter.UpdateStatusAsync(apptId, "InProgress");
                     row.Cells[5].Value = "InProgress";
                     _gridQueue.InvalidateRow(e.RowIndex);
                     _presenter.FilterAndDisplay(_txtSearch.Text, _currentTabFilter);
-                    
-                    var appt = _presenter.GetAppointmentById(apptId);
-                    if (appt == null)
-                    {
-                        appt = new AppointmentModel
-                        {
-                            AppointmentId = apptId,
-                            PatientId = apptId == 39 ? 7 : (apptId % 8 + 2),
-                            PatientName = patientName,
-                            SpecialtyName = row.Cells[3].Value?.ToString() ?? "Khám lâm sàng",
-                            TimeSlot = row.Cells[4].Value?.ToString() ?? "08:30",
-                            ClinicRoom = TokenVault.ClinicRoom
-                        };
-                    }
-                    if (appt.PatientId <= 0)
-                    {
-                        appt.PatientId = apptId == 39 ? 7 : (apptId % 8 + 2);
-                    }
 
                     // Trì hoãn ShowDialog sang vòng lặp thông điệp kế tiếp bằng BeginInvoke:
                     // nếu gọi ShowDialog ngay sau await từ trong menu ngữ cảnh (ToolStripMenuItem.Click),
@@ -881,15 +875,20 @@ namespace DTT.Doctor.UI.Forms
                 {
                     // Trước đây chỉ hiện toast "đang phát triển", không thực sự tạo lịch hẹn nào —
                     // giờ mở dialog đặt Tái khám thật (cùng Bác sĩ đang đăng nhập) qua API đã fix.
+                    // Không đoán/bịa PatientId khi không xác định được: đây là dữ liệu thật, đặt nhầm người là sai hồ sơ.
                     var appt = _presenter.GetAppointmentById(apptId);
-                    int followUpPatientId = appt?.PatientId ?? 0;
-                    if (followUpPatientId <= 0)
+                    if (appt == null || appt.PatientId <= 0)
                     {
-                        followUpPatientId = apptId == 39 ? 7 : (apptId % 8 + 2);
+                        MessageBox.Show(
+                            "Không xác định được bệnh nhân của lịch hẹn này nên không thể đặt lịch tái khám.\nVui lòng bấm \"Làm Mới\" để tải lại danh sách rồi thử lại.",
+                            "Không thể đặt tái khám", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        return;
                     }
 
+                    // MemberId khác null = lịch hẹn gốc đặt cho hồ sơ người thân → tái khám cũng phải đặt đúng hồ sơ đó,
+                    // không thì API gán về chủ tài khoản (PatientId).
                     using (var followUpForm = new FollowUpBookingForm(
-                        followUpPatientId, patientName, TokenVault.DoctorId, TokenVault.FullName, TokenVault.SpecialtyName))
+                        appt.PatientId, patientName, TokenVault.DoctorId, TokenVault.FullName, TokenVault.SpecialtyName, appt.MemberId))
                     {
                         followUpForm.ShowDialog(this);
                     }

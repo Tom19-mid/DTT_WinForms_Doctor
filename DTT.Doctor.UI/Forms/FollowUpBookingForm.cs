@@ -17,6 +17,7 @@ namespace DTT.Doctor.UI.Forms
     {
         private readonly ApiService _api = new ApiService();
         private readonly int _patientId;
+        private readonly int? _memberId;
         private readonly string _patientName;
         private readonly int _doctorId;
         private readonly string _doctorName;
@@ -29,9 +30,10 @@ namespace DTT.Doctor.UI.Forms
         private RoundedButton _btnConfirm;
         private RoundedButton _btnCancel;
 
-        public FollowUpBookingForm(int patientId, string patientName, int doctorId, string doctorName, string specialtyName)
+        public FollowUpBookingForm(int patientId, string patientName, int doctorId, string doctorName, string specialtyName, int? memberId = null)
         {
             _patientId = patientId;
+            _memberId = memberId;
             _patientName = patientName;
             _doctorId = doctorId;
             _doctorName = doctorName;
@@ -141,17 +143,22 @@ namespace DTT.Doctor.UI.Forms
 
             Panel pnlFooter = new Panel { Dock = DockStyle.Bottom, Height = 64, BackColor = Color.White };
             Panel pnlFooterBorder = new Panel { Dock = DockStyle.Top, Height = 1, BackColor = ClinicalColors.BorderGray };
-            pnlFooter.Controls.Add(pnlFooterBorder);
 
-            // Vị trí nút tính theo ClientSize của Form (đã biết trước = 460) — KHÔNG dùng pnlFooter.Width
-            // vì panel chưa qua layout Dock=Bottom tại thời điểm này nên Width vẫn là giá trị mặc định.
-            int footerRight = ClientSize.Width - 20;
+            // Nút xếp bằng FlowLayoutPanel RightToLeft (control add đầu tiên nằm sát mép phải) thay vì tính
+            // Location theo ClientSize — cách cũ bị lệch khi màn hình scale DPI khiến nút Xác Nhận nằm ngoài form.
+            var flowButtons = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                FlowDirection = FlowDirection.RightToLeft,
+                WrapContents = false,
+                Padding = new Padding(20, 13, 20, 0),
+                BackColor = Color.White
+            };
             _btnConfirm = new RoundedButton
             {
                 Text = "✅ Xác Nhận Đặt Lịch",
                 Size = new Size(190, 38),
-                Location = new Point(footerRight - 190, 13),
-                Anchor = AnchorStyles.Top | AnchorStyles.Right,
+                Margin = new Padding(0),
                 NormalBackColor = ClinicalColors.PrimaryBlue,
                 ForeColor = Color.White,
                 Font = ClinicalColors.GetMainFont(10f, FontStyle.Bold),
@@ -163,16 +170,17 @@ namespace DTT.Doctor.UI.Forms
             {
                 Text = "Đóng",
                 Size = new Size(110, 38),
-                Location = new Point(footerRight - 190 - 10 - 110, 13),
-                Anchor = AnchorStyles.Top | AnchorStyles.Right,
+                Margin = new Padding(0, 0, 10, 0),
                 NormalBackColor = Color.FromArgb(226, 232, 240),
                 ForeColor = Color.FromArgb(71, 85, 105),
                 Font = ClinicalColors.GetMainFont(10f, FontStyle.Bold)
             };
             _btnCancel.Click += (s, e) => { DialogResult = DialogResult.Cancel; Close(); };
 
-            pnlFooter.Controls.Add(_btnCancel);
-            pnlFooter.Controls.Add(_btnConfirm);
+            flowButtons.Controls.Add(_btnConfirm);
+            flowButtons.Controls.Add(_btnCancel);
+            pnlFooter.Controls.Add(flowButtons);
+            pnlFooter.Controls.Add(pnlFooterBorder);
 
             Controls.Add(pnlBody);
             Controls.Add(pnlFooter);
@@ -247,7 +255,7 @@ namespace DTT.Doctor.UI.Forms
             string timeSlot = _cboTimeSlot.SelectedItem.ToString();
             string reason = string.IsNullOrWhiteSpace(_txtReason.Text) ? "Tái khám" : _txtReason.Text.Trim();
 
-            var (success, message) = await _api.CreateAppointmentAsync(_patientId, _doctorId, _doctorName, _specialtyName, dateStr, timeSlot, reason);
+            var (success, message) = await _api.CreateAppointmentAsync(_patientId, _doctorId, _doctorName, _specialtyName, dateStr, timeSlot, reason, _memberId);
 
             if (success)
             {

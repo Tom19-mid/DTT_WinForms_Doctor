@@ -543,7 +543,7 @@ namespace DTT.Doctor.Services.Core
 
         // Đặt lịch hẹn mới qua API — dùng cho chức năng "Chuyển / Tái khám" của Bác sĩ (trước đây chỉ
         // hiện toast "đang phát triển", chưa thực sự tạo lịch hẹn nào).
-        public async Task<(bool Success, string Message)> CreateAppointmentAsync(int patientId, int doctorId, string doctorName, string specialtyName, string date, string timeSlot, string reason)
+        public async Task<(bool Success, string Message)> CreateAppointmentAsync(int patientId, int doctorId, string doctorName, string specialtyName, string date, string timeSlot, string reason, int? memberId = null)
         {
             AttachBearerToken();
             try
@@ -551,6 +551,7 @@ namespace DTT.Doctor.Services.Core
                 var payload = new
                 {
                     PatientId = patientId,
+                    MemberId = memberId,
                     DoctorId = doctorId,
                     DoctorName = doctorName,
                     SpecialtyName = specialtyName,
