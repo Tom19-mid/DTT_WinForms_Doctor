@@ -157,7 +157,7 @@ namespace DTT.Doctor.UI.Forms
 
             _btnTabCash = BuildTabButton("💵  1. Tiền Mặt (Tại Quầy)", "cash", 0);
             // [Chỉ giữ 2 hình thức: Tiền mặt và PayPal]:
-            _btnTabPaypal = BuildTabButton("🅿️  2. PayPal (Quét Mã QR)", "paypal", 1);
+            _btnTabPaypal = BuildTabButton("🅿  2. PayPal (Quét Mã QR)", "paypal", 1);
 
             _btnTabCash.Click += (s, e) => SwitchTab("cash");
             _btnTabPaypal.Click += (s, e) => SwitchTab("paypal");
@@ -364,7 +364,7 @@ namespace DTT.Doctor.UI.Forms
 
             Label lblHeading = new Label
             {
-                Text = "🅿️  THANH TOÁN PAYPAL (BỆNH NHÂN QUÉT MÃ QR TRÊN ĐIỆN THOẠI)",
+                Text = "🅿  THANH TOÁN PAYPAL (BỆNH NHÂN QUÉT MÃ QR TRÊN ĐIỆN THOẠI)",
                 Font = ClinicalColors.GetMainFont(13.5f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(0, 48, 135),
                 Location = new Point(24, 18),

@@ -78,7 +78,7 @@ namespace DTT.Doctor.UI.Forms
                 }
                 else if (abnormal > 0)
                 {
-                    _lblClsSummary.Text = $"⚠️ {items.Count} chỉ định CLS đã có đủ kết quả — {abnormal} chỉ số BẤT THƯỜNG, vui lòng xem lại. (Bấm để xem)";
+                    _lblClsSummary.Text = $"⚠ {items.Count} chỉ định CLS đã có đủ kết quả — {abnormal} chỉ số BẤT THƯỜNG, vui lòng xem lại. (Bấm để xem)";
                     _lblClsSummary.ForeColor = Color.FromArgb(185, 28, 28);
                 }
                 else
@@ -550,7 +550,7 @@ namespace DTT.Doctor.UI.Forms
 
             RoundedButton btnPrint = new RoundedButton
             {
-                Text = "🖨️   IN ĐƠN THUỐC",
+                Text = "🖨   IN ĐƠN THUỐC",
                 Font = ClinicalColors.GetMainFont(10f, FontStyle.Bold),
                 BackColor = ClinicalColors.PrimaryBlue,
                 HoverBackColor = Color.FromArgb(29, 78, 216),
@@ -833,7 +833,7 @@ namespace DTT.Doctor.UI.Forms
             if (insufficientStock.Count > 0)
             {
                 MessageBox.Show(
-                    "⚠️ CÁC THUỐC SAU KHÔNG ĐỦ TỒN KHO (đã trừ về 0):\n\n" + string.Join("\n", insufficientStock) +
+                    "⚠ CÁC THUỐC SAU KHÔNG ĐỦ TỒN KHO (đã trừ về 0):\n\n" + string.Join("\n", insufficientStock) +
                     "\n\nVui lòng báo Nhà Thuốc Bệnh Viện nhập thêm hàng.",
                     "Cảnh Báo Hết Thuốc", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }

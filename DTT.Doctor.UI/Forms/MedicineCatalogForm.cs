@@ -218,7 +218,7 @@ namespace DTT.Doctor.UI.Forms
                     // Hiện ĐÚNG tồn kho thật (trước đây khi StockQuantity = 0 sẽ hiện giả "500", che mất
                     // việc thuốc đã thật sự hết hàng — khiến bác sĩ không bao giờ biết cần báo nhập thêm).
                     int stock = m.StockQuantity;
-                    string trangThai = stock <= 0 ? "❌ Hết Hàng" : stock < 20 ? "⚠️ Sắp Hết" : "✅ Khả Dụng";
+                    string trangThai = stock <= 0 ? "❌ Hết Hàng" : stock < 20 ? "⚠ Sắp Hết" : "✅ Khả Dụng";
 
                     int rowIdx = _gridMeds.Rows.Add(
                         stt++,

@@ -397,7 +397,7 @@ namespace DTT.Doctor.UI.Forms
 
                 RoundedButton btnRemove = new RoundedButton
                 {
-                    Text = "🗑️  Xóa ảnh",
+                    Text = "🗑  Xóa ảnh",
                     Font = ClinicalColors.GetMainFont(8.5f, FontStyle.Bold),
                     BackColor = Color.FromArgb(254, 226, 226),
                     HoverBackColor = Color.FromArgb(252, 165, 165),
@@ -535,13 +535,13 @@ namespace DTT.Doctor.UI.Forms
         {
             if (_isTest && string.IsNullOrWhiteSpace(_txtResultValue.Text))
             {
-                _lblStatus.Text = "⚠️ Vui lòng nhập Kết quả xét nghiệm!";
+                _lblStatus.Text = "⚠ Vui lòng nhập Kết quả xét nghiệm!";
                 _lblStatus.ForeColor = Color.FromArgb(220, 38, 38);
                 return;
             }
             if (!_isTest && string.IsNullOrWhiteSpace(_txtConclusion.Text))
             {
-                _lblStatus.Text = "⚠️ Vui lòng nhập Kết luận siêu âm!";
+                _lblStatus.Text = "⚠ Vui lòng nhập Kết luận siêu âm!";
                 _lblStatus.ForeColor = Color.FromArgb(220, 38, 38);
                 return;
             }

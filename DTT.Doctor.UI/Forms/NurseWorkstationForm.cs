@@ -656,7 +656,7 @@ namespace DTT.Doctor.UI.Forms
 
                 if (bmi < 18.5)
                 {
-                    category = "Thiếu cân ⚠️";
+                    category = "Thiếu cân ⚠";
                     bmiBgColor = Color.FromArgb(254, 249, 195); // Light Yellow/Gold tint (#FEF9C3)
                     bmiFgColor = Color.FromArgb(161, 98, 7);    // Dark Gold text (#A16207)
                 }
@@ -668,7 +668,7 @@ namespace DTT.Doctor.UI.Forms
                 }
                 else if (bmi < 30.0)
                 {
-                    category = "Thừa cân ⚠️";
+                    category = "Thừa cân ⚠";
                     bmiBgColor = Color.FromArgb(255, 237, 213); // Soft Orange tint (#FFEDD5)
                     bmiFgColor = Color.FromArgb(194, 65, 12);   // Dark Orange text (#C2410C)
                 }
@@ -696,7 +696,7 @@ namespace DTT.Doctor.UI.Forms
         {
             if (_selectedAppointmentId <= 0)
             {
-                _lblVitalsStatus.Text      = "⚠️ Chưa chọn bệnh nhân!";
+                _lblVitalsStatus.Text      = "⚠ Chưa chọn bệnh nhân!";
                 _lblVitalsStatus.ForeColor = Color.FromArgb(220, 38, 38);
                 return;
             }
@@ -711,7 +711,7 @@ namespace DTT.Doctor.UI.Forms
             // Validate at least BP or HR
             if (string.IsNullOrEmpty(bp) && hr <= 0)
             {
-                _lblVitalsStatus.Text      = "⚠️ Vui lòng nhập ít nhất Huyết áp hoặc Nhịp tim!";
+                _lblVitalsStatus.Text      = "⚠ Vui lòng nhập ít nhất Huyết áp hoặc Nhịp tim!";
                 _lblVitalsStatus.ForeColor = Color.FromArgb(220, 38, 38);
                 return;
             }

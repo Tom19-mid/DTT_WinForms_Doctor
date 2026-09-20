@@ -399,7 +399,7 @@ namespace DTT.Doctor.UI.Forms
             {
                 Button btnNavQueue    = CreateNavButton("📋  Hàng Chờ Lâm Sàng", navY,       true);
                 Button btnNavSchedule = CreateNavButton("📅  Lịch Làm Việc",       navY += 46, false);
-                Button btnNavHistory  = CreateNavButton("🗂️  Hồ Sơ Bệnh Án",      navY += 46, false);
+                Button btnNavHistory  = CreateNavButton("🗂  Hồ Sơ Bệnh Án",      navY += 46, false);
                 Button btnNavMeds     = CreateNavButton("💊  Danh Mục & Thuốc",    navY += 46, false);
                 Button btnNavStats    = CreateNavButton("📊  Thống Kê Ca Khám",   navY += 46, false);
 
@@ -430,7 +430,7 @@ namespace DTT.Doctor.UI.Forms
             };
             RoundedButton btnAbout = new RoundedButton
             {
-                Text = "ℹ️  Thông Tin",
+                Text = "ℹ  Thông Tin",
                 Font = ClinicalColors.GetMainFont(10f, FontStyle.Bold),
                 ForeColor = ClinicalColors.TextDark,
                 BackColor = Color.FromArgb(241, 245, 249),
@@ -850,7 +850,7 @@ namespace DTT.Doctor.UI.Forms
                     }));
                 };
 
-                var itemStatus = new ToolStripMenuItem("✔️ Đã hoàn thành")
+                var itemStatus = new ToolStripMenuItem("✔ Đã hoàn thành")
                 {
                     ForeColor = Color.FromArgb(16, 185, 129),
                     Font = ClinicalColors.GetMainFont(10f, FontStyle.Bold),
