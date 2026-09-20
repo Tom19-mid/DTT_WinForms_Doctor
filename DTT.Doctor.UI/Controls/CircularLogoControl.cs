@@ -18,6 +18,13 @@ namespace DTT.Doctor.UI.Controls
             Size = new Size(110, 110);
         }
 
+        // Logo được đóng gói kèm app (Assets\logo_dtt_healthcare.png) nên máy nào cài cũng hiển thị được,
+        // không phụ thuộc thư mục dự án trên máy dev.
+        public void LoadAppLogo()
+        {
+            LoadImage(Path.Combine(AppContext.BaseDirectory, "Assets", "logo_dtt_healthcare.png"));
+        }
+
         public void LoadImage(string absolutePath)
         {
             try

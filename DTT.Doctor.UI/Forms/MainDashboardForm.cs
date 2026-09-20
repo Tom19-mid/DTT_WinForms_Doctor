@@ -266,7 +266,7 @@ namespace DTT.Doctor.UI.Forms
                 Location = new Point(86, 12),
                 ShadowSpread = 4
             };
-            circSidebarLogo.LoadImage(@"D:\DoAnTotNghiep\Chức năng của app bệnh nhân\Logo\DTT HEALTHCARE.png");
+            circSidebarLogo.LoadAppLogo();
             pnlLogoBox.Controls.Add(circSidebarLogo);
 
             Panel pnlUserCard = new Panel
@@ -425,8 +425,22 @@ namespace DTT.Doctor.UI.Forms
             Panel pnlSidebarBottom = new Panel
             {
                 Dock = DockStyle.Bottom,
-                Height = 76,
+                Height = 128,
                 BackColor = Color.White
+            };
+            RoundedButton btnAbout = new RoundedButton
+            {
+                Text = "ℹ️  Thông Tin",
+                Font = ClinicalColors.GetMainFont(10f, FontStyle.Bold),
+                ForeColor = ClinicalColors.TextDark,
+                BackColor = Color.FromArgb(241, 245, 249),
+                HoverBackColor = Color.FromArgb(226, 232, 240),
+                BorderRadius = 12,
+                Size = new Size(228, 42),
+                Location = new Point(16, 14)
+            };
+            btnAbout.Click += (s, e) => {
+                using (var f = new AboutDialogForm()) f.ShowDialog(this);
             };
             RoundedButton btnLogout = new RoundedButton
             {
@@ -437,12 +451,13 @@ namespace DTT.Doctor.UI.Forms
                 HoverBackColor = Color.FromArgb(185, 28, 28),
                 BorderRadius = 12,
                 Size = new Size(228, 42),
-                Location = new Point(16, 16)
+                Location = new Point(16, 68)
             };
             btnLogout.Click += (s, e) => {
                 TokenVault.Clear();
                 this.Close();
             };
+            pnlSidebarBottom.Controls.Add(btnAbout);
             pnlSidebarBottom.Controls.Add(btnLogout);
 
             pnlSidebar.Controls.Add(pnlLogoBox);

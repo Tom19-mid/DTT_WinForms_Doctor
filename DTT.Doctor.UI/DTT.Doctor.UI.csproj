@@ -21,6 +21,16 @@
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>disable</ImplicitUsings>
     <NoWarn>$(NoWarn);WFO1000;WFO10001</NoWarn>
+    <ApplicationIcon>DTT.ico</ApplicationIcon>
+    <Product>DTT Healthcare - Doctor Desktop</Product>
+    <Company>DTT Healthcare</Company>
+    <Description>Phần mềm quản lý phòng khám DTT Healthcare (Bác sĩ, Lễ tân, Điều dưỡng, KTV, Dược sĩ)</Description>
+    <Version>1.0.0</Version>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="DTT.ico" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets\logo_dtt_healthcare.png" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 
 </Project>

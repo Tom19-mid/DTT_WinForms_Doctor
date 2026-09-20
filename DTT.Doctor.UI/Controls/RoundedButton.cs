@@ -8,7 +8,12 @@ namespace DTT.Doctor.UI.Controls
 {
     public class RoundedButton : Button
     {
-        public int BorderRadius { get; set; } = 16;
+        private int _borderRadius = 16;
+        public int BorderRadius
+        {
+            get => _borderRadius;
+            set { _borderRadius = value; UpdateRegion(); Invalidate(); }
+        }
         public Color BorderColor { get; set; } = Color.Transparent;
         public int BorderSize { get; set; } = 0;
         public Color HoverBackColor { get; set; } = Color.FromArgb(37, 99, 235);
@@ -54,6 +59,32 @@ namespace DTT.Doctor.UI.Controls
             timer.Start();
         }
 
+        // Region (vùng cắt bo góc của cửa sổ) chỉ tạo lại khi kích thước hoặc độ bo góc thay đổi. Trước đây
+        // gán Region ngay trong OnPaint → mỗi lần vẽ lại Windows lại buộc cửa sổ + nền phía sau vẽ lại
+        // (SetWindowRgn), gây nhấp nháy và vệt viền lạ ở mép nút.
+        protected override void OnSizeChanged(EventArgs e)
+        {
+            base.OnSizeChanged(e);
+            UpdateRegion();
+        }
+
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            UpdateRegion();
+        }
+
+        private void UpdateRegion()
+        {
+            if (Width <= 0 || Height <= 0) return;
+            using (var path = CreateRoundedPath(new Rectangle(0, 0, Width, Height), _borderRadius))
+            {
+                var oldRegion = Region;
+                Region = new Region(path);
+                oldRegion?.Dispose();
+            }
+        }
+
         protected override void OnPaintBackground(PaintEventArgs pevent)
         {
             if (Parent != null)
@@ -73,10 +104,6 @@ namespace DTT.Doctor.UI.Controls
 
             using (var path = CreateRoundedPath(rect, BorderRadius))
             {
-                var oldReg = this.Region;
-                this.Region = new Region(path);
-                oldReg?.Dispose();
-
                 using (var brush = new SolidBrush(currentBack))
                 {
                     pevent.Graphics.FillPath(brush, path);

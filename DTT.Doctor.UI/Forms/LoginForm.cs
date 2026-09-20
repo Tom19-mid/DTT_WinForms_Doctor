@@ -43,7 +43,6 @@ namespace DTT.Doctor.UI.Forms
         {
             _presenter = new LoginPresenter(this);
             InitializeComponent();
-            SeedDefaultRecentUsersIfEmpty();
             LoadRecentUsers();
             LoadSavedCredentialsIfAny();
         }
@@ -57,29 +56,6 @@ namespace DTT.Doctor.UI.Forms
             _txtPhone.Text = saved.Phone;
             _txtPassword.Text = saved.Password;
             _chkRememberPassword.Checked = true;
-        }
-
-        /// <summary>
-        /// Lần đầu khởi chạy (chưa có file recent_logins.json) → seed sẵn 5 tài khoản demo
-        /// để mục "Gần đây" luôn hiển thị đủ các role cho người dùng thử.
-        /// </summary>
-        private void SeedDefaultRecentUsersIfEmpty()
-        {
-            var defaults = new List<RecentUser>
-            {
-                new RecentUser { Phone = "0900000004", Name = "Nguyễn Thị Minh Châu", RoleCode = "RECEPTIONIST", RoleName = "Lễ tân tiếp đón" },
-                new RecentUser { Phone = "0900000006", Name = "KTV. Trần Tuấn Kiệt", RoleCode = "LAB_TECH",     RoleName = "Kỹ thuật viên CLS" },
-                new RecentUser { Phone = "0900000005", Name = "Phạm Thị Hồng Hạnh",  RoleCode = "NURSE",         RoleName = "Điều dưỡng" },
-                new RecentUser { Phone = "0900000007", Name = "Ds. Trịnh Mai Phương", RoleCode = "PHARMACIST",  RoleName = "Dược sĩ" },
-                new RecentUser { Phone = "0901111111", Name = "BS. CKII Nguyễn Văn A", RoleCode = "DOCTOR",    RoleName = "Bác sĩ" },
-                new RecentUser { Phone = "0906666666", Name = "BS. CKII Phạm Tuấn Kiệt", RoleCode = "DOCTOR",  RoleName = "Bác sĩ" }
-            };
-
-            if (!File.Exists(RecentLoginsFile))
-            {
-                try { File.WriteAllText(RecentLoginsFile, JsonSerializer.Serialize(defaults)); }
-                catch { }
-            }
         }
 
         private void InitializeComponent()
@@ -153,7 +129,7 @@ namespace DTT.Doctor.UI.Forms
                 Location = new Point(80, 140),
                 ShadowSpread = 10
             };
-            picLogo.LoadImage(@"D:\DoAnTotNghiep\Chức năng của app bệnh nhân\Logo\DTT HEALTHCARE.png");
+            picLogo.LoadAppLogo();
 
             Label lblWelcome = new Label
             {
@@ -319,25 +295,7 @@ namespace DTT.Doctor.UI.Forms
                 } catch { }
             }
 
-            // Đảm bảo đủ các tài khoản mẫu cho người dùng chọn nhanh nếu cần
-            var defaultsList = new List<RecentUser>
-            {
-                new RecentUser { Phone = "0900000004", Name = "Nguyễn Thị Minh Châu", RoleCode = "RECEPTIONIST", RoleName = "Lễ tân tiếp đón" },
-                new RecentUser { Phone = "0900000006", Name = "KTV. Trần Tuấn Kiệt", RoleCode = "LAB_TECH",     RoleName = "Kỹ thuật viên CLS" },
-                new RecentUser { Phone = "0900000005", Name = "Phạm Thị Hồng Hạnh",  RoleCode = "NURSE",         RoleName = "Điều dưỡng" },
-                new RecentUser { Phone = "0900000007", Name = "Ds. Trịnh Mai Phương", RoleCode = "PHARMACIST",  RoleName = "Dược sĩ" },
-                new RecentUser { Phone = "0901111111", Name = "BS. CKII Nguyễn Văn A", RoleCode = "DOCTOR",    RoleName = "Bác sĩ" },
-                new RecentUser { Phone = "0906666666", Name = "BS. CKII Phạm Tuấn Kiệt", RoleCode = "DOCTOR",  RoleName = "Bác sĩ" }
-            };
-
-            foreach (var def in defaultsList)
-            {
-                if (!_recentUsers.Any(u => u.Phone == def.Phone) && _recentUsers.Count < 6)
-                {
-                    _recentUsers.Add(def);
-                }
-            }
-            
+            // Chỉ hiện các tài khoản đã thực sự đăng nhập trên máy này; chưa ai đăng nhập thì ẩn hẳn mục "Gần đây".
             if (_recentUsers.Any())
             {
                 Label lblRecent = new Label
@@ -389,54 +347,27 @@ namespace DTT.Doctor.UI.Forms
             string fullName = !string.IsNullOrWhiteSpace(user.Name) ? user.Name.Trim() : string.Empty;
             string roleCode = user.RoleCode ?? string.Empty;
             string roleName = user.RoleName ?? string.Empty;
-            string phone = user.Phone ?? string.Empty;
 
-            if (phone == "0900000005" || roleCode == "NURSE" || roleName.Contains("Điều dưỡng"))
-            {
-                string cleanName = fullName.Replace("ĐD.", "").Replace("ĐD", "").Trim();
-                if (string.IsNullOrEmpty(cleanName) || cleanName.Contains("000")) cleanName = "Phạm Thị Hồng Hạnh";
-                var partsN = cleanName.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                return "ĐD. " + (partsN.Length > 0 ? partsN[partsN.Length - 1] : cleanName);
-            }
-            if (phone == "0900000004" || roleCode == "RECEPTIONIST" || roleName.Contains("Lễ tân"))
-            {
-                string cleanName = fullName.Replace("LT.", "").Replace("LT", "").Trim();
-                if (string.IsNullOrEmpty(cleanName) || cleanName.Contains("000")) cleanName = "Nguyễn Thị Minh Châu";
-                var partsL = cleanName.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                return "LT. " + (partsL.Length > 0 ? partsL[partsL.Length - 1] : cleanName);
-            }
-            if (phone == "0900000006" || roleCode == "LAB_TECH" || roleName.Contains("Kỹ thuật") || fullName.Contains("Kiệt"))
-            {
-                return "KTV. Kiệt";
-            }
-            if (phone == "0900000007" || roleCode == "PHARMACIST" || roleName.Contains("Dược sĩ") || fullName.Contains("Phương"))
-            {
-                return "DS. Phương";
-            }
-
-            var parts = fullName.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-
-            var nameWords = parts.Where(p => {
+            // Bỏ học hàm/học vị và tiền tố chức danh khỏi tên để lấy phần tên riêng
+            var nameWords = fullName.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Where(p => {
                 string u = p.ToUpperInvariant().TrimEnd('.');
-                return u != "THS" && u != "BS" && u != "TS" && u != "CKI" && u != "CKII" && 
+                return u != "THS" && u != "BS" && u != "TS" && u != "CKI" && u != "CKII" &&
                        u != "PGS" && u != "GS" && u != "KTV" && u != "DS" && u != "LT" && u != "ĐD" && u != "ĐIỀU" && u != "TRỊ";
             }).ToList();
 
+            bool isDoctor = roleCode == "DOCTOR" || roleName.Contains("Bác sĩ");
+
+            // Bác sĩ hiện 2 từ cuối (VD: "Văn A"), các vai trò khác hiện tên gọi (từ cuối) cho gọn nút
             string shortName = fullName;
-            if (nameWords.Count >= 2)
-            {
+            if (isDoctor && nameWords.Count >= 2)
                 shortName = $"{nameWords[nameWords.Count - 2]} {nameWords[nameWords.Count - 1]}";
-            }
-            else if (nameWords.Count == 1)
-            {
-                shortName = nameWords[0];
-            }
+            else if (nameWords.Count >= 1)
+                shortName = nameWords[nameWords.Count - 1];
 
             if (roleCode == "RECEPTIONIST" || roleName.Contains("Lễ tân")) return $"LT. {shortName}";
             if (roleCode == "NURSE" || roleName.Contains("Điều dưỡng")) return $"ĐD. {shortName}";
-            if (roleCode == "DOCTOR" || roleName.Contains("Bác sĩ")) return $"BS. {shortName}";
-            if (roleCode == "PHARMACIST" || roleName.Contains("Dược sĩ")) return $"DS. {shortName}";
             if (roleCode == "LAB_TECH" || roleName.Contains("Kỹ thuật")) return $"KTV. {shortName}";
+            if (roleCode == "PHARMACIST" || roleName.Contains("Dược sĩ")) return $"DS. {shortName}";
 
             return $"BS. {shortName}";
         }
