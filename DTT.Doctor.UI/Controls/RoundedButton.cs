@@ -66,6 +66,22 @@ namespace DTT.Doctor.UI.Controls
         {
             base.OnSizeChanged(e);
             UpdateRegion();
+            // Nút bị cắt bằng Region nên khi đổi kích thước/dời chỗ, phần pixel cũ nằm NGOÀI vùng mới thuộc về
+            // panel cha — nếu cha không được báo vẽ lại thì điểm ảnh cũ (vd của nút khác màu ở vị trí trước đó)
+            // còn sót lại thành vệt viền.
+            Parent?.Invalidate(true);
+        }
+
+        protected override void OnLocationChanged(EventArgs e)
+        {
+            base.OnLocationChanged(e);
+            Parent?.Invalidate(true);
+        }
+
+        protected override void OnVisibleChanged(EventArgs e)
+        {
+            base.OnVisibleChanged(e);
+            Parent?.Invalidate(true);
         }
 
         protected override void OnHandleCreated(EventArgs e)

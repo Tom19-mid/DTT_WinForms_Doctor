@@ -43,8 +43,13 @@ namespace DTT.Doctor.UI.Forms
             _appointment = appointment ?? new AppointmentModel();
             InitializeComponent();
             PreFillNurseVitals(); // Auto-fill từ bộ sinh hiệu điều dưỡng đã đo
+            LoadDraft();          // Khôi phục những gì bác sĩ đã nhập dở ở lần mở trước (nếu có)
             _ = LoadIcdSuggestionsAsync();
             _ = LoadClsStatusAsync();
+
+            // Đóng form mà CHƯA bấm "Hoàn tất & Lưu bệnh án" (vd: chờ siêu âm/xét nghiệm rồi mở lại, hoặc lỡ bấm
+            // Esc) → lưu bản nháp để lần mở lại không mất triệu chứng/chẩn đoán/đơn thuốc đã nhập.
+            this.FormClosing += (s, e) => { if (!IsSaved) SaveDraft(); };
 
             // Panel 2 cột trái/phải (AntiFlickerPanel) bật cờ Windows WS_EX_COMPOSITED để chống nhấp
             // nháy — cờ này có thể khiến panel Footer (Hoàn tất & Lưu bệnh án/In đơn/Đóng), là control
@@ -150,6 +155,111 @@ namespace DTT.Doctor.UI.Forms
             {
                 System.Diagnostics.Debug.WriteLine("PreFillNurseVitals error: " + ex.Message);
             }
+        }
+
+        // ── Bản nháp phiếu khám (lưu cục bộ theo mã lịch hẹn) ─────────────────────────────────────────────
+        // Trước đây form chỉ tự điền sinh hiệu của điều dưỡng khi mở; mọi thứ bác sĩ tự nhập (triệu chứng, chẩn
+        // đoán, ICD, hướng điều trị, đơn thuốc) chỉ nằm trong bộ nhớ của form. Khi bác sĩ chỉ định siêu âm/xét
+        // nghiệm rồi đóng phiếu để chờ kết quả, mở lại là toàn bộ dữ liệu đã nhập biến mất.
+        private sealed class ExamDraft
+        {
+            public string Pulse { get; set; } = "";
+            public string BloodPressure { get; set; } = "";
+            public string Temperature { get; set; } = "";
+            public string Weight { get; set; } = "";
+            public string Symptoms { get; set; } = "";
+            public string Diagnosis { get; set; } = "";
+            public string? IcdCode { get; set; }
+            public string? IcdDescription { get; set; }
+            public string TreatmentPlan { get; set; } = "";
+            public List<PrescribedDrugItem> Prescriptions { get; set; } = new List<PrescribedDrugItem>();
+            public DateTime SavedAt { get; set; }
+        }
+
+        private static string DraftFolder => System.IO.Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DTT Healthcare", "exam_drafts");
+
+        private string DraftPath => System.IO.Path.Combine(DraftFolder, $"appt_{_appointment.AppointmentId}.json");
+
+        private void SaveDraft()
+        {
+            if (_appointment.AppointmentId <= 0) return;
+            try
+            {
+                // Sinh hiệu điều dưỡng tự điền không tính là "nội dung bác sĩ đã nhập".
+                bool hasContent = !string.IsNullOrWhiteSpace(_txtSymptoms.Text)
+                               || !string.IsNullOrWhiteSpace(_txtDiagnosis.Text)
+                               || !string.IsNullOrWhiteSpace(_txtTreatmentPlan.Text)
+                               || _prescriptions.Count > 0;
+                if (!hasContent) { DeleteDraft(); return; }
+
+                var draft = new ExamDraft
+                {
+                    Pulse = _txtPulse.Text,
+                    BloodPressure = _txtBP.Text,
+                    Temperature = _txtTemp.Text,
+                    Weight = _txtWeight.Text,
+                    Symptoms = _txtSymptoms.Text,
+                    Diagnosis = _txtDiagnosis.Text,
+                    IcdCode = _selectedIcdCode,
+                    IcdDescription = _selectedIcdDescription,
+                    TreatmentPlan = _txtTreatmentPlan.Text,
+                    Prescriptions = _prescriptions.ToList(),
+                    SavedAt = DateTime.Now
+                };
+                System.IO.Directory.CreateDirectory(DraftFolder);
+                System.IO.File.WriteAllText(DraftPath, System.Text.Json.JsonSerializer.Serialize(draft));
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("SaveDraft error: " + ex.Message);
+            }
+        }
+
+        private void LoadDraft()
+        {
+            if (_appointment.AppointmentId <= 0) return;
+            try
+            {
+                // Dọn bản nháp cũ hơn 3 ngày (ca khám đã qua từ lâu) để thư mục không phình ra mãi.
+                if (System.IO.Directory.Exists(DraftFolder))
+                {
+                    foreach (var f in System.IO.Directory.GetFiles(DraftFolder, "appt_*.json"))
+                    {
+                        if ((DateTime.Now - System.IO.File.GetLastWriteTime(f)).TotalDays > 3)
+                            System.IO.File.Delete(f);
+                    }
+                }
+
+                if (!System.IO.File.Exists(DraftPath)) return;
+                var draft = System.Text.Json.JsonSerializer.Deserialize<ExamDraft>(System.IO.File.ReadAllText(DraftPath));
+                if (draft == null) return;
+
+                if (!string.IsNullOrEmpty(draft.Pulse)) _txtPulse.Text = draft.Pulse;
+                if (!string.IsNullOrEmpty(draft.BloodPressure)) _txtBP.Text = draft.BloodPressure;
+                if (!string.IsNullOrEmpty(draft.Temperature)) _txtTemp.Text = draft.Temperature;
+                if (!string.IsNullOrEmpty(draft.Weight)) _txtWeight.Text = draft.Weight;
+                _txtSymptoms.Text = draft.Symptoms ?? "";
+                _txtDiagnosis.Text = draft.Diagnosis ?? "";
+                _txtTreatmentPlan.Text = draft.TreatmentPlan ?? "";
+                _selectedIcdCode = draft.IcdCode;
+                _selectedIcdDescription = draft.IcdDescription;
+
+                _prescriptions.Clear();
+                if (draft.Prescriptions != null) _prescriptions.AddRange(draft.Prescriptions);
+                RefreshPrescriptionGrid();
+
+                Text += $"  (đã khôi phục bản nháp lúc {draft.SavedAt:HH:mm dd/MM})";
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("LoadDraft error: " + ex.Message);
+            }
+        }
+
+        private void DeleteDraft()
+        {
+            try { if (System.IO.File.Exists(DraftPath)) System.IO.File.Delete(DraftPath); } catch { }
         }
 
         private void InitializeComponent()
@@ -746,6 +856,7 @@ namespace DTT.Doctor.UI.Forms
         // "Chờ kết quả CLS" và xuất hiện trong hàng đợi của Kỹ thuật viên (KTV Siêu âm/Xét nghiệm).
         private async void OnOrderClsClick(object sender, EventArgs e)
         {
+            SaveDraft(); // lưu nháp trước khi chỉ định — phòng khi đóng phiếu/thoát app để chờ kết quả CLS
             using (var picker = new ClinicalOrderPickerForm(_appointment.AppointmentId, _appointment.PatientId, TokenVault.DoctorId))
             {
                 if (picker.ShowDialog(this) == DialogResult.OK && picker.OrderedCount > 0)
@@ -806,6 +917,7 @@ namespace DTT.Doctor.UI.Forms
 
             // [New code - Backend chuyển StatusId=11 (PendingPayment), yêu cầu thanh toán trước khi phát thuốc]:
             IsSaved = true;
+            DeleteDraft(); // đã lưu thật vào hồ sơ → bỏ bản nháp cục bộ
 
             if (_prescriptions.Count > 0)
             {

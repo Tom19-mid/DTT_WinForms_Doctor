@@ -18,6 +18,13 @@ namespace DTT.Doctor.UI.Forms
         private TabControl _tabControl;
         private AntiFlickerDataGridView _gridCheckIn;
         private AntiFlickerDataGridView _gridBilling;
+        // Tab Thu Ngân tự làm mới mỗi 1.5s (LoadDataPublicAsync) bằng cách Rows.Clear() rồi dựng lại lưới.
+        // Nếu để mỗi lần đó bắn SelectionChanged thì bảng kê viện phí bên phải bị reset về "0 VNĐ" và nút
+        // "Thu tiền ngay" mất tác dụng (SelectedRows.Count == 0). Cờ này chặn sự kiện trong lúc làm mới;
+        // _billingShown* nhớ ca đang hiển thị để chỉ vẽ lại bảng kê khi ca/trạng thái thật sự đổi.
+        private bool _suppressBillingSelection;
+        private int _billingShownApptId;
+        private string _billingShownStatus = "";
         private AntiFlickerDataGridView _gridApproveMobile;
         private TextBox _txtApproveSearch;
         private List<PatientSimpleModel> _allApproveProfiles = new List<PatientSimpleModel>();
@@ -137,6 +144,28 @@ namespace DTT.Doctor.UI.Forms
             this.FormClosed += (s, e) => { _chatAutoRefreshTimer?.Stop(); _chatAutoRefreshTimer?.Dispose(); _notifyIcon?.Dispose(); };
         }
 
+        // Form này được nhúng làm form con (TopLevel=false) trong MainDashboardForm nên khi Đăng xuất chỉ
+        // form cha bị đóng — FormClosed của form con KHÔNG chắc chắn được gọi và Timer (không phải Control)
+        // không tự dispose theo, khiến bộ đếm 1.5s của phiên cũ vẫn chạy ngầm và gọi API sau khi đăng xuất.
+        // Dừng timer ngay trong Dispose để chắc chắn dọn được trong mọi trường hợp.
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                _chatAutoRefreshTimer?.Stop();
+                _chatAutoRefreshTimer?.Dispose();
+                _chatAutoRefreshTimer = null;
+            }
+            base.Dispose(disposing);
+        }
+
+        // Chỉ cho 1 lượt làm mới chạy tại 1 thời điểm. API trên Render mất >1.5s/lượt, nên bộ đếm 1.5s + các
+        // lần bấm chuyển tab/Tải lại gọi LoadDataPublicAsync CHỒNG lên nhau; trong khi đó hàm có 1 chỗ `await`
+        // nằm giữa lúc xóa lưới (Rows.Clear) và thêm dòng, nên 2 lượt xen kẽ nhau sẽ thêm dòng 2 lần — lưới
+        // "nhảy" ra nhiều dòng trùng (thường lộ ra sau khi đăng xuất/đăng nhập lại vài lần).
+        private bool _isLoadingData;
+        private bool _isTickBusy;
+
         public void StartAutoRefresh()
         {
             if (_chatAutoRefreshTimer == null)
@@ -144,8 +173,17 @@ namespace DTT.Doctor.UI.Forms
                 _chatAutoRefreshTimer = new System.Windows.Forms.Timer { Interval = 1500 };
                 _chatAutoRefreshTimer.Tick += async (ts, te) =>
                 {
-                    await RefreshChatQueueAsync();
-                    await LoadDataPublicAsync();
+                    if (_isTickBusy) return;
+                    _isTickBusy = true;
+                    try
+                    {
+                        await RefreshChatQueueAsync();
+                        await LoadDataPublicAsync();
+                    }
+                    finally
+                    {
+                        _isTickBusy = false;
+                    }
                 };
                 _chatAutoRefreshTimer.Start();
             }
@@ -552,7 +590,7 @@ namespace DTT.Doctor.UI.Forms
             _gridBilling.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "TỔNG VIỆN PHÍ", FillWeight = 55 });
             _gridBilling.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "TRẠNG THÁI THANH TOÁN", FillWeight = 80 });
 
-            _gridBilling.SelectionChanged += (s, e) => OnBillingRowSelected();
+            _gridBilling.SelectionChanged += (s, e) => { if (!_suppressBillingSelection) OnBillingRowSelected(); };
 
             pnlLeft.Controls.Add(_gridBilling);
             pnlLeft.Controls.Add(pnlSearch);
@@ -1546,8 +1584,40 @@ namespace DTT.Doctor.UI.Forms
         }
 
         // Hiển thị thông tin bệnh nhân đã chọn (từ lưới hoặc tìm theo SĐT) + kiểm tra lịch hôm nay
+        // Tab được nhúng trong form cha có panel bật WS_EX_COMPOSITED (xem AntiFlickerPanel) — các control đổi
+        // Visible SAU KHI form đã hiện không tự được vẽ lại cho tới khi cửa sổ được kích hoạt lại (Alt+Tab).
+        // Ép vẽ lại tường minh mỗi khi đổi trạng thái hiển thị ở tab "Khám Trực Tiếp".
+        private void ForceRepaintDirectTab()
+        {
+            try
+            {
+                _pnlDirectResult?.Invalidate(true);
+                _pnlDirectBookingBox?.Invalidate(true);
+                _lblDirectWarning?.Invalidate();
+                this.Invalidate(true);
+                this.Parent?.Invalidate(true);
+                this.Update();
+            }
+            catch { }
+        }
+
+        // Mỗi lần chọn bệnh nhân tăng số phiên bản; các lượt gọi cũ (API chậm trả về sau) thấy phiên bản đã đổi
+        // thì bỏ dở, tránh ghi đè lên bệnh nhân vừa chọn. _directShownKey nhớ bệnh nhân đang hiển thị để lần
+        // làm mới lưới định kỳ (chọn lại đúng dòng đó) KHÔNG xóa số CCCD lễ tân đang gõ dở.
+        private int _directDetailsVersion;
+        private string _directShownKey = "";
+
         private async Task ShowDirectPatientDetailsAsync(PatientSimpleModel found)
         {
+            string directKey = $"{found.RecordType}:{found.Id}";
+            if (directKey == _directShownKey && _directFoundPatient != null)
+            {
+                _directFoundPatient = found; // cùng bệnh nhân đang hiển thị — giữ nguyên form, chỉ cập nhật dữ liệu
+                return;
+            }
+            int detailsVersion = ++_directDetailsVersion;
+            _directShownKey = directKey;
+
             _pnlDirectResult.Visible = false;
             _lblDirectWarning.Visible = false;
             _pnlDirectBookingBox.Visible = false;
@@ -1571,12 +1641,21 @@ namespace DTT.Doctor.UI.Forms
                 string.IsNullOrEmpty(found.Gender) ? "(chưa có)" : found.Gender);
             _pnlDirectResult.Visible = true;
 
+            // Hiện NGAY ô nhập CCCD + chọn chuyên khoa (nút đặt khám tạm khóa cho tới khi kiểm tra xong) — trước
+            // đây cả khu vực này chỉ hiện sau khi xong 2 lệnh gọi API tuần tự (lịch hôm nay + danh sách chuyên
+            // khoa), nên với server chậm người dùng thấy trống cả vài giây.
+            _txtDirectCccd.Text = found.Cccd ?? "";
+            _btnDirectBookNow.Enabled = false;
+            _pnlDirectBookingBox.Visible = true;
+            ForceRepaintDirectTab();
+
             // Kiểm tra bệnh nhân có lịch hẹn HÔM NAY còn ĐANG XỬ LÝ (chưa khám xong/chưa hủy) không —
             // trước đây chỉ cần CÓ lịch hôm nay là chặn, kể cả khi lịch đó đã khám xong & thanh toán
             // xong rồi, khiến bệnh nhân quay lại khám thêm ca khác trong cùng ngày bị chặn oan.
             string[] finishedStatuses = { "Completed", "Cancelled", "NoShow" };
             var api = new ApiService();
             var todayAppointments = await api.GetQueueAppointmentsAsync();
+            if (detailsVersion != _directDetailsVersion) return; // đã chọn bệnh nhân khác trong lúc chờ API
             // [Old code]: "a.PatientId == found.Id" — SAI khi found là hồ sơ NGƯỜI THÂN: found.Id lúc đó
             // là family_members.member_id, trong khi appointments.patient_id LUÔN là patient_id của CHỦ
             // TÀI KHOẢN (không phải member_id) — 2 không gian ID khác nhau nên so sánh này không bao giờ
@@ -1592,12 +1671,15 @@ namespace DTT.Doctor.UI.Forms
                 _lblDirectWarning.Text = "⚠ Bệnh nhân này đang có lịch hẹn CHƯA HOÀN TẤT cho HÔM NAY. Vui lòng dùng tab \"1. TIẾP ĐÓN & CHECK-IN\" để check-in thay vì tạo lịch mới.";
                 _lblDirectWarning.Visible = true;
                 _pnlDirectBookingBox.Visible = false;
+                ForceRepaintDirectTab();
                 return;
             }
 
-            _txtDirectCccd.Text = found.Cccd ?? "";
             await PopulateSpecialtyComboForDateAsync(_cboDirectSpecialty, _directSpecialtyMap, DateTime.Today);
+            if (detailsVersion != _directDetailsVersion) return;
+            _btnDirectBookNow.Enabled = true;
             _pnlDirectBookingBox.Visible = true;
+            ForceRepaintDirectTab();
         }
 
         private async Task ExecuteDirectBookNowAsync()
@@ -1663,6 +1745,7 @@ namespace DTT.Doctor.UI.Forms
                     _pnlDirectResult.Visible = false;
                     _pnlDirectBookingBox.Visible = false;
                     _directFoundPatient = null;
+                    _directShownKey = ""; // cho phép chọn lại chính bệnh nhân này để đặt khám tiếp
 
                     await LoadDataPublicAsync();
                     SelectTab(0);
@@ -1680,6 +1763,21 @@ namespace DTT.Doctor.UI.Forms
         }
 
         public async Task LoadDataPublicAsync()
+        {
+            // Đang có 1 lượt làm mới chạy → bỏ qua (lượt kế của bộ đếm 1.5s sẽ tải lại ngay sau đó).
+            if (_isLoadingData) return;
+            _isLoadingData = true;
+            try
+            {
+                await LoadDataCoreAsync();
+            }
+            finally
+            {
+                _isLoadingData = false;
+            }
+        }
+
+        private async Task LoadDataCoreAsync()
         {
             try
             {
@@ -1719,8 +1817,11 @@ namespace DTT.Doctor.UI.Forms
                 int billingScroll = -1;
                 try { billingScroll = _gridBilling.FirstDisplayedScrollingRowIndex; } catch { }
                 int selectedCheckInRow = _gridCheckIn.SelectedRows.Count > 0 ? _gridCheckIn.SelectedRows[0].Index : -1;
-                int selectedBillingRow = _gridBilling.SelectedRows.Count > 0 ? _gridBilling.SelectedRows[0].Index : -1;
+                // Nhớ ca đang chọn theo MÃ LỊCH HẸN (Tag) chứ không theo số dòng — sau mỗi lần làm mới, thứ tự
+                // dòng có thể đổi (ca mới xuất hiện, ca cũ đổi trạng thái).
+                int selectedBillingApptId = _gridBilling.SelectedRows.Count > 0 && _gridBilling.SelectedRows[0].Tag is int selBillTag ? selBillTag : 0;
 
+                _suppressBillingSelection = true;
                 _gridCheckIn.Rows.Clear();
                 _gridBilling.Rows.Clear();
                 _patientRowIdMap.Clear();
@@ -1949,10 +2050,17 @@ namespace DTT.Doctor.UI.Forms
                     try { _gridCheckIn.FirstDisplayedScrollingRowIndex = checkInScroll; } catch { }
                 }
 
-                if (selectedBillingRow >= 0 && selectedBillingRow < _gridBilling.Rows.Count)
+                if (selectedBillingApptId > 0)
                 {
-                    _gridBilling.ClearSelection();
-                    _gridBilling.Rows[selectedBillingRow].Selected = true;
+                    foreach (DataGridViewRow bRow in _gridBilling.Rows)
+                    {
+                        if (bRow.Tag is int bTag && bTag == selectedBillingApptId)
+                        {
+                            _gridBilling.ClearSelection();
+                            bRow.Selected = true;
+                            break;
+                        }
+                    }
                 }
                 if (billingScroll >= 0 && billingScroll < _gridBilling.Rows.Count)
                 {
@@ -1962,6 +2070,12 @@ namespace DTT.Doctor.UI.Forms
                 FilterReceptionGrid();
                 FilterBillingGrid();
                 UpdateKpiSummaryCards();
+
+                // Hết đợt làm mới lưới → cho phép sự kiện chọn dòng chạy lại. Chỉ vẽ lại bảng kê viện phí khi
+                // ca đang chọn (hoặc trạng thái thanh toán của nó) thật sự khác với ca đang hiển thị — nếu
+                // không thì giữ nguyên số liệu đã tải, tránh nhấp nháy và gọi lại API ước tính mỗi 1.5s.
+                _suppressBillingSelection = false;
+                SyncBillingPanelAfterRefresh();
 
                 // --- Tab 3 & 5: Load real patients + hồ sơ người thân pending CCCD verification ---
                 // Chỉ tải lại danh mục bệnh nhân khi chưa tải lần nào hoặc sau mỗi 60 giây,
@@ -1985,6 +2099,11 @@ namespace DTT.Doctor.UI.Forms
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine("LoadDataAsync error: " + ex.Message);
+            }
+            finally
+            {
+                // Phòng khi lỗi giữa chừng làm cờ chặn sự kiện bị kẹt ở true → lưới Thu Ngân "đơ" không chọn được.
+                _suppressBillingSelection = false;
             }
 
             // --- Tab 4: Filter specialties + doctors theo Ngày đăng ký khám ---
@@ -2146,6 +2265,14 @@ namespace DTT.Doctor.UI.Forms
         {
             if (_txtSearchBilling == null || _gridBilling == null) return;
             string q = _txtSearchBilling.Text.ToLower().Trim();
+
+            // Bỏ CurrentCell là bắt buộc trước khi ẩn dòng (WinForms không cho ẩn dòng đang là current cell), nhưng
+            // việc này cũng XÓA lựa chọn dòng — trước đây khiến ca bệnh nhân vừa được chọn bị bỏ chọn ngay sau
+            // mỗi lần làm mới 1.5s, bảng kê viện phí về 0 VNĐ và nút "Thu tiền" không bấm được. Nhớ ca đang chọn
+            // (theo mã lịch hẹn) rồi chọn lại sau khi lọc nếu dòng đó vẫn còn hiển thị.
+            int keepApptId = _gridBilling.SelectedRows.Count > 0 && _gridBilling.SelectedRows[0].Tag is int keepTag ? keepTag : 0;
+            bool wasSuppressed = _suppressBillingSelection;
+            _suppressBillingSelection = true;
             try
             {
                 if (_gridBilling.CurrentCell != null)
@@ -2159,11 +2286,49 @@ namespace DTT.Doctor.UI.Forms
                     string spec = row.Cells[2].Value != null ? row.Cells[2].Value.ToString().ToLower() : "";
                     row.Visible = string.IsNullOrEmpty(q) || pName.Contains(q) || spec.Contains(q);
                 }
+
+                if (keepApptId > 0)
+                {
+                    foreach (DataGridViewRow row in _gridBilling.Rows)
+                    {
+                        if (!row.IsNewRow && row.Visible && row.Tag is int rowTag && rowTag == keepApptId)
+                        {
+                            _gridBilling.ClearSelection();
+                            row.Selected = true;
+                            break;
+                        }
+                    }
+                }
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine("FilterBillingGrid error: " + ex.Message);
             }
+            finally
+            {
+                _suppressBillingSelection = wasSuppressed;
+            }
+
+            // Khi được gọi riêng (gõ ô tìm kiếm) — đồng bộ lại bảng kê nếu lựa chọn thật sự đổi. Khi nằm trong
+            // đợt làm mới lưới thì LoadDataPublicAsync tự đồng bộ ở cuối.
+            if (!wasSuppressed) SyncBillingPanelAfterRefresh();
+        }
+
+        // Vẽ lại bảng kê viện phí (và nút Thu tiền) CHỈ khi ca đang chọn hoặc trạng thái thanh toán của nó khác
+        // với ca đang hiển thị (_billingShown*). Nhờ vậy làm mới lưới mỗi 1.5s không còn reset bảng kê về 0 VNĐ.
+        private void SyncBillingPanelAfterRefresh()
+        {
+            if (_gridBilling == null || _gridBilling.IsDisposed) return;
+            int selId = 0;
+            string status = "";
+            if (_gridBilling.SelectedRows.Count > 0)
+            {
+                var r = _gridBilling.SelectedRows[0];
+                selId = r.Tag is int t ? t : -1;
+                status = r.Cells[4].Value != null ? r.Cells[4].Value.ToString() : "";
+            }
+            if (selId == _billingShownApptId && status == _billingShownStatus) return;
+            OnBillingRowSelected();
         }
 
         private void UpdateKpiSummaryCards()
@@ -2558,6 +2723,8 @@ namespace DTT.Doctor.UI.Forms
         {
             if (_gridBilling.SelectedRows.Count == 0)
             {
+                _billingShownApptId = 0;
+                _billingShownStatus = "";
                 _lblPatientDetail.Text = "Bệnh nhân: Chọn một ca khám từ danh sách bên trái";
                 _lblFeeExam.Text = "1. Công khám lâm sàng chuyên khoa  :  0 VNĐ";
                 _lblFeeServices.Text = "2. Phí dịch vụ Cận lâm sàng (CLS)       :  0 VNĐ";
@@ -2570,6 +2737,8 @@ namespace DTT.Doctor.UI.Forms
             string pName = row.Cells[1].Value != null ? row.Cells[1].Value.ToString() : "";
             string spec = row.Cells[2].Value != null ? row.Cells[2].Value.ToString() : "";
             string status = row.Cells[4].Value != null ? row.Cells[4].Value.ToString() : "";
+            _billingShownApptId = row.Tag is int shownTag ? shownTag : -1;
+            _billingShownStatus = status;
 
             // [Old code]:
             // _lblFeeMeds.Text = "3. Phí thuốc theo Đơn thuốc điện tử  :  Đang tính...";
@@ -2629,8 +2798,13 @@ namespace DTT.Doctor.UI.Forms
                 var api = new ApiService();
                 var estimate = await api.GetInvoiceEstimateAsync(appointmentId);
 
-                // Bỏ qua nếu người dùng đã chọn sang dòng khác trong lúc chờ API phản hồi
-                if (_gridBilling.SelectedRows.Count == 0 || _gridBilling.SelectedRows[0].Index != rowIndex) return;
+                // Bỏ qua nếu người dùng đã chọn sang ca khác trong lúc chờ API phản hồi. So theo MÃ LỊCH HẸN
+                // (Tag) thay vì số dòng: lưới được dựng lại mỗi 1.5s nên số dòng của cùng một ca có thể đổi.
+                if (_gridBilling.SelectedRows.Count == 0) return;
+                var selBillingRow = _gridBilling.SelectedRows[0];
+                bool sameCase = selBillingRow.Tag is int selBillingTag ? selBillingTag == appointmentId : selBillingRow.Index == rowIndex;
+                if (!sameCase) return;
+                rowIndex = selBillingRow.Index;
 
                 if (!estimate.Success)
                 {

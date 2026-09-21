@@ -468,7 +468,29 @@ namespace DTT.Doctor.UI.Forms
         }
 
         // ── Data Loading ────────────────────────────────────────────────────
+        // Chỉ cho 1 lượt làm mới chạy tại 1 thời điểm (API chậm hơn chu kỳ 1.5s → các lượt chồng nhau, thêm dòng
+        // trùng vào lưới) và dừng timer khi form con bị Dispose (Đăng xuất) — xem ReceptionCashierForm.
+        private bool _isRefreshingAll;
         private async Task RefreshAllAsync()
+        {
+            if (_isRefreshingAll) return;
+            _isRefreshingAll = true;
+            try { await RefreshAllCoreAsync(); }
+            finally { _isRefreshingAll = false; }
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                _autoRefreshTimer?.Stop();
+                _autoRefreshTimer?.Dispose();
+                _autoRefreshTimer = null;
+            }
+            base.Dispose(disposing);
+        }
+
+        private async Task RefreshAllCoreAsync()
         {
             try
             {

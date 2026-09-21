@@ -53,6 +53,19 @@ namespace DTT.Doctor.UI.Forms
         private FormBorderStyle _savedBorderStyle;
         private FormWindowState _savedWindowState;
         private Rectangle _savedBounds;
+        private SidebarPanel _pnlSidebar;
+        private SidebarPanel _pnlSidebarBottom;
+
+        private void RefreshSidebarPaint()
+        {
+            try
+            {
+                _pnlSidebar?.Invalidate(true);
+                _pnlSidebarBottom?.Invalidate(true);
+                _pnlSidebar?.Update();
+            }
+            catch { }
+        }
 
         // F11 — bật/tắt toàn màn hình KHÔNG viền (phủ kín cả vùng taskbar), khác Maximized thông
         // thường (Maximized vẫn giữ thanh tiêu đề + chừa taskbar). Lưu lại trạng thái cũ để khôi phục
@@ -77,6 +90,7 @@ namespace DTT.Doctor.UI.Forms
                 if (_savedWindowState == FormWindowState.Normal) Bounds = _savedBounds;
                 _isBorderlessFullscreen = false;
             }
+            RefreshSidebarPaint(); // đổi viền/kích thước cửa sổ → vẽ lại sạch thanh bên
         }
 
         public MainDashboardForm()
@@ -155,6 +169,12 @@ namespace DTT.Doctor.UI.Forms
                 }
             };
             this.FormClosed += (s, e) => {
+                // Các form con nhúng (TopLevel=false) phải được đóng/dispose tường minh — nếu không, timer
+                // 1.5s của chúng vẫn chạy ngầm sau khi Đăng xuất, cộng dồn thêm mỗi lần đăng nhập lại.
+                foreach (var child in new Form[] { _receptionChildForm, _nurseChildForm, _labTechChildForm, _pharmacistChildForm })
+                {
+                    try { child?.Dispose(); } catch { }
+                }
                 _autoRefreshTimer?.Stop();
                 _autoRefreshTimer?.Dispose();
                 NotificationHubService.NotificationsChanged -= OnAdminNotificationsChanged;
@@ -239,12 +259,19 @@ namespace DTT.Doctor.UI.Forms
             KeyDown += (s, e) => { if (e.KeyCode == Keys.F11) ToggleBorderlessFullscreen(); };
 
             // ── Left Navigation Sidebar (Clean Light Theme with Border Divider) ───────
-            Panel pnlSidebar = new Panel
+            SidebarPanel pnlSidebar = new SidebarPanel
             {
                 Dock = DockStyle.Left,
                 Width = 260,
                 BackColor = Color.White
             };
+            _pnlSidebar = pnlSidebar;
+
+            // Ép vẽ lại thanh bên mỗi khi cửa sổ hiện xong / đổi kích thước / được kích hoạt lại — xóa các vệt
+            // điểm ảnh còn sót của nút bo góc (xem SidebarPanel).
+            this.Shown += (s, e) => RefreshSidebarPaint();
+            this.Activated += (s, e) => RefreshSidebarPaint();
+            this.SizeChanged += (s, e) => RefreshSidebarPaint();
 
             Panel pnlRightBorder = new Panel
             {
@@ -422,12 +449,13 @@ namespace DTT.Doctor.UI.Forms
                 pnlSidebar.Controls.Add(btnNavStats);
             }
 
-            Panel pnlSidebarBottom = new Panel
+            SidebarPanel pnlSidebarBottom = new SidebarPanel
             {
                 Dock = DockStyle.Bottom,
                 Height = 128,
                 BackColor = Color.White
             };
+            _pnlSidebarBottom = pnlSidebarBottom;
             RoundedButton btnAbout = new RoundedButton
             {
                 Text = "ℹ  Thông Tin",
