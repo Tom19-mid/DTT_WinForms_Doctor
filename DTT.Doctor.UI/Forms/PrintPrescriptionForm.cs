@@ -153,7 +153,7 @@ namespace DTT.Doctor.UI.Forms
 
             Label lblRxCode = new Label
             {
-                Text = string.Format("Mã đơn: RX-2026-{0:D4}", _appointment.AppointmentId),
+                Text = string.Format("Mã đơn: RX-{0}-{1:D4}", DateTime.Now.Year, _appointment.AppointmentId),
                 Font = ClinicalColors.GetMainFont(9.5f, FontStyle.Bold),
                 ForeColor = ClinicalColors.TextMuted,
                 Location = new Point(30, 118),
@@ -163,22 +163,23 @@ namespace DTT.Doctor.UI.Forms
 
             string patientNameStr = _appointment.PatientName != null ? _appointment.PatientName.ToUpper() : "BỆNH NHÂN";
             string ageStr = _appointment.PatientAge > 0 ? $"{_appointment.PatientAge} tuổi" : "Chưa cập nhật";
-            string bpStr = !string.IsNullOrEmpty(_recordRequest.BloodPressure) ? _recordRequest.BloodPressure : "120/80 mmHg";
-            string pulseStr = !string.IsNullOrEmpty(_recordRequest.Pulse) ? _recordRequest.Pulse : "82 bpm";
-            string tempStr = !string.IsNullOrEmpty(_recordRequest.Temperature) ? _recordRequest.Temperature : "36.8°C";
+            // Thiếu số liệu thật thì hiện "—", KHÔNG tự điền số mẫu (120/80, 82 bpm, 36.8°C...) lên đơn thuốc in ra.
+            string bpStr = !string.IsNullOrEmpty(_recordRequest.BloodPressure) ? _recordRequest.BloodPressure : "—";
+            string pulseStr = !string.IsNullOrEmpty(_recordRequest.Pulse) ? _recordRequest.Pulse : "—";
+            string tempStr = !string.IsNullOrEmpty(_recordRequest.Temperature) ? _recordRequest.Temperature : "—";
 
             Label lblPatientInfo = new Label
             {
                 Text = string.Format("Họ tên bệnh nhân : {0}      Giới tính: {1}      Tuổi: {2}" + Environment.NewLine + "Chuyên khoa khám : {3}      Phòng khám: {4}" + Environment.NewLine + "Chỉ số sinh hiệu : Huyết áp: {5}  |  Mạch: {6}  |  Thân nhiệt: {7}",
-                                     patientNameStr, _appointment.PatientGender, ageStr, _appointment.SpecialtyName, _appointment.ClinicRoom, bpStr, pulseStr, tempStr),
+                                     patientNameStr, string.IsNullOrEmpty(_appointment.PatientGender) ? "—" : _appointment.PatientGender, ageStr, _appointment.SpecialtyName, _appointment.ClinicRoom, bpStr, pulseStr, tempStr),
                 Font = ClinicalColors.GetMainFont(9.5f, FontStyle.Regular),
                 ForeColor = ClinicalColors.TextDark,
                 Location = new Point(30, 145),
                 Size = new Size(710, 56)
             };
 
-            string diagStr = !string.IsNullOrEmpty(_recordRequest.Diagnosis) ? _recordRequest.Diagnosis : "M17.9 - Thoái hóa khớp gối không xác định";
-            string planStr = !string.IsNullOrEmpty(_recordRequest.TreatmentPlan) ? _recordRequest.TreatmentPlan : "Nghỉ ngơi nhiều, hạn chế mang vác nặng, tái khám sau 7 ngày.";
+            string diagStr = !string.IsNullOrEmpty(_recordRequest.Diagnosis) ? _recordRequest.Diagnosis : "—";
+            string planStr = !string.IsNullOrEmpty(_recordRequest.TreatmentPlan) ? _recordRequest.TreatmentPlan : "—";
 
             Label lblDiagnosis = new Label
             {
@@ -213,8 +214,9 @@ namespace DTT.Doctor.UI.Forms
                 for (int i = 0; i < items.Count; i++)
                 {
                     var item = items[i];
-                    string unitStr = !string.IsNullOrEmpty(item.Unit) ? item.Unit : "Viên";
-                    gridPrint.Rows.Add(i + 1, item.MedicineName, $"{item.Quantity} {unitStr}", item.UsageInstruction);
+                    // Không tự gán đơn vị "Viên" khi thuốc không có đơn vị (Hộp/Chai/Ống... sẽ bị in sai).
+                    string qtyStr = !string.IsNullOrEmpty(item.Unit) ? $"{item.Quantity} {item.Unit}" : item.Quantity.ToString();
+                    gridPrint.Rows.Add(i + 1, item.MedicineName, qtyStr, item.UsageInstruction);
                 }
             }
 
@@ -229,7 +231,7 @@ namespace DTT.Doctor.UI.Forms
                 type = "DTT_PRESCRIPTION",
                 prescriptionId = _appointment.AppointmentId,
                 patientName = _appointment.PatientName,
-                doctorName = !string.IsNullOrEmpty(TokenVault.FullName) ? TokenVault.FullName : "BS. CKII Nguyễn Văn A",
+                doctorName = ResolveDoctorName(),
                 date = DateTime.Now.ToString("yyyy-MM-dd")
             };
             string payloadJson = JsonConvert.SerializeObject(qrPayload);
@@ -239,12 +241,15 @@ namespace DTT.Doctor.UI.Forms
                 Size = new Size(130, 130),
                 Location = new Point(10, 10),
                 SizeMode = PictureBoxSizeMode.Zoom,
-                Image = QrCodePainter.GenerateQrBitmap(payloadJson, 140)
+                // Sinh ở độ phân giải cao (mã QR thật có nhiều module) rồi để PictureBox thu nhỏ → vẫn quét được sau khi in.
+                Image = QrCodePainter.GenerateQrBitmap(payloadJson, 390)
             };
 
             Label lblQrNote = new Label
             {
-                Text = "Quét mã QR Code này bằng App Mobile" + Environment.NewLine + "DTT Patients để lưu tự động đơn thuốc!",
+                // App Mobile chỉ ĐỌC mã QR để xem nhanh đơn thuốc, không tự lưu vào hồ sơ trên hệ thống
+                // (xem QRScannerScreen.tsx) — không được ghi "lưu tự động" trên giấy in.
+                Text = "Quét mã QR Code này bằng App Mobile" + Environment.NewLine + "DTT Patients để xem nhanh đơn thuốc.",
                 Font = ClinicalColors.GetMainFont(8f, FontStyle.Bold),
                 ForeColor = ClinicalColors.PrimaryBlue,
                 Location = new Point(10, 144),
@@ -273,7 +278,7 @@ namespace DTT.Doctor.UI.Forms
 
             Label lblDoctorName = new Label
             {
-                Text = !string.IsNullOrEmpty(TokenVault.FullName) ? TokenVault.FullName : "BS. CKII Nguyễn Văn A",
+                Text = ResolveDoctorName(),
                 Font = ClinicalColors.GetMainFont(10.5f, FontStyle.Bold),
                 ForeColor = ClinicalColors.PrimaryBlue,
                 Location = new Point(450, 130),
@@ -298,6 +303,15 @@ namespace DTT.Doctor.UI.Forms
             paper.Controls.Add(line2);
             paper.Controls.Add(gridPrint);
             paper.Controls.Add(pnlBottom);
+        }
+
+        // Tên bác sĩ trên đơn: ưu tiên tài khoản đang đăng nhập, sau đó tới bác sĩ của lượt khám; thiếu cả hai thì
+        // hiện "—" (trước đây tự điền tên mẫu "BS. CKII Nguyễn Văn A" lên đơn in ra).
+        private string ResolveDoctorName()
+        {
+            if (!string.IsNullOrEmpty(TokenVault.FullName)) return TokenVault.FullName;
+            if (!string.IsNullOrEmpty(_appointment?.DoctorName)) return _appointment.DoctorName;
+            return "—";
         }
 
         private void ExecutePrintDocument()

@@ -13,8 +13,8 @@ namespace DTT.Doctor.Services.Models
         public int? MemberId { get; set; }
         public int DoctorId { get; set; }
         public string PatientName { get; set; } = string.Empty;
-        public string PatientGender { get; set; } = "Nam";
-        public int PatientAge { get; set; } = 35;
+        public string PatientGender { get; set; } = string.Empty;
+        public int PatientAge { get; set; }
         public string DoctorName { get; set; } = string.Empty;
         public string SpecialtyName { get; set; } = string.Empty;
         public string Date { get; set; } = string.Empty;
@@ -65,11 +65,14 @@ namespace DTT.Doctor.Services.Models
     {
         public int MedicineId { get; set; }
         public string MedicineName { get; set; } = string.Empty;
-        public string Unit { get; set; } = "Viên";
-        public int Quantity { get; set; } = 10;
-        public string Dosage { get; set; } = "500mg";
-        public string Frequency { get; set; } = "2 lần/ngày";
-        public string UsageInstruction { get; set; } = "Uống sau ăn 30 phút";
+        // Không tự điền đơn vị/số lượng/liều mẫu ("Viên", 10, "500mg", "2 lần/ngày", "Uống sau ăn 30 phút") — các giá trị này
+        // từng bị gửi lên DB như thể bác sĩ đã kê. DB bắt buộc dosage/frequency/duration NOT NULL nhưng form khám chỉ nhập
+        // "hướng dẫn sử dụng" (UsageInstruction) → dùng "Theo chỉ định" (đúng nghĩa: xem hướng dẫn của bác sĩ).
+        public string Unit { get; set; } = string.Empty;
+        public int Quantity { get; set; }
+        public string Dosage { get; set; } = "Theo chỉ định";
+        public string Frequency { get; set; } = "Theo chỉ định";
+        public string UsageInstruction { get; set; } = string.Empty;
     }
 
     public class SaveClinicalRecordRequest
@@ -214,19 +217,19 @@ namespace DTT.Doctor.Services.Models
         public string MedicineName { get; set; } = string.Empty;
 
         [Newtonsoft.Json.JsonProperty("unit")]
-        public string Unit { get; set; } = "Viên";
+        public string Unit { get; set; } = string.Empty;
 
         [Newtonsoft.Json.JsonProperty("quantity")]
         public int Quantity { get; set; }
 
         [Newtonsoft.Json.JsonProperty("dosage")]
-        public string Dosage { get; set; } = "500mg";
+        public string Dosage { get; set; } = string.Empty;
 
         [Newtonsoft.Json.JsonProperty("frequency")]
-        public string Frequency { get; set; } = "2 lần/ngày";
+        public string Frequency { get; set; } = string.Empty;
 
         [Newtonsoft.Json.JsonProperty("duration")]
-        public string Duration { get; set; } = "7 ngày";
+        public string Duration { get; set; } = string.Empty;
 
         [Newtonsoft.Json.JsonProperty("usageInstruction")]
         public string? UsageInstruction { get; set; }
@@ -256,10 +259,10 @@ namespace DTT.Doctor.Services.Models
         public string PatientName { get; set; } = string.Empty;
 
         [Newtonsoft.Json.JsonProperty("patientAge")]
-        public int PatientAge { get; set; } = 30;
+        public int PatientAge { get; set; }
 
         [Newtonsoft.Json.JsonProperty("patientGender")]
-        public string PatientGender { get; set; } = "Nam";
+        public string PatientGender { get; set; } = string.Empty;
 
         [Newtonsoft.Json.JsonProperty("doctorName")]
         public string DoctorName { get; set; } = string.Empty;
@@ -313,10 +316,10 @@ namespace DTT.Doctor.Services.Models
         public string PrescriptionCode { get; set; } = string.Empty;
 
         [Newtonsoft.Json.JsonProperty("patientAge")]
-        public int PatientAge { get; set; } = 30;
+        public int PatientAge { get; set; }
 
         [Newtonsoft.Json.JsonProperty("patientGender")]
-        public string PatientGender { get; set; } = "Nam";
+        public string PatientGender { get; set; } = string.Empty;
 
         [Newtonsoft.Json.JsonProperty("doctorName")]
         public string DoctorName { get; set; } = string.Empty;

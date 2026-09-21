@@ -111,10 +111,7 @@ namespace DTT.Doctor.Services.Core
                             {
                                 list[i].PatientName = $"Bệnh nhân #{list[i].PatientId}";
                             }
-                            if (string.IsNullOrEmpty(list[i].PatientGender))
-                            {
-                                list[i].PatientGender = "Nam";
-                            }
+                            // Không tự gán giới tính "Nam" khi server không có — để rỗng, giao diện hiện "—".
                             if (list[i].PatientAge < 0)
                             {
                                 list[i].PatientAge = 0;
@@ -307,7 +304,7 @@ namespace DTT.Doctor.Services.Core
             return null;
         }
 
-        // Lễ Tân tạo hồ sơ bệnh nhân vãng lai → trả về mật khẩu tạm thời giả lập gửi SMS
+        // Lễ Tân tạo hồ sơ bệnh nhân vãng lai → trả về mật khẩu tạm thời (chỉ khi vừa tạo tài khoản App mới; SMS hiện chỉ là giả lập ở backend)
         // [New code]: thêm ErrorMessage vào tuple trả về — trước đây gọi thất bại (vd trùng CCCD, lỗi
         // mạng) chỉ trả về Success=false không kèm lý do gì, khiến ReceptionCashierForm không có gì để
         // hiện cho Lễ Tân biết vì sao thất bại (và trước đây còn không kiểm tra Success luôn).
@@ -323,14 +320,16 @@ namespace DTT.Doctor.Services.Core
                 // lại theo Phone như đăng ký vãng lai mới hoàn toàn (xem RegisterWalkIn trong
                 // InvoicesController.cs: trước đây luôn khớp theo SĐT nên hồ sơ người thân — vốn dùng
                 // chung SĐT với chủ tài khoản — bị ghi đè nhầm lên đúng hồ sơ của chủ tài khoản).
-                var payload = new { FullName = fullName, Phone = phone, CccdNumber = cccd, DateOfBirth = dob, Gender = gender ?? "Nam", BhytNumber = bhyt, Address = address, DoctorId = doctorId, SpecialtyName = specialtyName, ExistingPatientId = existingPatientId, MemberId = memberId, OwnerPatientId = ownerPatientId };
+                var payload = new { FullName = fullName, Phone = phone, CccdNumber = cccd, DateOfBirth = dob, Gender = gender, BhytNumber = bhyt, Address = address, DoctorId = doctorId, SpecialtyName = specialtyName, ExistingPatientId = existingPatientId, MemberId = memberId, OwnerPatientId = ownerPatientId };
                 var content = new StringContent(JsonConvert.SerializeObject(payload), Encoding.UTF8, "application/json");
                 var res = await _httpClient.PostAsync("/api/Invoices/register-walkin", content);
                 var respJson = await res.Content.ReadAsStringAsync();
                 if (res.IsSuccessStatusCode)
                 {
                     dynamic? obj = JsonConvert.DeserializeObject<dynamic>(respJson);
-                    string pwd = (string)(obj?.tempPassword ?? "DTT@0000");
+                    // Backend chỉ trả tempPassword khi VỪA tạo tài khoản App mới; bệnh nhân đã có tài khoản thì null →
+                    // trả "" để giao diện biết không có mật khẩu tạm (không được tự bịa "DTT@0000").
+                    string pwd = (string?)(obj?.tempPassword) ?? "";
                     int pid = (int)(obj?.patientId ?? 0);
                     int aid = (int)(obj?.appointmentId ?? 0);
                     return (true, pwd, pid, aid, "");
@@ -504,16 +503,9 @@ namespace DTT.Doctor.Services.Core
             }
             catch { }
 
-            // Match exact CSDL PostgreSQL (medicines table: 3 items)
-            // StockQuantity = -1 nghĩa là "không rõ tồn kho" (danh sách dự phòng khi API lỗi/rỗng) —
-            // ExaminationForm dựa vào StockQuantity == 0 để chặn kê thuốc hết hàng, không được để mặc
-            // định 0 của các mục dự phòng này bị hiểu nhầm thành "hết hàng thật".
-            return new List<MedicineModel>
-            {
-                new MedicineModel { MedicineId = 1, MedicineName = "Amoxicillin 500mg", Unit = "Viên", StockQuantity = -1, DefaultUsage = "Uống 1 viên sau ăn 30 phút" },
-                new MedicineModel { MedicineId = 2, MedicineName = "Paracetamol 500mg", Unit = "Viên", StockQuantity = -1, DefaultUsage = "Uống 1 viên khi sốt > 38.5°C" },
-                new MedicineModel { MedicineId = 3, MedicineName = "Vitamin C 1000mg", Unit = "Hộp", StockQuantity = -1, DefaultUsage = "Pha 1 viên với 200ml nước ấm" }
-            };
+            // API lỗi/rỗng → trả về danh sách RỖNG. Trước đây trả 3 thuốc dựng sẵn (MedicineId 1/2/3, tồn kho "không rõ")
+            // khiến Bác sĩ có thể kê đơn bằng mã thuốc không có thật trong kho, còn màn Danh mục thuốc hiện thuốc giả.
+            return new List<MedicineModel>();
         }
 
         // Lấy danh mục ICD-10 — mã thuộc đúng chuyên khoa của bác sĩ đang đăng nhập được xếp lên đầu
@@ -851,14 +843,29 @@ namespace DTT.Doctor.Services.Core
                     dynamic? obj = JsonConvert.DeserializeObject<dynamic>(json);
                     if (obj != null && (bool)(obj.success ?? false) && obj.items != null)
                     {
-                        var list = JsonConvert.DeserializeObject<List<ClinicalOrderQueueItem>>(obj.items.ToString());
-                        if (list != null) return list;
+                        // Khai báo kiểu tường minh: obj là dynamic nên `var` sẽ ra dynamic → lambda bên dưới không biên dịch được.
+                        List<ClinicalOrderQueueItem>? list = JsonConvert.DeserializeObject<List<ClinicalOrderQueueItem>>(obj.items.ToString());
+                        if (list != null)
+                        {
+                            // Chỉ định CLS chưa thực hiện của NGÀY TRƯỚC coi như bỏ (bệnh nhân không đến làm) →
+                            // qua ngày là biến mất khỏi hàng chờ. Ngày tính theo giờ VN (UTC+7), giống API Appointments.
+                            if (!done)
+                            {
+                                var todayVn = DateTime.UtcNow.AddHours(7).Date;
+                                list = list.Where(o => ToUtc(o.OrderedAt).AddHours(7).Date >= todayVn).ToList();
+                            }
+                            return list;
+                        }
                     }
                 }
             }
             catch { }
             return new List<ClinicalOrderQueueItem>();
         }
+
+        // ordered_at do API lưu bằng DateTime.UtcNow; JSON không có hậu tố 'Z' thì Kind = Unspecified → vẫn là UTC.
+        private static DateTime ToUtc(DateTime d) =>
+            d.Kind == DateTimeKind.Local ? d.ToUniversalTime() : DateTime.SpecifyKind(d, DateTimeKind.Utc);
 
         // KTV nộp kết quả Xét nghiệm
         public async Task<bool> SubmitTestResultAsync(int testId, string resultValue, string unit, string referenceRange, string resultStatus)
@@ -920,7 +927,9 @@ namespace DTT.Doctor.Services.Core
         // ── AI Symptom Checker + Escalate to Staff (Chat Hỗ Trợ) ──────────────
 
         // Hàng chờ tiếp nhận: status='Escalated' AND assigned_staff_id IS NULL
-        public async Task<List<ChatQueueItem>> GetChatQueueAsync()
+        // Trả về null khi GỌI LỖI (mất mạng, timeout, 401...) — KHÁC với danh sách rỗng thật. Trước đây lỗi cũng trả list rỗng
+        // nên giao diện xóa sạch hàng chờ mỗi lần API chậm/lỗi thoáng qua, làm phiên chat "biến mất" rồi mới hiện lại.
+        public async Task<List<ChatQueueItem>?> GetChatQueueAsync()
         {
             AttachBearerToken();
             try
@@ -932,18 +941,19 @@ namespace DTT.Doctor.Services.Core
                     dynamic? obj = JsonConvert.DeserializeObject<dynamic>(json);
                     if (obj != null && (bool)(obj.success ?? false) && obj.items != null)
                     {
-                        var list = JsonConvert.DeserializeObject<List<ChatQueueItem>>(obj.items.ToString());
+                        List<ChatQueueItem>? list = JsonConvert.DeserializeObject<List<ChatQueueItem>>(obj.items.ToString());
                         if (list != null) return list;
                     }
                 }
             }
             catch { }
-            return new List<ChatQueueItem>();
+            return null;
         }
 
         // Các phiên CHÍNH lễ tân đang đăng nhập đã tiếp nhận nhưng chưa đóng — dùng để tìm lại phiên
         // dở dang sau khi tắt/mở lại app (phiên đã claim không còn hiện trong /staff/queue nữa).
-        public async Task<List<ChatQueueItem>> GetMyChatSessionsAsync()
+        // Trả về null khi gọi lỗi (xem ghi chú ở GetChatQueueAsync).
+        public async Task<List<ChatQueueItem>?> GetMyChatSessionsAsync()
         {
             AttachBearerToken();
             try
@@ -955,13 +965,27 @@ namespace DTT.Doctor.Services.Core
                     dynamic? obj = JsonConvert.DeserializeObject<dynamic>(json);
                     if (obj != null && (bool)(obj.success ?? false) && obj.items != null)
                     {
-                        var list = JsonConvert.DeserializeObject<List<ChatQueueItem>>(obj.items.ToString());
+                        List<ChatQueueItem>? list = JsonConvert.DeserializeObject<List<ChatQueueItem>>(obj.items.ToString());
                         if (list != null) return list;
                     }
                 }
             }
             catch { }
-            return new List<ChatQueueItem>();
+            return null;
+        }
+
+        // Trả phiên đã tiếp nhận về hàng chờ chung (chỉ được khi lễ tân chưa trả lời bệnh nhân — server kiểm tra).
+        public async Task<bool> ReleaseChatSessionAsync(int sessionId)
+        {
+            AttachBearerToken();
+            try
+            {
+                var content = new StringContent("{}", Encoding.UTF8, "application/json");
+                var res = await _httpClient.PostAsync($"/api/chat/staff/sessions/{sessionId}/release", content);
+                return res.IsSuccessStatusCode;
+            }
+            catch { }
+            return false;
         }
 
         // Tiếp nhận 1 phiên chat — server chỉ cho gán nếu assigned_staff_id còn NULL (chống 2 lễ tân

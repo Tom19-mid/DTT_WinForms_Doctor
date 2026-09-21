@@ -192,11 +192,12 @@ namespace DTT.Doctor.UI.Forms
 
             Panel line2 = new Panel { Location = new Point(30, 224), Size = new Size(710, 1), BackColor = ClinicalColors.BorderGray };
 
-            string symptoms = S(_record.symptoms, "Khám định kỳ");
+            // Thiếu dữ liệu thật thì hiện "—", không tự điền nội dung mẫu ("Khám định kỳ"...) vào hồ sơ in ra.
+            string symptoms = S(_record.symptoms, "—");
             string icdCode = S(_record.icdCode, "");
-            string diagnosis = S(_record.diagnosis, "Khám sức khỏe tổng quát");
+            string diagnosis = S(_record.diagnosis, "—");
             string diagFull = !string.IsNullOrEmpty(icdCode) ? $"[{icdCode}] {diagnosis}" : diagnosis;
-            string treatmentPlan = S(_record.treatmentPlan, "Nghỉ ngơi, theo dõi định kỳ.");
+            string treatmentPlan = S(_record.treatmentPlan, "—");
 
             Label lblSectionTitle = new Label
             {
@@ -285,10 +286,11 @@ namespace DTT.Doctor.UI.Forms
             paper.Controls.Add(pnlBottom);
         }
 
+        // Thiếu tên bác sĩ thì hiện "—", không tự điền tên mẫu lên hồ sơ in ra.
         private static string TokenVaultFullNameOrDefault()
         {
             string name = DTT.Doctor.Services.Core.TokenVault.FullName;
-            return string.IsNullOrEmpty(name) ? "BS. CKII Nguyễn Văn A" : name;
+            return string.IsNullOrEmpty(name) ? "—" : name;
         }
 
         private void ExecutePrintDocument()

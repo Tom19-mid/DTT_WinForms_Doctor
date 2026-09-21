@@ -92,16 +92,16 @@ namespace DTT.Doctor.UI.Forms
             int gap = 16;
             int startX = 16;
 
-            Panel card1 = CreateKpiCard("Tổng Doanh Thu", "12.500.000 VNĐ", Color.FromArgb(16, 185, 129), out _lblRevenue);
+            Panel card1 = CreateKpiCard("Tổng Doanh Thu", "Đang tải...", Color.FromArgb(16, 185, 129), out _lblRevenue);
             card1.Location = new Point(startX, 10);
 
-            Panel card2 = CreateKpiCard("Ca Khám Tiếp Nhận", "15 Ca", ClinicalColors.PrimaryBlue, out _lblTotalAppts);
+            Panel card2 = CreateKpiCard("Ca Khám Tiếp Nhận", "—", ClinicalColors.PrimaryBlue, out _lblTotalAppts);
             card2.Location = new Point(startX + cardWidth + gap, 10);
 
-            Panel card3 = CreateKpiCard("Ca Đã Hoàn Thành", "12 Ca", Color.FromArgb(99, 102, 241), out _lblCompletedAppts);
+            Panel card3 = CreateKpiCard("Ca Đã Hoàn Thành", "—", Color.FromArgb(99, 102, 241), out _lblCompletedAppts);
             card3.Location = new Point(startX + (cardWidth + gap) * 2, 10);
 
-            Panel card4 = CreateKpiCard("Tỷ Lệ Hoàn Thành", "92.0%", Color.FromArgb(245, 158, 11), out _lblSuccessRate);
+            Panel card4 = CreateKpiCard("Tỷ Lệ Hoàn Thành", "—", Color.FromArgb(245, 158, 11), out _lblSuccessRate);
             card4.Location = new Point(startX + (cardWidth + gap) * 3, 10);
 
             pnlKpis.Controls.Add(card1);

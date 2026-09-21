@@ -178,20 +178,16 @@ namespace DTT.Doctor.UI.Forms
 
             if (_allServices.Count == 0)
             {
-                // Fallback tối thiểu nếu API lỗi/mất kết nối — khớp với update_hospital_services_and_prices.sql.
-                // Giá tiền ở đây có thể LỆCH so với DB thật nếu đã thay đổi từ lúc migration này chạy — báo rõ
-                // cho Bác sĩ biết đây là danh sách rút gọn dự phòng, không phải danh mục đầy đủ/giá mới nhất.
-                _allServices = new List<ClinicalOrderServiceItem>
-                {
-                    new ClinicalOrderServiceItem { ServiceId = 4, ServiceName = "Xét nghiệm Công thức máu toàn bộ (CBC)", CategoryType = "Test", Price = 120000 },
-                    new ClinicalOrderServiceItem { ServiceId = 5, ServiceName = "Xét nghiệm Đường huyết lúc đói (Glucose)", CategoryType = "Test", Price = 45000 },
-                    new ClinicalOrderServiceItem { ServiceId = 10, ServiceName = "Siêu âm Bụng tổng quát", CategoryType = "Ultrasound", Price = 180000 },
-                    new ClinicalOrderServiceItem { ServiceId = 13, ServiceName = "Siêu âm Tuyến giáp", CategoryType = "Ultrasound", Price = 150000 },
-                };
+                // Không còn danh sách dự phòng dựng sẵn (ServiceId/giá viết cứng, có thể lệch DB thật → chỉ định sai dịch vụ,
+                // tính sai tiền). Không có danh mục thật thì không cho chỉ định.
+                _btnConfirm.Enabled = false;
+                if (IsDisposed) return;
                 MessageBox.Show(
-                    "Không tải được danh mục Xét nghiệm/Siêu âm đầy đủ từ máy chủ. Đang hiện danh sách rút gọn dự phòng (giá có thể không phải giá mới nhất). Vui lòng kiểm tra kết nối mạng và thử lại nếu cần đầy đủ danh mục.",
-                    "Không tải được danh mục đầy đủ", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    "Không tải được danh mục Xét nghiệm/Siêu âm từ máy chủ nên chưa thể chỉ định lúc này.\n\nVui lòng kiểm tra kết nối mạng rồi mở lại cửa sổ chỉ định.",
+                    "Không tải được danh mục dịch vụ", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
             }
+            _btnConfirm.Enabled = true;
 
             _clbTests.Items.Clear();
             _clbUltrasounds.Items.Clear();

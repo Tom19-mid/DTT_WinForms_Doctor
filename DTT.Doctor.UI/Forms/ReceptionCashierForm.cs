@@ -243,7 +243,7 @@ namespace DTT.Doctor.UI.Forms
             Label lblHeaderInfo = new Label
             {
                 Text = string.Format("[*] Nhân viên: {0} [{1}]  •  Bàn Tiếp Đón & Quầy Thu Ngân #01  •  Hệ thống Bệnh viện Điện tử DTT Healthcare",
-                                     !string.IsNullOrEmpty(TokenVault.FullName) ? TokenVault.FullName : "Nguyễn Thị Minh Châu",
+                                     !string.IsNullOrEmpty(TokenVault.FullName) ? TokenVault.FullName : "—",
                                      !string.IsNullOrEmpty(TokenVault.RoleName) ? TokenVault.RoleName : "Lễ tân tiếp đón"),
                 Font = ClinicalColors.GetMainFont(9.5f, FontStyle.Regular),
                 ForeColor = ClinicalColors.TextMuted,
@@ -937,7 +937,7 @@ namespace DTT.Doctor.UI.Forms
             Label lblGender = new Label { Text = "Giới tính:", Font = ClinicalColors.GetMainFont(10f, FontStyle.Bold), Location = new Point(620, y), AutoSize = true, UseMnemonic = false };
             _cboWalkinGender = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Font = ClinicalColors.GetMainFont(10.5f, FontStyle.Regular), Location = new Point(770, y - 4), Size = new Size(150, 30) };
             _cboWalkinGender.Items.AddRange(new object[] { "Nam", "Nữ", "Khác" });
-            _cboWalkinGender.SelectedIndex = 0;
+            _cboWalkinGender.SelectedIndex = -1; // bắt buộc chọn, không đặt sẵn "Nam"
 
             y += 50;
 
@@ -1298,13 +1298,25 @@ namespace DTT.Doctor.UI.Forms
             tab.Controls.Add(pnlKpi);
         }
 
+        // Chỉ cho 1 lượt làm mới chat chạy tại 1 thời điểm: bộ đếm 1.5s, nút "Tải lại", đóng dialog... đều gọi hàm này; các lượt
+        // chồng nhau có thể trả về theo thứ tự ngược (kết quả cũ ghi đè kết quả mới) làm danh sách nhảy/biến mất thoáng qua.
+        private bool _isRefreshingChat;
+
         private async Task RefreshChatQueueAsync()
         {
+            if (_isRefreshingChat) return;
+            _isRefreshingChat = true;
             try
             {
                 if (_gridChatQueue == null || _gridChatQueue.IsDisposed) return;
                 var api = new ApiService();
-                _chatQueueList = await api.GetChatQueueAsync();
+
+                // API lỗi (null) ≠ hàng chờ rỗng: khi lỗi thì GIỮ NGUYÊN danh sách đang hiển thị, không xóa trắng — trước đây lỗi/timeout
+                // thoáng qua cũng trả list rỗng nên các phiên chat "tự biến mất" khỏi giao diện rồi mới hiện lại.
+                var freshQueue = await api.GetChatQueueAsync();
+                if (freshQueue != null)
+                {
+                _chatQueueList = freshQueue;
 
                 // Phát hiện phiên Escalated MỚI (chưa từng thấy) để báo toast — bỏ qua ở lần tải đầu
                 // tiên (mở app đã có sẵn hàng chờ từ trước, không phải "vừa mới" escalate).
@@ -1343,12 +1355,14 @@ namespace DTT.Doctor.UI.Forms
                         ? $"💬 6. CHAT HỖ TRỢ ({_chatQueueList.Count})"
                         : "💬 6. CHAT HỖ TRỢ";
                 }
+                }
 
                 // Phiên CHÍNH lễ tân này đã claim nhưng chưa đóng — để họ tìm lại được sau khi
                 // tắt/mở lại app (không còn hiện trong hàng chờ chung ở trên vì đã có người nhận).
-                if (_gridMyChatSessions != null && !_gridMyChatSessions.IsDisposed)
+                var freshMine = _gridMyChatSessions != null && !_gridMyChatSessions.IsDisposed ? await api.GetMyChatSessionsAsync() : null;
+                if (freshMine != null && _gridMyChatSessions != null && !_gridMyChatSessions.IsDisposed)
                 {
-                    _myChatSessionsList = await api.GetMyChatSessionsAsync();
+                    _myChatSessionsList = freshMine;
                     _gridMyChatSessions.Rows.Clear();
                     for (int i = 0; i < _myChatSessionsList.Count; i++)
                     {
@@ -1371,6 +1385,10 @@ namespace DTT.Doctor.UI.Forms
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine("RefreshChatQueueAsync error: " + ex.Message);
+            }
+            finally
+            {
+                _isRefreshingChat = false;
             }
         }
 
@@ -1396,9 +1414,13 @@ namespace DTT.Doctor.UI.Forms
 
             var dialog = new ChatSessionDialogForm(item, chatItem => _ = PrefillDirectExamAsync(chatItem.PatientId, chatItem.SuggestedSpecialtyName));
             _openChatDialogs[item.SessionId] = dialog;
-            dialog.FormClosed += (s, e) =>
+            dialog.FormClosed += async (s, e) =>
             {
                 _openChatDialogs.Remove(item.SessionId);
+                // Mở phiên là tự tiếp nhận (gán cho lễ tân này). Đóng cửa sổ mà CHƯA trả lời và CHƯA đóng phiên → trả phiên về
+                // hàng chờ chung để không bị "kẹt"/biến mất khỏi danh sách của các lễ tân khác. Đã trả lời rồi thì giữ ở
+                // "Phiên tư vấn dở dang" của lễ tân này cho tới khi đóng phiên.
+                try { await dialog.ReleaseIfUnrepliedAsync(); } catch { }
                 if (dialog.WasModified) _ = RefreshChatQueueAsync();
             };
             dialog.Show(this);
@@ -3015,7 +3037,7 @@ namespace DTT.Doctor.UI.Forms
                     g.DrawString(string.Format("Trạng thái          : {0}", paymentStatusText), fontBold, statusBrush, 50, 310);
 
                     g.DrawString("Người lập hóa đơn" + Environment.NewLine + "(Ký và ghi rõ họ tên)", fontBold, Brushes.Black, 550, 365);
-                    g.DrawString(!string.IsNullOrEmpty(TokenVault.FullName) ? TokenVault.FullName : "Nguyễn Thị Minh Châu", fontBold, Brushes.Navy, 550, 440);
+                    g.DrawString(!string.IsNullOrEmpty(TokenVault.FullName) ? TokenVault.FullName : "—", fontBold, Brushes.Navy, 550, 440);
                 };
 
                 PrintPreviewDialog preview = new PrintPreviewDialog { Document = pd, Width = 850, Height = 650 };
@@ -3207,6 +3229,14 @@ namespace DTT.Doctor.UI.Forms
                 return;
             }
 
+            // Giới tính phải do Lễ tân CHỌN (ô chọn không còn tự đặt sẵn "Nam" — trước đây quên chọn thì mọi hồ sơ mặc định là Nam).
+            if (_cboWalkinGender.SelectedIndex < 0)
+            {
+                ShowReceptionNotification(" CHƯA CHỌN GIỚI TÍNH", "Vui lòng chọn giới tính của bệnh nhân vãng lai (đối chiếu theo thẻ CCCD)!", false);
+                _cboWalkinGender.Focus();
+                return;
+            }
+
             // Validate Phone: must be 10 digits starting with 0
             if (!System.Text.RegularExpressions.Regex.IsMatch(phone, @"^0[0-9]{9}$"))
             {
@@ -3256,13 +3286,15 @@ namespace DTT.Doctor.UI.Forms
             // luôn có sẵn 1 giá trị (mặc định hôm nay) kể cả khi chưa đụng vào, nên trước đây hồ sơ
             // vãng lai không hỏi ngày sinh sẽ âm thầm lưu "hôm nay" làm ngày sinh thật của bệnh nhân.
             string? dob = _chkWalkinDobUnknown.Checked ? null : _dtpWalkinDob.Value.ToString("yyyy-MM-dd");
-            string gender = _cboWalkinGender.SelectedItem?.ToString() ?? "Nam";
+            string gender = _cboWalkinGender.SelectedItem.ToString(); // đã kiểm tra SelectedIndex >= 0 ở trên
             string bhyt = _txtWalkinBhyt.Text.Trim();
             string address = _txtWalkinAddress.Text.Trim();
 
             // Goi API tạo hồ sơ vãng lai trong DB
             bool apiSuccess = false;
-            string tempPwd = $"DTT@{phone.Substring(phone.Length - 4)}";
+            // Mật khẩu tạm CHỈ lấy từ server (chỉ có khi vừa tạo tài khoản App mới). Trước đây tự bịa "DTT@{4 số cuối SĐT}"
+            // rồi in ra thông báo — kể cả khi bệnh nhân đã có tài khoản với mật khẩu khác, khiến Lễ tân đọc sai mật khẩu.
+            string tempPwd = "";
             int newPatientId = 0, newApptId = 0;
             string apiErrorMessage = "Không thể kết nối tới máy chủ. Vui lòng thử lại.";
             try
@@ -3293,23 +3325,31 @@ namespace DTT.Doctor.UI.Forms
 
             // Cập nhật giao diện Tab Tiếp Đón
             int newStt = _gridCheckIn.Rows.Count + 1;
-            string newCode = string.Format("RX-{0}-{1:D4}", DateTime.Now.Year, newApptId > 0 ? newApptId : 100 + newStt);
+            // Server không trả appointmentId thì hiện "—" (bảng sẽ được nạp lại từ server ngay sau đó), không bịa mã "100 + STT".
+            string newCode = newApptId > 0 ? string.Format("RX-{0}-{1:D4}", DateTime.Now.Year, newApptId) : "—";
             _gridCheckIn.Rows.Add(newStt, newCode, name.ToUpper(), specName, DateTime.Now.ToString("HH:mm"), "Đã xác nhận", string.Format(" Đã Check-in (STT {0:D2})", newStt));
             _gridCheckIn.Rows[_gridCheckIn.Rows.Count - 1].DefaultCellStyle.BackColor = Color.FromArgb(236, 253, 245);
 
+            // Backend hiện CHỈ GIẢ LẬP gửi SMS (ghi 1 thông báo vào hộp thư App, không có cổng SMS thật) và chỉ trả mật khẩu tạm
+            // khi vừa tạo tài khoản mới → không được ghi "SMS tự động bắn về SĐT" hay in mật khẩu tự bịa.
+            string accountInfo = string.IsNullOrEmpty(tempPwd)
+                ? "[*] TÀI KHOẢN APP MOBILE:\n" +
+                  "   • Bệnh nhân đã có tài khoản App — dùng mật khẩu hiện tại (không tạo mật khẩu tạm mới).\n"
+                : "[*] TÀI KHOẢN APP MOBILE MỚI (hệ thống CHƯA gửi SMS thật — Lễ tân vui lòng báo cho bệnh nhân):\n" +
+                  $"   • SĐT đăng nhập App Mobile: {phone}\n" +
+                  $"   • Mật khẩu tạm thời: {tempPwd}\n" +
+                  "   • Thông báo tài khoản đã được ghi vào hộp thư App của bệnh nhân.\n";
+
             ShowReceptionNotification(
-                "[*] TẠO HỒ SƠ & BẮN SMS KÍCH HOẠT THÀNH CÔNG",
+                "[*] ĐĂNG KÝ KHÁM VÃNG LAI THÀNH CÔNG",
                 $"Bệnh nhân: {name.ToUpper()}\n" +
                 $"SĐT: {phone}\n" +
                 $"Số CCCD (Đã duyệt): {cccd}\n" +
                 $"Chuyên khoa: {specName}\n" +
                 $"Mã lịch hẹn: {newCode}\n" +
                 $"Số Thứ Tự: STT-{newStt:D2}\n\n" +
-                $"[*] TIN NHẮN SMS TỰ ĐỘNG BẮN VỀ SĐT {phone}:\n" +
-                $"   • SĐT đăng nhập App Mobile: {phone}\n" +
-                $"   • Mật khẩu tạm thời: {tempPwd}\n" +
-                $"   • Trạng thái hồ sơ: Đã xác thực CCCD (Verified)\n" +
-                $"   • Đã gửi lịch khám STT-{newStt:D2} sang Hàng chờ Bác sĩ!",
+                accountInfo +
+                $"   • Đã chuyển lịch khám STT-{newStt:D2} sang Hàng chờ Điều dưỡng đo sinh hiệu.",
                 true);
 
             _txtWalkinName.Text = "";
@@ -3318,6 +3358,7 @@ namespace DTT.Doctor.UI.Forms
             _txtWalkinBhyt.Text = "";
             _txtWalkinAddress.Text = "";
             _chkWalkinDobUnknown.Checked = false;
+            _cboWalkinGender.SelectedIndex = -1;
             await LoadDataPublicAsync();
             _tabControl.SelectedIndex = 0;
         }

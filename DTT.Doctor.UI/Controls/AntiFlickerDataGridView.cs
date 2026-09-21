@@ -10,6 +10,10 @@ namespace DTT.Doctor.UI.Controls
         private int _hoveredRow = -1;
         private int _hoveredCol = -1;
 
+        // Màu nền của HÀNG đang được rê chuột vào — vàng đậm (amber/yellow-300) thay cho xám nhạt cũ, dễ nhận ra hàng đang trỏ tới.
+        // Đổi ở đây (hoặc gán thuộc tính này cho từng lưới) nếu muốn màu khác.
+        public Color HoverRowBackColor { get; set; } = Color.FromArgb(253, 224, 71);
+
         public AntiFlickerDataGridView()
         {
             SetStyle(ControlStyles.AllPaintingInWmPaint |
@@ -21,7 +25,9 @@ namespace DTT.Doctor.UI.Controls
             // Modern Styling Defaults
             BackgroundColor = ClinicalColors.GhostWhite;
             BorderStyle = BorderStyle.None;
-            CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal;
+            // Không để DataGridView tự vẽ viền ô: OnCellPainting đã tự vẽ đường phân cách mảnh dưới mỗi hàng. Viền mặc định
+            // (SingleHorizontal) là nguồn gốc các đường kẻ đậm hiện ra quanh các ô của hàng mỗi khi rê chuột qua.
+            CellBorderStyle = DataGridViewCellBorderStyle.None;
             ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.None;
             EnableHeadersVisualStyles = false;
             SelectionMode = DataGridViewSelectionMode.FullRowSelect;
@@ -56,31 +62,45 @@ namespace DTT.Doctor.UI.Controls
 
             CellPainting += OnCellPainting;
 
+            // Vẽ lại TOÀN lưới (Invalidate) khi đổi ô/hàng được trỏ tới, thay vì chỉ InvalidateRow từng hàng: vẽ lại từng phần
+            // làm lộ các đường kẻ đậm quanh ô của những hàng chuột đã đi qua. Lưới ở đây nhỏ (vài chục hàng) nên chi phí không đáng kể.
             CellMouseMove += (s, e) => {
                 if (_hoveredRow != e.RowIndex || _hoveredCol != e.ColumnIndex)
                 {
-                    int oldRow = _hoveredRow;
                     _hoveredRow = e.RowIndex;
                     _hoveredCol = e.ColumnIndex;
-                    if (oldRow >= 0 && oldRow < Rows.Count) InvalidateRow(oldRow);
-                    if (_hoveredRow >= 0 && _hoveredRow < Rows.Count) InvalidateRow(_hoveredRow);
+                    Invalidate();
                     Cursor = (e.RowIndex >= 0) ? Cursors.Hand : Cursors.Default;
                 }
             };
             CellMouseLeave += (s, e) => {
-                int oldRow = _hoveredRow;
+                if (_hoveredRow == -1 && _hoveredCol == -1) return;
                 _hoveredRow = -1;
                 _hoveredCol = -1;
-                if (oldRow >= 0 && oldRow < Rows.Count) InvalidateRow(oldRow);
+                Invalidate();
                 Cursor = Cursors.Default;
             };
             MouseLeave += (s, e) => {
-                int oldRow = _hoveredRow;
+                if (_hoveredRow == -1 && _hoveredCol == -1) return;
                 _hoveredRow = -1;
                 _hoveredCol = -1;
-                if (oldRow >= 0 && oldRow < Rows.Count) InvalidateRow(oldRow);
+                Invalidate();
                 Cursor = Cursors.Default;
             };
+        }
+
+        // Mọi yêu cầu vẽ lại TỪNG PHẦN (hover, chọn hàng, cuộn, cập nhật 1 ô...) đều được nâng thành vẽ lại TOÀN lưới.
+        // Quan sát trên màn hình thật: các đường kẻ đen lạ chỉ hiện quanh ô của những hàng vừa bị vẽ lại riêng (hover/chọn),
+        // còn render thử toàn lưới cho hình sạch — nên luôn vẽ lại cả lưới. Lưới ở đây nhỏ nên chi phí không đáng kể.
+        private bool _promotingInvalidate;
+        protected override void OnInvalidated(InvalidateEventArgs e)
+        {
+            base.OnInvalidated(e);
+            if (_promotingInvalidate || !IsHandleCreated) return;
+            if (e.InvalidRect.Contains(ClientRectangle)) return; // đã là vẽ lại toàn bộ
+            _promotingInvalidate = true;
+            try { Invalidate(); }
+            finally { _promotingInvalidate = false; }
         }
 
         private void OnCellPainting(object sender, DataGridViewCellPaintingEventArgs e)
@@ -92,9 +112,16 @@ namespace DTT.Doctor.UI.Controls
                 {
                     e.Graphics.FillRectangle(bgBrush, e.CellBounds);
                 }
-                using (var dividerPen = new Pen(Color.FromArgb(240, 240, 240), 1f)) // Antd border #F0F0F0
+                // Viền tiêu đề: đường dưới đậm 2px + đường dọc ngăn cột — để thấy rõ ranh giới từng cột với phần thân bảng.
+                using (var strongBrush = new SolidBrush(ClinicalColors.BorderStrong))
                 {
-                    e.Graphics.DrawLine(dividerPen, e.CellBounds.Left, e.CellBounds.Bottom - 1, e.CellBounds.Right, e.CellBounds.Bottom - 1);
+                    e.Graphics.FillRectangle(strongBrush, e.CellBounds.Left, e.CellBounds.Bottom - 2, e.CellBounds.Width, 2);
+                }
+                using (var linePen = new Pen(ClinicalColors.BorderGray, 1f))
+                {
+                    e.Graphics.DrawLine(linePen, e.CellBounds.Right - 1, e.CellBounds.Top, e.CellBounds.Right - 1, e.CellBounds.Bottom - 2);
+                    if (e.ColumnIndex == 0)
+                        e.Graphics.DrawLine(linePen, e.CellBounds.Left, e.CellBounds.Top, e.CellBounds.Left, e.CellBounds.Bottom - 2);
                 }
                 if (e.Value != null)
                 {
@@ -120,13 +147,14 @@ namespace DTT.Doctor.UI.Controls
 
                 // 1. Paint clean row background (alternating soft neutral vs white)
                 Color bgColor = (e.RowIndex % 2 == 1) ? Color.FromArgb(250, 250, 250) : Color.White;
-                if (e.RowIndex == _hoveredRow)
-                {
-                    bgColor = Color.FromArgb(245, 245, 245); // Antd row hover feedback
-                }
                 if ((e.State & DataGridViewElementStates.Selected) != 0)
                 {
                     bgColor = Color.FromArgb(230, 244, 255); // Antd active selection #E6F4FF
+                }
+                // Hover đặt SAU selection để hàng đang rê chuột luôn tô vàng đậm (kể cả hàng đang chọn); rời chuột thì về màu chọn/nền thường.
+                if (e.RowIndex == _hoveredRow)
+                {
+                    bgColor = HoverRowBackColor;
                 }
 
                 using (var bgBrush = new SolidBrush(bgColor))
@@ -134,10 +162,14 @@ namespace DTT.Doctor.UI.Controls
                     e.Graphics.FillRectangle(bgBrush, e.CellBounds);
                 }
 
-                // 2. Draw a delicate, subtle horizontal separator underneath every row
-                using (var dividerPen = new Pen(Color.FromArgb(240, 240, 240), 1f))
+                // 2. Viền ô rõ ràng: đường ngang dưới mỗi hàng + đường dọc ngăn cột (cột đầu có thêm viền trái) — tự vẽ ở đây
+                //    (không dùng viền mặc định của DataGridView) để mọi bảng trong app có viền đồng nhất, đủ đậm để phân biệt ô với ô.
+                using (var linePen = new Pen(ClinicalColors.BorderGray, 1f))
                 {
-                    e.Graphics.DrawLine(dividerPen, e.CellBounds.Left, e.CellBounds.Bottom - 1, e.CellBounds.Right, e.CellBounds.Bottom - 1);
+                    e.Graphics.DrawLine(linePen, e.CellBounds.Left, e.CellBounds.Bottom - 1, e.CellBounds.Right, e.CellBounds.Bottom - 1);
+                    e.Graphics.DrawLine(linePen, e.CellBounds.Right - 1, e.CellBounds.Top, e.CellBounds.Right - 1, e.CellBounds.Bottom - 1);
+                    if (e.ColumnIndex == 0)
+                        e.Graphics.DrawLine(linePen, e.CellBounds.Left, e.CellBounds.Top, e.CellBounds.Left, e.CellBounds.Bottom - 1);
                 }
 
                 // 3. Render content cleanly
@@ -235,7 +267,11 @@ namespace DTT.Doctor.UI.Controls
                         bg = Color.FromArgb(255, 241, 240);     // Antd Error Red bg #FFF1F0
                         border = Color.FromArgb(255, 204, 199); // Antd Error Red border #FFCCC7
                         fg = Color.FromArgb(255, 77, 79);       // Antd Error Red text #FF4D4F
-                        label = "Không Đến Khám";
+                        // Cùng tông đỏ nhưng nhãn phải đúng nghĩa: "Khẩn"/"Bất thường" trước đây bị gắn nhầm "Không Đến Khám"
+                        // (màn KTV CLS hiện ca chỉ định khẩn thành "Không Đến Khám").
+                        if (rawVal.Contains("Khẩn")) label = "Khẩn";
+                        else if (rawVal.Contains("Bất thường") || rawVal.Equals("Abnormal", StringComparison.OrdinalIgnoreCase)) label = "Bất thường";
+                        else label = "Không Đến Khám";
                     }
 
                     if (!string.IsNullOrWhiteSpace(label))

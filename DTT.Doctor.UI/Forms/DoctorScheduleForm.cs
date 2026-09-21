@@ -207,7 +207,15 @@ namespace DTT.Doctor.UI.Forms
             try
             {
                 _gridSchedule.Rows.Clear();
-                int docId = TokenVault.DoctorId > 0 ? TokenVault.DoctorId : 1;
+                // Không xác định được bác sĩ đăng nhập thì báo rõ, KHÔNG tự xem lịch của "Bác sĩ #1" như thể đó là lịch của mình.
+                int docId = TokenVault.DoctorId;
+                if (docId <= 0)
+                {
+                    lblShiftStatus.Text = "Trạng thái: Không xác định được bác sĩ đăng nhập";
+                    lblShiftStatus.ForeColor = Color.FromArgb(239, 68, 68);
+                    _gridSchedule.Rows.Add(1, "—", "—", "Lỗi tài khoản", "Không xác định được Bác sĩ đang đăng nhập. Vui lòng đăng nhập lại.");
+                    return;
+                }
 
                 var api = new ApiService();
                 var data = await api.GetDoctorSchedulesAsync(docId, targetDate.ToString("yyyy-MM-dd"));
@@ -216,7 +224,9 @@ namespace DTT.Doctor.UI.Forms
                 {
                     var first = data[0];
                     bool isWorking = (bool)(first.isWorking ?? false);
-                    string statusText = (string)(first.statusText ?? "Nghỉ phép");
+                    // Ngày làm việc mà server không kèm statusText thì hiện "Có lịch trực" — trước đây fallback "Nghỉ phép"
+                    // làm 1 ngày đang có ca trực bị hiện thành "Trạng thái: Nghỉ phép".
+                    string statusText = (string)(first.statusText ?? (isWorking ? "Có lịch trực" : "Nghỉ phép"));
 
                     if (!isWorking)
                     {

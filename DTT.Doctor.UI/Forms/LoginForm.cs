@@ -65,7 +65,7 @@ namespace DTT.Doctor.UI.Forms
             StartPosition = FormStartPosition.CenterScreen;
             FormBorderStyle = FormBorderStyle.None; // Flat Borderless
             MaximizeBox = false;
-            BackColor = ClinicalColors.DeepNavy; // Vibrant #4338CA
+            BackColor = ClinicalColors.NavBase; // cùng navy với thanh menu/tiêu đề của màn chính
             Font = ClinicalColors.GetMainFont(10f, FontStyle.Regular);
             ClinicalColors.ConfigureMaterialSkin(this);
 

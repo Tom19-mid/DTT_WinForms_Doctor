@@ -445,8 +445,8 @@ namespace DTT.Doctor.UI.Forms
                     drug.Unit,
                     drug.Quantity,
                     dosageDisplay,
-                    drug.Frequency,
-                    drug.Duration,
+                    string.IsNullOrWhiteSpace(drug.Frequency) ? "—" : drug.Frequency,
+                    string.IsNullOrWhiteSpace(drug.Duration) ? "—" : drug.Duration,
                     drug.UsageInstruction ?? "—",
                     drug.StockQuantity.ToString(),
                     stockStatus

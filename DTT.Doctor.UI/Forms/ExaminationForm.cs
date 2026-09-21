@@ -712,49 +712,36 @@ namespace DTT.Doctor.UI.Forms
 
         private async void LoadMedicinesIntoCombo()
         {
+            // Chỉ dùng danh mục thuốc THẬT từ kho (API). Trước đây khi API lỗi/rỗng sẽ tự nạp danh sách 5 thuốc dựng sẵn
+            // (MedicineId 1/2/6/15/25, tồn kho "không rõ") — Bác sĩ có thể kê đơn bằng mã thuốc không có thật.
+            List<MedicineModel> list = null;
             try
             {
-                var api = new ApiService();
-                var list = await api.GetMedicinesAsync();
-                if (list != null && list.Count > 0)
-                {
-                    _availableMedicines = list;
-                }
-                else
-                {
-                    _availableMedicines = GetFallbackMedicines();
-                }
-
-                _cboDrugSelect.Items.Clear();
-                foreach (var m in _availableMedicines)
-                {
-                    _cboDrugSelect.Items.Add(FormatDrugComboText(m));
-                }
-
-                _cboDrugSelect.SelectedIndexChanged -= OnDrugSelectedIndexChanged;
-                _cboDrugSelect.SelectedIndexChanged += OnDrugSelectedIndexChanged;
-
-                if (_cboDrugSelect.Items.Count > 0)
-                {
-                    _cboDrugSelect.SelectedIndex = 0;
-                }
+                list = await new ApiService().GetMedicinesAsync();
             }
-            catch
+            catch { }
+
+            if (IsDisposed) return;
+            _availableMedicines = list ?? new List<MedicineModel>();
+
+            _cboDrugSelect.Items.Clear();
+            foreach (var m in _availableMedicines)
             {
-                _availableMedicines = GetFallbackMedicines();
-                _cboDrugSelect.Items.Clear();
-                foreach (var m in _availableMedicines)
-                {
-                    _cboDrugSelect.Items.Add(FormatDrugComboText(m));
-                }
+                _cboDrugSelect.Items.Add(FormatDrugComboText(m));
+            }
 
-                _cboDrugSelect.SelectedIndexChanged -= OnDrugSelectedIndexChanged;
-                _cboDrugSelect.SelectedIndexChanged += OnDrugSelectedIndexChanged;
+            _cboDrugSelect.SelectedIndexChanged -= OnDrugSelectedIndexChanged;
+            _cboDrugSelect.SelectedIndexChanged += OnDrugSelectedIndexChanged;
 
-                if (_cboDrugSelect.Items.Count > 0)
-                {
-                    _cboDrugSelect.SelectedIndex = 0;
-                }
+            if (_cboDrugSelect.Items.Count > 0)
+            {
+                _cboDrugSelect.SelectedIndex = 0;
+            }
+            else
+            {
+                MessageBox.Show(
+                    "Không tải được danh mục thuốc từ Kho Dược (mất kết nối hoặc kho chưa có thuốc).\n\nBạn chưa thể kê đơn thuốc lúc này — vui lòng kiểm tra kết nối rồi mở lại phiếu khám.",
+                    "Không có danh mục thuốc", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
 
@@ -769,21 +756,6 @@ namespace DTT.Doctor.UI.Forms
                     _txtDosageInstruction.Text = med.DefaultUsage;
                 }
             }
-        }
-
-        private List<MedicineModel> GetFallbackMedicines()
-        {
-            // StockQuantity = -1 nghĩa là "không rõ tồn kho" (danh sách dự phòng khi API lỗi, không
-            // phải dữ liệu tồn kho thật) — KHÔNG được hiện "HẾT HÀNG"/chặn thêm thuốc dựa trên giá trị
-            // mặc định 0 của các mục dự phòng này.
-            return new List<MedicineModel>
-            {
-                new MedicineModel { MedicineId = 1, MedicineName = "Amoxicillin 500mg", Unit = "Viên", StockQuantity = -1, DefaultUsage = "Uống 1 viên/lần, 2 lần/ngày sau ăn sáng, tối" },
-                new MedicineModel { MedicineId = 2, MedicineName = "Augmentin 1g", Unit = "Viên", StockQuantity = -1, DefaultUsage = "Uống 1 viên/lần, 2 lần/ngày sau ăn" },
-                new MedicineModel { MedicineId = 6, MedicineName = "Paracetamol 500mg (Panadol Extra)", Unit = "Viên", StockQuantity = -1, DefaultUsage = "Uống 1-2 viên/lần khi sốt >38.5°C (cách 4-6h)" },
-                new MedicineModel { MedicineId = 15, MedicineName = "Nexium mups 40mg", Unit = "Viên", StockQuantity = -1, DefaultUsage = "Uống 1 viên/lần/ngày trước ăn sáng 30 phút" },
-                new MedicineModel { MedicineId = 25, MedicineName = "Vitamin C 1000mg", Unit = "Hộp", StockQuantity = -1, DefaultUsage = "Hòa 1 viên sủi vào 200ml nước uống mỗi sáng" }
-            };
         }
 
         // "(Chai)" hoặc "(Chai) — CÒN 5" hoặc "(Chai) — HẾT HÀNG" tùy tồn kho thật từ API — trước đây
@@ -801,12 +773,25 @@ namespace DTT.Doctor.UI.Forms
             int idx = _cboDrugSelect.SelectedIndex;
             MedicineModel selectedMed = (idx >= 0 && idx < _availableMedicines.Count) ? _availableMedicines[idx] : null;
 
-            string drugName = selectedMed != null ? selectedMed.MedicineName : (_cboDrugSelect.SelectedItem?.ToString() ?? "Paracetamol 500mg");
-            string unit = selectedMed != null ? selectedMed.Unit : "Viên";
-            int medId = selectedMed != null ? selectedMed.MedicineId : (_prescriptions.Count + 1);
+            // Phải chọn 1 thuốc thật trong kho — trước đây nếu không chọn gì sẽ tự thêm "Paracetamol 500mg" (mã thuốc
+            // tự đánh số), và số lượng không hợp lệ bị âm thầm đổi thành 10.
+            if (selectedMed == null)
+            {
+                MessageBox.Show("Vui lòng chọn một loại thuốc trong danh mục Kho Dược trước khi thêm vào đơn.",
+                    "Chưa chọn thuốc", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
 
-            int.TryParse(_txtQuantity.Text, out int qty);
-            if (qty <= 0) qty = 10;
+            string drugName = selectedMed.MedicineName;
+            string unit = selectedMed.Unit;
+            int medId = selectedMed.MedicineId;
+
+            if (!int.TryParse(_txtQuantity.Text, out int qty) || qty <= 0)
+            {
+                MessageBox.Show("Vui lòng nhập số lượng thuốc hợp lệ (số nguyên lớn hơn 0).",
+                    "Số lượng không hợp lệ", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
 
             // Chặn kê thuốc đã hết hàng (StockQuantity == 0, đọc thật từ API) — trước đây không kiểm
             // tra gì ở bước này, Bác sĩ chỉ biết thuốc hết hàng sau khi bấm "Hoàn tất & Lưu bệnh án".
@@ -924,7 +909,7 @@ namespace DTT.Doctor.UI.Forms
                 MessageBox.Show(
                     $"HOÀN TẤT KHÁM & ĐÃ KÊ ĐƠN THUỐC!\n\n" +
                     $"• Bệnh nhân: {_appointment.PatientName}\n" +
-                    $"• Chẩn đoán: {(!string.IsNullOrEmpty(_txtDiagnosis.Text) ? _txtDiagnosis.Text : "Khám sức khỏe")}\n" +
+                    $"• Chẩn đoán: {(!string.IsNullOrEmpty(_txtDiagnosis.Text) ? _txtDiagnosis.Text : "(chưa nhập)")}\n" +
                     $"• Số loại thuốc đã kê: {_prescriptions.Count} loại thuốc\n\n" +
                     $"💳 Ca khám đã được chuyển sang trạng thái CHỜ THANH TOÁN.\n" +
                     $"Bệnh nhân vui lòng đến Quầy Thu Ngân thanh toán viện phí và tiền thuốc trước khi sang Nhà Thuốc nhận thuốc.",
@@ -935,7 +920,7 @@ namespace DTT.Doctor.UI.Forms
                 MessageBox.Show(
                     $"HOÀN TẤT CA KHÁM VÀ LƯU HỒ SƠ Y TẾ!\n\n" +
                     $"• Bệnh nhân: {_appointment.PatientName}\n" +
-                    $"• Chẩn đoán: {(!string.IsNullOrEmpty(_txtDiagnosis.Text) ? _txtDiagnosis.Text : "Khám sức khỏe")}\n\n" +
+                    $"• Chẩn đoán: {(!string.IsNullOrEmpty(_txtDiagnosis.Text) ? _txtDiagnosis.Text : "(chưa nhập)")}\n\n" +
                     $"Hồ sơ khám bệnh đã được ghi nhận thành công trên hệ thống.",
                     "Hoàn Tất Ca Khám Lâm Sàng", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
@@ -959,7 +944,7 @@ namespace DTT.Doctor.UI.Forms
             {
                 AppointmentId = _appointment.AppointmentId,
                 PatientId = _appointment.PatientId,
-                DoctorId = TokenVault.DoctorId > 0 ? TokenVault.DoctorId : 1,
+                DoctorId = TokenVault.DoctorId, // đường lưu đã chặn DoctorId <= 0 ở trên — không tự gán "Bác sĩ #1"
                 Pulse = _txtPulse.Text,
                 BloodPressure = _txtBP.Text,
                 Temperature = _txtTemp.Text,

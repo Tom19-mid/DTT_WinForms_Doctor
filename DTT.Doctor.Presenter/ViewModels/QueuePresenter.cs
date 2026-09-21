@@ -94,7 +94,7 @@ namespace DTT.Doctor.Presenter.ViewModels
                     var newAppts = newList.Where(a => a.AppointmentId > _lastMaxId).ToList();
                     foreach (var appt in newAppts)
                     {
-                        _view.OnNewAppointmentNotified(appt.PatientName ?? "Khách", appt.TimeSlot ?? "Trong ngày", appt.SpecialtyName ?? "Nội tổng quát");
+                        _view.OnNewAppointmentNotified(appt.PatientName ?? "Khách", appt.TimeSlot ?? "Trong ngày", appt.SpecialtyName ?? "—"); // không tự gán "Nội tổng quát" khi thiếu chuyên khoa
                     }
                 }
 
@@ -108,7 +108,7 @@ namespace DTT.Doctor.Presenter.ViewModels
                         {
                             if (prevStatus == "AwaitingTestResults" && appt.Status == "InProgress")
                             {
-                                _view.OnClinicalResultsReady(appt.PatientName ?? "Bệnh nhân", appt.SpecialtyName ?? "Nội tổng quát");
+                                _view.OnClinicalResultsReady(appt.PatientName ?? "Bệnh nhân", appt.SpecialtyName ?? "—");
                             }
                             else if ((prevStatus == "CheckedIn" || prevStatus == "7") && (appt.Status == "WaitingForDoctor" || appt.Status == "8"))
                             {
@@ -136,10 +136,15 @@ namespace DTT.Doctor.Presenter.ViewModels
         public async Task<bool> UpdateStatusAsync(int appointmentId, string status)
         {
             bool success = await _apiService.UpdateAppointmentStatusAsync(appointmentId, status);
-            var target = _allAppointments.FirstOrDefault(a => a.AppointmentId == appointmentId);
-            if (target != null)
+            // Chỉ đổi trạng thái trên giao diện khi server ĐÃ chấp nhận — trước đây cập nhật cục bộ bất kể kết quả nên khi API
+            // từ chối (vd chốt chặn quy trình Check-in → Điều dưỡng → Bác sĩ, hoặc mất mạng) bảng vẫn hiện trạng thái sai.
+            if (success)
             {
-                target.Status = status;
+                var target = _allAppointments.FirstOrDefault(a => a.AppointmentId == appointmentId);
+                if (target != null)
+                {
+                    target.Status = status;
+                }
             }
             FilterAndDisplay(_currentQuery, _currentStatusFilter);
             return success;

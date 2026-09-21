@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -445,6 +446,19 @@ namespace DTT.Doctor.UI.Forms
             _pnlStatusBadge.Invalidate();
         }
 
+        // Lễ tân đã gửi ít nhất 1 tin trả lời bệnh nhân trong phiên này chưa (không tính câu chào tự động).
+        private bool _staffReplied;
+
+        // Gọi sau khi đóng cửa sổ: nếu đã tiếp nhận nhưng CHƯA trả lời bệnh nhân và chưa đóng phiên thì trả phiên về hàng chờ chung,
+        // để không bị "kẹt" ở 1 lễ tân không còn xử lý (các lễ tân khác không thấy phiên đã có người nhận). Đã trả lời rồi thì giữ
+        // nguyên — phiên còn nằm ở "Phiên tư vấn dở dang" của lễ tân đó cho tới khi họ đóng.
+        // Trả về true nếu phiên vừa được trả về hàng chờ.
+        public async Task<bool> ReleaseIfUnrepliedAsync()
+        {
+            if (!_claimed || _staffReplied || _sessionStatus == "Closed") return false;
+            return await _api.ReleaseChatSessionAsync(_item.SessionId);
+        }
+
         // ── Tiếp nhận phiên (Claim) rồi tải lịch sử + bật polling ───────────
         private async Task ClaimAndLoadAsync()
         {
@@ -480,6 +494,8 @@ namespace DTT.Doctor.UI.Forms
             if (!success || IsDisposed) return;
 
             _sessionStatus = status;
+            // Lễ tân đã thật sự trả lời khi có nhiều hơn 1 tin "Staff" (1 tin đầu là câu chào tự động do Claim sinh ra).
+            if (messages.Count(m => m.SenderType == "Staff") > 1) _staffReplied = true;
             UpdateHeaderStatus(status);
             RenderTranscript(messages);
 

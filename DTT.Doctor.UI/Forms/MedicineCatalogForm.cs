@@ -214,7 +214,8 @@ namespace DTT.Doctor.UI.Forms
                 int stt = 1;
                 foreach (var m in list)
                 {
-                    string priceStr = m.UnitPrice > 0 ? $"{m.UnitPrice:#,##0} VNĐ" : "15.000 VNĐ";
+                    // Chưa có giá thật thì hiện "—", không tự điền giá mẫu "15.000 VNĐ".
+                    string priceStr = m.UnitPrice > 0 ? $"{m.UnitPrice:#,##0} VNĐ" : "—";
                     // Hiện ĐÚNG tồn kho thật (trước đây khi StockQuantity = 0 sẽ hiện giả "500", che mất
                     // việc thuốc đã thật sự hết hàng — khiến bác sĩ không bao giờ biết cần báo nhập thêm).
                     int stock = m.StockQuantity;
@@ -226,7 +227,7 @@ namespace DTT.Doctor.UI.Forms
                         m.Unit,
                         priceStr,
                         $"{stock} {m.Unit}",
-                        !string.IsNullOrEmpty(m.DefaultUsage) ? m.DefaultUsage : "Uống sau ăn 30 phút",
+                        !string.IsNullOrEmpty(m.DefaultUsage) ? m.DefaultUsage : "—", // không tự bịa cách dùng thuốc
                         trangThai
                     );
 

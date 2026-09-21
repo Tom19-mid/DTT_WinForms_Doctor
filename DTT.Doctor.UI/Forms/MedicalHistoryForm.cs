@@ -284,7 +284,7 @@ namespace DTT.Doctor.UI.Forms
                                 (string)r.patientName,
                                 (string)r.phoneNumber,
                                 (string)r.doctorName,
-                                !string.IsNullOrEmpty(diagFull) ? diagFull : "Khám sức khỏe",
+                                !string.IsNullOrEmpty(diagFull) ? diagFull : "—",
                                 (string)r.prescriptionsSummary,
                                 "", // Cột nút "In Toa QR" (DataGridViewButtonColumn tự vẽ, không cần gán Text ở đây)
                                 "Xem Hồ Sơ"
@@ -418,14 +418,16 @@ namespace DTT.Doctor.UI.Forms
                 {
                     AppointmentId = appt.AppointmentId,
                     PatientId = appt.PatientId,
-                    DoctorId = TokenVault.DoctorId > 0 ? TokenVault.DoctorId : 1,
-                    Pulse = (string)(r.pulse ?? "75"),
-                    BloodPressure = (string)(r.bloodPressure ?? "120/80"),
-                    Temperature = (string)(r.temperature ?? "36.5"),
-                    Weight = (string)(r.weight ?? "65"),
-                    Symptoms = (string)(r.symptoms ?? "Bình thường"),
-                    Diagnosis = (string)(r.diagnosis ?? "Khám sức khỏe"),
-                    TreatmentPlan = (string)(r.treatmentPlan ?? "Theo dõi định kỳ"),
+                    // Thiếu dữ liệu thật thì để RỖNG (form in sẽ hiện "—") — trước đây tự điền mạch 75, huyết áp 120/80,
+                    // nhiệt độ 36.5, cân nặng 65, "Khám sức khỏe"... và DoctorId = 1 vào đơn thuốc in lại từ lịch sử.
+                    DoctorId = TokenVault.DoctorId,
+                    Pulse = (string)(r.pulse ?? ""),
+                    BloodPressure = (string)(r.bloodPressure ?? ""),
+                    Temperature = (string)(r.temperature ?? ""),
+                    Weight = (string)(r.weight ?? ""),
+                    Symptoms = (string)(r.symptoms ?? ""),
+                    Diagnosis = (string)(r.diagnosis ?? ""),
+                    TreatmentPlan = (string)(r.treatmentPlan ?? ""),
                     Prescriptions = presList
                 };
 

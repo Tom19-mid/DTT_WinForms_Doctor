@@ -263,7 +263,7 @@ namespace DTT.Doctor.UI.Forms
             {
                 Dock = DockStyle.Left,
                 Width = 260,
-                BackColor = Color.White
+                BackColor = ClinicalColors.NavBase // teal y tế đậm thay cho nền trắng chói
             };
             _pnlSidebar = pnlSidebar;
 
@@ -277,7 +277,7 @@ namespace DTT.Doctor.UI.Forms
             {
                 Dock = DockStyle.Right,
                 Width = 1,
-                BackColor = Color.FromArgb(226, 232, 240) // Thin subtle divider line
+                BackColor = ClinicalColors.NavDeep // đường ngăn giữa menu và nội dung
             };
             pnlSidebar.Controls.Add(pnlRightBorder);
 
@@ -285,7 +285,7 @@ namespace DTT.Doctor.UI.Forms
             {
                 Size = new Size(260, 110),
                 Location = new Point(0, 0),
-                BackColor = Color.White
+                BackColor = ClinicalColors.NavBase
             };
             CircularLogoControl circSidebarLogo = new CircularLogoControl
             {
@@ -300,7 +300,7 @@ namespace DTT.Doctor.UI.Forms
             {
                 Size = new Size(228, 72),
                 Location = new Point(16, 110),
-                BackColor = Color.FromArgb(248, 250, 252) // Light slate card background
+                BackColor = ClinicalColors.NavLight // thẻ người dùng: teal sáng hơn nền một bậc
             };
             AvatarBoxControl sidebarAvatar = new AvatarBoxControl(42)
             {
@@ -310,7 +310,7 @@ namespace DTT.Doctor.UI.Forms
             {
                 Text = TokenVault.GetFormattedTitleName(),
                 Font = ClinicalColors.GetMainFont(9.5f, FontStyle.Bold),
-                ForeColor = Color.FromArgb(15, 23, 42),
+                ForeColor = Color.White,
                 Size = new Size(160, 24),
                 Location = new Point(58, 12),
                 TextAlign = ContentAlignment.MiddleLeft,
@@ -320,7 +320,7 @@ namespace DTT.Doctor.UI.Forms
             {
                 Text = !string.IsNullOrEmpty(TokenVault.RoleName) ? TokenVault.RoleName : (TokenVault.RoleId == 4 ? "Lễ tân tiếp đón" : "Nhân viên Bệnh viện"),
                 Font = ClinicalColors.GetMainFont(8.5f, FontStyle.Bold),
-                ForeColor = ClinicalColors.DeepNavy, // Indigo text for role
+                ForeColor = ClinicalColors.OnNavAccent, // chữ vai trò: xanh ngọc nhạt, nổi trên nền teal
                 Size = new Size(160, 22),
                 Location = new Point(58, 36),
                 TextAlign = ContentAlignment.MiddleLeft,
@@ -453,16 +453,16 @@ namespace DTT.Doctor.UI.Forms
             {
                 Dock = DockStyle.Bottom,
                 Height = 128,
-                BackColor = Color.White
+                BackColor = ClinicalColors.NavBase
             };
             _pnlSidebarBottom = pnlSidebarBottom;
             RoundedButton btnAbout = new RoundedButton
             {
                 Text = "ℹ  Thông Tin",
                 Font = ClinicalColors.GetMainFont(10f, FontStyle.Bold),
-                ForeColor = ClinicalColors.TextDark,
-                BackColor = Color.FromArgb(241, 245, 249),
-                HoverBackColor = Color.FromArgb(226, 232, 240),
+                ForeColor = Color.White,
+                BackColor = ClinicalColors.NavLight,
+                HoverBackColor = ClinicalColors.NavActive,
                 BorderRadius = 12,
                 Size = new Size(228, 42),
                 Location = new Point(16, 14)
@@ -499,13 +499,13 @@ namespace DTT.Doctor.UI.Forms
                 Dock = DockStyle.Top,
                 Width = headerWidth,
                 Height = 72,
-                BackColor = Color.White
+                BackColor = ClinicalColors.NavBase // cùng tông teal với menu bên trái
             };
             Panel pnlHeaderDivider = new Panel
             {
                 Dock = DockStyle.Bottom,
-                Height = 1,
-                BackColor = ClinicalColors.BorderGray
+                Height = 2,
+                BackColor = ClinicalColors.NavDeep
             };
             pnlHeader.Controls.Add(pnlHeaderDivider);
 
@@ -513,7 +513,7 @@ namespace DTT.Doctor.UI.Forms
             {
                 Text = isReceptionist ? "Phân hệ Lễ Tân Tiếp Đón & Thu Ngân" : isLabTech ? "Chờ Thực Hiện CLS" : isPharmacist ? "Phân Hệ Dược Sĩ & Cấp Phát Thuốc" : "Quản lý bệnh nhân",
                 Font = ClinicalColors.GetMainFont(18f, FontStyle.Bold),
-                ForeColor = Color.FromArgb(15, 23, 42),
+                ForeColor = Color.White,
                 Size = new Size(500, 36),
                 Location = new Point(24, 8),
                 TextAlign = ContentAlignment.MiddleLeft,
@@ -526,7 +526,7 @@ namespace DTT.Doctor.UI.Forms
                      : isPharmacist ? $"📅  Hôm nay: {DateHelper.GetVietnameseDateString(DateTime.Now)}  •  Kiểm tra đơn thuốc & cấp phát thuốc theo toa"
                      : $"📅  Hôm nay: {DateHelper.GetVietnameseDateString(DateTime.Now)}  •  Xem danh sách đặt lịch & tiếp nhận bệnh nhân",
                 Font = ClinicalColors.GetMainFont(10f, FontStyle.Bold),
-                ForeColor = ClinicalColors.PrimaryBlue,
+                ForeColor = ClinicalColors.OnNavAccent,
                 Size = new Size(650, 24),
                 Location = new Point(26, 42),
                 TextAlign = ContentAlignment.MiddleLeft,
@@ -537,7 +537,7 @@ namespace DTT.Doctor.UI.Forms
             {
                 Text = "🔔",
                 Font = ClinicalColors.GetMainFont(15f, FontStyle.Bold),
-                ForeColor = ClinicalColors.PrimaryBlue,
+                ForeColor = Color.White,
                 BackColor = Color.Transparent,
                 Size = new Size(38, 38),
                 Location = new Point(headerWidth - 340, 16),
@@ -546,7 +546,7 @@ namespace DTT.Doctor.UI.Forms
                 Cursor = Cursors.Hand
             };
             _lblBell.Click += (s, e) => ShowNotificationPopup();
-            _lblBell.MouseEnter += (s, e) => { if (_unreadDoctorNotifs == 0) _lblBell.ForeColor = Color.FromArgb(29, 78, 216); };
+            _lblBell.MouseEnter += (s, e) => { if (_unreadDoctorNotifs == 0) _lblBell.ForeColor = ClinicalColors.OnNavAccent; };
             _lblBell.MouseLeave += (s, e) => UpdateBellBadge();
 
             _lblBellBadge = new Label
@@ -579,7 +579,7 @@ namespace DTT.Doctor.UI.Forms
             {
                 Text = $"{TokenVault.GetFormattedTitleName()}\n{(!string.IsNullOrEmpty(TokenVault.RoleName) ? TokenVault.RoleName : (TokenVault.RoleId == 4 ? "Lễ tân tiếp đón" : "Bác sĩ khám bệnh"))}",
                 Font = ClinicalColors.GetMainFont(9.5f, FontStyle.Bold),
-                ForeColor = ClinicalColors.TextDark,
+                ForeColor = Color.White,
                 Size = new Size(220, 42),
                 Location = new Point(headerWidth - 285, 15),
                 Anchor = AnchorStyles.Top | AnchorStyles.Right,
@@ -839,7 +839,15 @@ namespace DTT.Doctor.UI.Forms
                         return;
                     }
 
-                    await _presenter.UpdateStatusAsync(apptId, "InProgress");
+                    // Server có thể TỪ CHỐI (vd ca chưa qua Điều dưỡng đo sinh hiệu, hoặc mất kết nối) — khi đó không được
+                    // hiện "Đang khám" và mở phiếu khám như thể đã chuyển trạng thái thành công.
+                    if (!await _presenter.UpdateStatusAsync(apptId, "InProgress"))
+                    {
+                        MessageBox.Show(
+                            "Không thể chuyển ca này sang \"Đang khám\" — máy chủ từ chối hoặc mất kết nối.\nCa khám phải được Check-in và Điều dưỡng đo sinh hiệu trước khi Bác sĩ khám.\n\nBấm \"Làm Mới\" để tải lại danh sách rồi thử lại.",
+                            "Không thể bắt đầu khám", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        return;
+                    }
                     row.Cells[5].Value = "InProgress";
                     _gridQueue.InvalidateRow(e.RowIndex);
                     _presenter.FilterAndDisplay(_txtSearch.Text, _currentTabFilter);
@@ -899,7 +907,13 @@ namespace DTT.Doctor.UI.Forms
                         if (confirm != DialogResult.Yes) return;
                     }
 
-                    await _presenter.UpdateStatusAsync(apptId, "Completed");
+                    if (!await _presenter.UpdateStatusAsync(apptId, "Completed"))
+                    {
+                        MessageBox.Show(
+                            "Không thể đánh dấu hoàn thành — máy chủ từ chối hoặc mất kết nối.\nBấm \"Làm Mới\" để tải lại danh sách rồi thử lại.",
+                            "Không thể hoàn thành ca khám", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        return;
+                    }
                     row.Cells[5].Value = "Completed";
                     _gridQueue.InvalidateRow(e.RowIndex);
                     _presenter.FilterAndDisplay(_txtSearch.Text, _currentTabFilter);
@@ -954,12 +968,12 @@ namespace DTT.Doctor.UI.Forms
             foreach (var b in allButtons)
             {
                 b.BackColor = Color.Transparent;
-                b.ForeColor = Color.FromArgb(71, 85, 105); // Subtle dark slate text
+                b.ForeColor = ClinicalColors.OnNavText; // chữ xanh nhạt trên nền teal
                 b.Font = ClinicalColors.GetMainFont(10f, FontStyle.Regular);
                 b.Invalidate();
             }
-            activeBtn.BackColor = Color.FromArgb(238, 242, 255); // Soft indigo-tinted active background
-            activeBtn.ForeColor = ClinicalColors.DeepNavy; // Deep Indigo text for active state (#4338CA)
+            activeBtn.BackColor = ClinicalColors.NavActive; // mục đang chọn: teal sáng
+            activeBtn.ForeColor = Color.White;
             activeBtn.Font = ClinicalColors.GetMainFont(10f, FontStyle.Bold);
             activeBtn.Invalidate();
         }
@@ -970,8 +984,8 @@ namespace DTT.Doctor.UI.Forms
             {
                 Text = text,
                 Font = ClinicalColors.GetMainFont(10f, active ? FontStyle.Bold : FontStyle.Regular),
-                ForeColor = active ? ClinicalColors.DeepNavy : Color.FromArgb(71, 85, 105),
-                BackColor = active ? Color.FromArgb(238, 242, 255) : Color.Transparent,
+                ForeColor = active ? Color.White : ClinicalColors.OnNavText,
+                BackColor = active ? ClinicalColors.NavActive : Color.Transparent,
                 FlatStyle = FlatStyle.Flat,
                 Size = new Size(260, 44),
                 Location = new Point(0, y),
@@ -986,29 +1000,29 @@ namespace DTT.Doctor.UI.Forms
                 if (btn.Font.Bold)
                 {
                     e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-                    using (var brush = new SolidBrush(ClinicalColors.PrimaryBlue))
+                    using (var brush = new SolidBrush(ClinicalColors.OnNavAccent)) // thanh nhấn bên trái của mục đang chọn
                     {
                         e.Graphics.FillRectangle(brush, 0, 4, 4, btn.Height - 8);
                     }
                 }
             };
             btn.MouseEnter += (s, e) => {
-                if (btn.BackColor != Color.FromArgb(238, 242, 255))
+                if (btn.BackColor != ClinicalColors.NavActive) // mục đang chọn giữ nguyên
                 {
-                    btn.BackColor = Color.FromArgb(248, 250, 252); // Soft hover slate
-                    btn.ForeColor = Color.FromArgb(15, 23, 42);
+                    btn.BackColor = ClinicalColors.NavLight; // hover: teal sáng hơn nền một bậc
+                    btn.ForeColor = Color.White;
                 }
             };
             btn.MouseLeave += (s, e) => {
                 if (btn.Font.Bold)
                 {
-                    btn.BackColor = Color.FromArgb(238, 242, 255);
-                    btn.ForeColor = ClinicalColors.DeepNavy;
+                    btn.BackColor = ClinicalColors.NavActive;
+                    btn.ForeColor = Color.White;
                 }
                 else
                 {
                     btn.BackColor = Color.Transparent;
-                    btn.ForeColor = Color.FromArgb(71, 85, 105);
+                    btn.ForeColor = ClinicalColors.OnNavText;
                 }
             };
             return btn;
@@ -1207,7 +1221,7 @@ namespace DTT.Doctor.UI.Forms
             {
                 _lblBell.Text = "🔔";
                 _lblBell.Font = ClinicalColors.GetMainFont(16f, FontStyle.Bold);
-                _lblBell.ForeColor = Color.FromArgb(239, 68, 68); // Vibrant Red when unread
+                _lblBell.ForeColor = Color.FromArgb(252, 129, 129); // đỏ sáng khi có thông báo chưa đọc — đủ tương phản trên nền teal
                 if (_lblBellBadge != null && !_lblBellBadge.IsDisposed)
                 {
                     _lblBellBadge.Text = _unreadDoctorNotifs > 99 ? "99+" : _unreadDoctorNotifs.ToString();
@@ -1220,7 +1234,7 @@ namespace DTT.Doctor.UI.Forms
             {
                 _lblBell.Text = "🔔";
                 _lblBell.Font = ClinicalColors.GetMainFont(15f, FontStyle.Bold);
-                _lblBell.ForeColor = ClinicalColors.PrimaryBlue; // Vibrant Blue normally
+                _lblBell.ForeColor = Color.White; // bình thường: trắng trên nền teal
                 if (_lblBellBadge != null && !_lblBellBadge.IsDisposed)
                 {
                     _lblBellBadge.Visible = false;

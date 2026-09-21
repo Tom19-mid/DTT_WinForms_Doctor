@@ -504,8 +504,9 @@ namespace DTT.Doctor.UI.Forms
 
                 var all = await allTask;
 
-                // Tab 0: Bệnh nhân đã tiếp đón/Check-in (status=7 hoặc CheckedIn/Confirmed) – chờ điều dưỡng đo
-                _waitingList = all.FindAll(a => a.Status == "CheckedIn" || a.Status == "Confirmed" || a.Status == "Waiting");
+                // Tab 0: Chỉ bệnh nhân Lễ Tân ĐÃ Check-in (status=7 → "CheckedIn") mới chờ điều dưỡng đo.
+                // "Confirmed" (status 1/2) là ca đã xác nhận nhưng CHƯA đến check-in → không được hiện ở đây.
+                _waitingList = all.FindAll(a => a.Status == "CheckedIn");
 
                 // Tab 1: Bệnh nhân đã WaitingForDoctor (status=8) – ĐD đã đo xong hôm nay
                 _doneList = all.FindAll(a => a.Status == "WaitingForDoctor" || a.Status == "InProgress" || a.Status == "Completed");
@@ -614,9 +615,8 @@ namespace DTT.Doctor.UI.Forms
             for (int i = 0; i < list.Count; i++)
             {
                 var a   = list[i];
-                string ageSex = a.PatientAge > 0
-                    ? $"{a.PatientAge} tuổi / {(a.PatientGender == "Nam" ? "♂" : "♀")}"
-                    : (a.PatientGender == "Nam" ? "♂" : a.PatientGender == "Nữ" ? "♀" : "—");
+                string sexSymbol = a.PatientGender == "Nam" ? "♂" : a.PatientGender == "Nữ" ? "♀" : "—";
+                string ageSex = a.PatientAge > 0 ? $"{a.PatientAge} tuổi / {sexSymbol}" : sexSymbol;
                 string action = isDone ? ExtractBmi(a.NurseNote) : "▶ Đo sinh hiệu";
 
                 int idx = grid.Rows.Add(i + 1, a.PatientName, ageSex, a.SpecialtyName, a.TimeSlot, a.ClinicRoom, action, a.AppointmentId);
